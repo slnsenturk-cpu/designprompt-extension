@@ -605,6 +605,8 @@ Illustration style: ${extractedData.illustrationStyle ? `${extractedData.illustr
 Curved panels: ${extractedData.curvedPanels ? extractedData.curvedPanels.map(p => `${p.side} edge, ${p.width}px, bg ${p.bg}, hasMenu=${p.hasMenu}`).join('; ') : 'none'}
 Countdown/live text: ${extractedData.countdownElements ? extractedData.countdownElements.map(c => `"${c.text}" (${c.position})`).join('; ') : 'none'}
 Case grid: ${extractedData.caseGridPattern ? `${extractedData.caseGridPattern.entryCount} entries, ${extractedData.caseGridPattern.columns||'?'}col, tags=[${(extractedData.caseGridPattern.entryStructure?.tagLabels||[]).join(', ')}], hoverVideo=${extractedData.caseGridPattern.entryStructure?.hasHoverVideo||false}` : 'none'}
+Custom cursor: ${extractedData.customCursor ? `type=${extractedData.customCursor.type}` : 'none (standard cursor)'}
+Masonry grid: ${extractedData.masonryGrid ? `${extractedData.masonryGrid.columns}col, ${extractedData.masonryGrid.entryCount} items, heights ${extractedData.masonryGrid.heightRange.min}-${extractedData.masonryGrid.heightRange.max}px, method=${extractedData.masonryGrid.layoutMethod}` : 'none'}
 ${buttonDataStr}${typoDataStr}${spacingDataStr}${iconDataStr}
 
 IMPORTANT — follow these rules exactly:
@@ -1338,6 +1340,24 @@ function generateComponentGuidance(data, style) {
     lines.push('**Decorative bg:** SVG elements, `position:absolute`, `z-index:-1`, `pointer-events:none`, `opacity: 0.05–0.12`. Keep minimal.');
   }
 
+  // ── Custom cursor ──
+  if (data.customCursor && data.customCursor.hasCustomCursor) {
+    const cc = data.customCursor;
+    if (cc.type === 'js-cursor-follower') {
+      lines.push('**Custom cursor:** JS-driven cursor follower element (`position:fixed`, `pointer-events:none`). Hide native cursor on interactive areas with `cursor:none`. The follower div tracks mouse position via `mousemove` event, applies `transform: translate()` with slight easing (lerp 0.1–0.15).');
+    } else if (cc.type === 'css-cursor-image') {
+      lines.push(`**Custom cursor:** CSS \`cursor: url(...)\` — custom cursor image on interactive elements. ${cc.details?.selector ? 'Applied to: `'+cc.details.selector+'`.' : ''}`);
+    } else if (cc.type === 'cursor-hidden') {
+      lines.push('**Custom cursor:** Native cursor hidden (`cursor:none`). Custom JS cursor element follows mouse position.');
+    }
+  }
+
+  // ── Masonry grid ──
+  if (data.masonryGrid) {
+    const mg = data.masonryGrid;
+    lines.push(`**Masonry grid:** ${mg.columns}-column masonry layout (${mg.layoutMethod}), ${mg.entryCount} items. Heights vary from ${mg.heightRange.min}px to ${mg.heightRange.max}px.${mg.hasVaryingWidths ? ' Column widths vary: '+mg.columnWidths.join('px, ')+'px.' : ''} Use CSS \`column-count: ${mg.columns}\` or JS masonry library (Isotope/Masonry.js) with absolute positioning.`);
+  }
+
   if (ui.hasIconSystem) {
     const iconD = ui.iconDetails || {};
     const iconStyle = ui.iconStyle || 'outlined';
@@ -1795,8 +1815,12 @@ function buildPagePrompt(data, aiDirection) {
       scm.forEach((sec, i) => {
         // Override section type with case grid if detected
         let secType = sec.type;
-        if (data.caseGridPattern && secType === 'content' && sec.heading && /case|work|project|portfolio/i.test(sec.heading)) {
-          secType = 'case-grid';
+        // Override to case-grid if: grid pattern detected AND this section contains grid entries
+        if (data.caseGridPattern && (secType === 'content' || secType === 'feature-grid')) {
+          // Match by heading keywords OR if the section has many entries (case grid is usually the largest section)
+          if ((sec.heading && /case|work|project|portfolio|featured/i.test(sec.heading)) || data.caseGridPattern.entryCount > 6) {
+            secType = 'case-grid';
+          }
         }
         let desc = `**Section ${i+1}: ${secType}**`;
         if (sec.heading) desc += ` — "${sec.heading}"`;

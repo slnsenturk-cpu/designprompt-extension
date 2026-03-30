@@ -451,6 +451,8 @@
     tokens.countdownElements = detectCountdownElements();
     tokens.caseGridPattern = detectCaseGridPattern();
     tokens.navPattern = detectNavPattern();
+    tokens.customCursor = detectCustomCursor();
+    tokens.masonryGrid = detectMasonryGrid();
 
     return tokens;
   }
@@ -458,87 +460,126 @@
   // ─── Rotating / cycling text detection ───────────────────────────────────
   function detectRotatingText() {
     const results = [];
-    // Look for elements whose text content changes (multiple children hidden/shown)
-    const candidates = document.querySelectorAll(
+    const hero = document.querySelector('[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type');
+    if (!hero) return null;
+
+    // Strategy 1: Multiple hidden/shown siblings (Swiper-style word rotation)
+    const candidates = hero.querySelectorAll(
       'h1, h2, [class*="rotating"], [class*="Rotating"], [class*="cycle"], [class*="Cycle"], ' +
       '[class*="word-switch"], [class*="text-rotate"], [class*="headline"]'
     );
     for (const el of candidates) {
       const children = Array.from(el.children);
-      // Multiple same-level children where some are hidden = rotating text
       if (children.length >= 2) {
         const texts = children.map(c => c.textContent?.trim()).filter(t => t && t.length > 0 && t.length < 60);
         const visibleCount = children.filter(c => {
           const cs = getComputedStyle(c);
           return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.1;
         }).length;
-        // If many children but only 1-2 visible = rotating text
         if (texts.length >= 2 && visibleCount <= 2 && visibleCount < texts.length) {
           results.push({ element: el.tagName, words: texts, class: el.className?.slice(0, 50) });
         }
       }
-      // Also check for CSS animation on text containers
-      const cs = getComputedStyle(el);
-      if (cs.animationName && cs.animationName !== 'none') {
-        const parent = el.parentElement;
-        const siblings = parent ? Array.from(parent.children).filter(c => c.tagName === el.tagName) : [];
-        if (siblings.length >= 2) {
-          const words = siblings.map(s => s.textContent?.trim()).filter(t => t && t.length < 60);
-          if (words.length >= 2) results.push({ element: el.tagName, words, animated: true });
+    }
+
+    // Strategy 2: JS-driven textContent rotation — detect via heuristic
+    // If hero has a short H1 (single word) + a static subtitle above/below = likely rotating
+    if (results.length === 0) {
+      const h1 = hero.querySelector('h1');
+      const h3 = hero.querySelector('h3, [class*="sub"], [class*="tagline"]');
+      if (h1 && h3) {
+        const h1Text = h1.textContent?.trim();
+        const h3Text = h3.textContent?.trim();
+        // Short H1 (1-2 words) with a longer subtitle = rotating word pattern
+        if (h1Text && h1Text.split(/\s+/).length <= 3 && h3Text && h3Text.length > 10) {
+          // Try to find the word list from category tags on the page (portfolio sites reuse category names)
+          const tagEls = document.querySelectorAll('[class*="tag"], [class*="Tag"], [class*="category"], [class*="Category"], [class*="filter"] button, [class*="filter"] a');
+          const tagTexts = [...new Set(Array.from(tagEls).map(t => t.textContent?.trim()).filter(t => t && t.length > 2 && t.length < 30))];
+          if (tagTexts.length >= 2) {
+            results.push({ element: 'H1', words: tagTexts, fixedLabel: h3Text, jsRotated: true });
+          } else {
+            // Mark as likely rotating even without word list
+            results.push({ element: 'H1', words: [h1Text], fixedLabel: h3Text, jsRotated: true, note: 'Single visible word — likely cycles via JS' });
+          }
         }
       }
     }
-    // Check for parent containers with overflow:hidden that clip rotating children
-    const overflowContainers = document.querySelectorAll('[class*="hero"] [style*="overflow"], [class*="Hero"] [style*="overflow"]');
-    for (const cont of overflowContainers) {
-      const headings = cont.querySelectorAll('h1, h2, span');
-      if (headings.length >= 2) {
-        const words = Array.from(headings).map(h => h.textContent?.trim()).filter(t => t && t.length < 60);
-        if (words.length >= 2 && new Set(words).size >= 2) {
-          results.push({ element: 'container', words, class: cont.className?.slice(0, 50) });
-        }
-      }
-    }
+
     return results.length > 0 ? results : null;
   }
 
-  // ─── Illustration detection (SVG line-art vs photos) ─────────────────────
+  // ─── Illustration detection (SVG line-art vs photos vs WebGL) ─────────────
   function detectIllustrations() {
-    const hero = document.querySelector('[class*="hero"], [class*="Hero"], main > section:first-child');
+    const hero = document.querySelector('[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type');
     if (!hero) return null;
     const result = { type: 'none', details: null };
-    // Check for SVG illustrations
+
+    // Strategy 1: Large visible SVGs with many paths = line-art illustration
     const svgs = hero.querySelectorAll('svg');
-    const imgs = hero.querySelectorAll('img');
-    // Large SVGs with many paths = line-art illustration
     for (const svg of svgs) {
-      const paths = svg.querySelectorAll('path, line, circle, rect, polygon');
+      const paths = svg.querySelectorAll('path, line, circle, rect, polygon, ellipse');
       const r = svg.getBoundingClientRect();
       if (paths.length > 10 && r.width > 100 && r.height > 100) {
         const fills = new Set();
-        for (const p of Array.from(paths).slice(0, 20)) {
-          fills.add(getComputedStyle(p).fill);
-        }
-        const isMonochrome = fills.size <= 3;
-        result.type = isMonochrome ? 'monochrome-line-art' : 'colored-illustration';
-        result.details = { pathCount: paths.length, width: Math.round(r.width), height: Math.round(r.height), colors: [...fills].slice(0, 4) };
+        for (const p of Array.from(paths).slice(0, 20)) fills.add(getComputedStyle(p).fill);
+        result.type = fills.size <= 3 ? 'monochrome-line-art' : 'colored-illustration';
+        result.details = { pathCount: paths.length, width: Math.round(r.width), height: Math.round(r.height) };
         return result;
       }
     }
-    // Check for PNG/SVG illustration images (not photos — usually have transparent bg or are very large)
+    // Also check hidden SVGs (rendered via JS/WebGL) — count total paths
+    let totalHiddenPaths = 0;
+    for (const svg of svgs) {
+      const r = svg.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) {
+        totalHiddenPaths += svg.querySelectorAll('path, line, circle').length;
+      }
+    }
+    if (totalHiddenPaths > 30) {
+      result.type = 'hidden-svg-illustration';
+      result.details = { pathCount: totalHiddenPaths, note: 'SVGs present but hidden — likely rendered via WebGL/JS' };
+      return result;
+    }
+
+    // Strategy 2: Visible large images with illustration-like names
+    const imgs = hero.querySelectorAll('img');
     for (const img of imgs) {
       const r = img.getBoundingClientRect();
       const src = (img.src || '').toLowerCase();
       if (r.width > 200 && r.height > 200) {
-        if (/illustration|drawing|sketch|hero.*\.(svg|png)/i.test(src) || /illustration|drawing|sketch/i.test(img.alt || '')) {
+        if (/illustration|drawing|sketch|hero|character/i.test(src + (img.alt || ''))) {
           result.type = 'illustration-image';
           result.details = { src: src.split('/').pop()?.slice(0, 50), width: Math.round(r.width), height: Math.round(r.height) };
           return result;
         }
       }
     }
-    // Check for spritesheet-based illustrations (background-image with large dimensions)
-    const bgEls = hero.querySelectorAll('[class*="illustration"], [class*="Illustration"], [class*="visual"], [class*="image"], [class*="sprite"]');
+
+    // Strategy 3: Hidden images used as WebGL/canvas source (display:none but has hero-related name)
+    for (const img of imgs) {
+      const cs = getComputedStyle(img);
+      const src = (img.src || '').toLowerCase();
+      if ((cs.display === 'none' || img.getBoundingClientRect().width === 0) &&
+          /hero|illustration|character|sprite|drawing/i.test(src)) {
+        result.type = 'webgl-illustration';
+        result.details = { src: src.split('/').pop()?.slice(0, 50), note: 'Hidden image used as WebGL/canvas texture source' };
+        return result;
+      }
+    }
+
+    // Strategy 4: Canvas element in hero = WebGL/animated illustration
+    const canvas = hero.querySelector('canvas');
+    if (canvas) {
+      const r = canvas.getBoundingClientRect();
+      if (r.width > 200 && r.height > 200) {
+        result.type = 'canvas-illustration';
+        result.details = { width: Math.round(r.width), height: Math.round(r.height), note: 'Canvas-based animated illustration' };
+        return result;
+      }
+    }
+
+    // Strategy 5: Background-image based illustrations
+    const bgEls = hero.querySelectorAll('[class*="illustration"], [class*="Illustration"], [class*="visual"], [class*="sprite"], [class*="character"]');
     for (const el of bgEls) {
       const cs = getComputedStyle(el);
       if (cs.backgroundImage && cs.backgroundImage !== 'none') {
@@ -550,6 +591,7 @@
         }
       }
     }
+
     return result.type !== 'none' ? result : null;
   }
 
@@ -560,28 +602,140 @@
     for (const el of allEls) {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
-      // Fixed/sticky positioned element on edge of viewport with dark bg
-      if ((cs.position === 'fixed' || cs.position === 'sticky' || cs.position === 'absolute') &&
-          r.width > 20 && r.width < 200 && r.height > window.innerHeight * 0.5) {
-        const bg = cs.backgroundColor;
-        const isOnEdge = r.right >= window.innerWidth - 5 || r.left <= 5;
-        if (isOnEdge && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-          const side = r.left <= 5 ? 'left' : 'right';
-          panels.push({
-            side,
-            width: Math.round(r.width),
-            height: Math.round(r.height),
-            bg,
-            borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
-            class: el.className?.slice(0, 50),
-            hasMenu: !!el.querySelector('[class*="menu"], [class*="burger"], [class*="hamburger"], button'),
-            clipPath: cs.clipPath !== 'none' ? cs.clipPath?.slice(0, 60) : null,
-            overflow: cs.overflow,
-          });
-        }
+      if (r.width === 0 || r.height === 0) continue;
+      // Any positioned element on edge of viewport — fixed, sticky, absolute
+      const isPositioned = cs.position === 'fixed' || cs.position === 'sticky' || cs.position === 'absolute';
+      const isNarrowTall = r.width > 20 && r.width < 200 && r.height > 200;
+      const isOnRightEdge = r.right >= window.innerWidth - 10;
+      const isOnLeftEdge = r.left <= 10;
+      const bg = cs.backgroundColor;
+      const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+      const hasClipPath = cs.clipPath && cs.clipPath !== 'none';
+      const hasBorderRadius = cs.borderRadius && cs.borderRadius !== '0px';
+
+      if (isNarrowTall && (isOnRightEdge || isOnLeftEdge) && (hasBg || hasClipPath)) {
+        panels.push({
+          side: isOnLeftEdge ? 'left' : 'right',
+          width: Math.round(r.width),
+          height: Math.round(r.height),
+          bg: hasBg ? bg : 'transparent',
+          borderRadius: hasBorderRadius ? cs.borderRadius : null,
+          class: el.className?.slice(0, 50),
+          hasMenu: !!el.querySelector('[class*="menu"], [class*="burger"], [class*="hamburger"], button'),
+          clipPath: hasClipPath ? cs.clipPath?.slice(0, 60) : null,
+          positioned: isPositioned,
+        });
       }
     }
     return panels.length > 0 ? panels : null;
+  }
+
+  // ─── Custom cursor detection ─────────────────────────────────────────────
+  function detectCustomCursor() {
+    const result = { hasCustomCursor: false, type: null, details: null };
+
+    // Strategy 1: CSS cursor:url() in stylesheets
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules || []) {
+            if (rule.style?.cursor && rule.style.cursor.includes('url(')) {
+              result.hasCustomCursor = true;
+              result.type = 'css-cursor-image';
+              result.details = { selector: rule.selectorText?.slice(0, 50), cursor: rule.style.cursor?.slice(0, 80) };
+              return result;
+            }
+          }
+        } catch(e) {}
+      }
+    } catch(e) {}
+
+    // Strategy 2: JS-driven cursor element (div following mouse, position:fixed, pointer-events:none)
+    const cursorEls = document.querySelectorAll('[class*="cursor"], [class*="Cursor"], [id*="cursor"]');
+    for (const el of cursorEls) {
+      const cs = getComputedStyle(el);
+      if (cs.position === 'fixed' && cs.pointerEvents === 'none') {
+        result.hasCustomCursor = true;
+        result.type = 'js-cursor-follower';
+        result.details = { class: el.className?.slice(0, 40), width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height };
+        return result;
+      }
+    }
+
+    // Strategy 3: body or html has cursor:none (real cursor hidden, JS replacement)
+    if (getComputedStyle(document.body).cursor === 'none' || getComputedStyle(document.documentElement).cursor === 'none') {
+      result.hasCustomCursor = true;
+      result.type = 'cursor-hidden';
+      result.details = { note: 'Native cursor hidden — JS cursor replacement active' };
+      return result;
+    }
+
+    // Strategy 4: Non-standard CSS cursor values on interactive elements
+    const interactiveEls = document.querySelectorAll('a, button, [class*="entry"], [class*="card"]');
+    for (const el of Array.from(interactiveEls).slice(0, 20)) {
+      const cursor = getComputedStyle(el).cursor;
+      if (cursor && !['auto', 'pointer', 'default', 'text', 'inherit'].includes(cursor)) {
+        result.hasCustomCursor = true;
+        result.type = 'css-cursor-keyword';
+        result.details = { cursor, element: el.tagName + '.' + (el.className?.slice(0, 20) || '') };
+        return result;
+      }
+    }
+
+    return result.hasCustomCursor ? result : null;
+  }
+
+  // ─── Masonry / Pinterest grid layout detection ───────────────────────────
+  function detectMasonryGrid() {
+    // Look for grid containers where children have varying heights and absolute positioning
+    const candidates = document.querySelectorAll(
+      '[class*="grid"], [class*="Grid"], [class*="masonry"], [class*="Masonry"], ' +
+      '[class*="isotope"], [class*="Isotope"], [class*="pinterest"], [class*="waterfall"]'
+    );
+    for (const grid of candidates) {
+      const children = Array.from(grid.children).filter(c => c.getBoundingClientRect().width > 50 && c.getBoundingClientRect().height > 50);
+      if (children.length < 4) continue;
+
+      // Detect columns from unique left positions
+      const lefts = children.map(c => Math.round(c.getBoundingClientRect().left));
+      const uniqueLefts = [...new Set(lefts)].sort((a, b) => a - b);
+      const columnCount = uniqueLefts.length;
+      if (columnCount < 2 || columnCount > 6) continue;
+
+      // Check for varying heights (masonry indicator)
+      const heights = children.map(c => Math.round(c.getBoundingClientRect().height));
+      const minH = Math.min(...heights), maxH = Math.max(...heights);
+      const isMasonry = (maxH - minH) > 50; // Significant height variance
+
+      // Check if children use absolute positioning (JS masonry) or CSS columns
+      const firstChildPos = getComputedStyle(children[0]).position;
+      const gridDisplay = getComputedStyle(grid).display;
+      const layoutMethod = firstChildPos === 'absolute' ? 'js-masonry' :
+                          getComputedStyle(grid).columnCount !== 'auto' ? 'css-columns' :
+                          gridDisplay === 'grid' ? 'css-grid' : 'unknown';
+
+      if (isMasonry || layoutMethod === 'js-masonry') {
+        // Detect column widths
+        const colWidths = uniqueLefts.map((left, i) => {
+          const nextLeft = uniqueLefts[i + 1];
+          const colChildren = children.filter(c => Math.round(c.getBoundingClientRect().left) === left);
+          return colChildren[0] ? Math.round(colChildren[0].getBoundingClientRect().width) : null;
+        }).filter(Boolean);
+        const hasVaryingWidths = colWidths.length > 1 && (Math.max(...colWidths) - Math.min(...colWidths)) > 50;
+
+        return {
+          columns: columnCount,
+          isMasonry,
+          layoutMethod,
+          entryCount: children.length,
+          hasVaryingWidths,
+          columnWidths: colWidths,
+          heightRange: { min: minH, max: maxH },
+          class: grid.className?.slice(0, 50),
+        };
+      }
+    }
+    return null;
   }
 
   // ─── Countdown / live-text elements detection ────────────────────────────
