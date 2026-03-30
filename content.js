@@ -1,0 +1,2717 @@
+// DesignPrompt v3 — Content Script (fixed token extraction)
+
+(function () {
+  if (window.__designPromptInjected) return;
+  window.__designPromptInjected = true;
+
+  let pickerActive = false;
+  let imagePickerActive = false;
+  let highlightEl = null;
+  let tooltip = null;
+
+  // ─── Framework noise filter ────────────────────────────────────────────────
+  // Internal vars from Framer, Webflow, Tailwind, Bootstrap, Swiper, etc.
+  const NOISE_PREFIXES = [
+    // CSS frameworks
+    '--tw-', '--bs-', '--wp-',
+    // Design tools
+    '--framer-', '--wf-', '--webflow-',
+    // Component libraries
+    '--chakra-', '--mui-', '--ant-', '--el-', '--van-', '--vp-',
+    '--sl-', '--sd-', '--spectrum-', '--calcite-', '--pfe-', '--fast-', '--fluent-',
+    '--mdb-', '--daisyui-', '--radix-',
+    // UI utility libraries (toasts, modals, tooltips etc.)
+    '--toastify-', '--toast-', '--sonner-', '--hot-toast-',
+    '--tippy-', '--popper-', '--floating-',
+    '--swiper-', '--glide-', '--splide-',
+    '--nprogress-', '--notistack-',
+    // Generic internal markers
+    '--internal-', '--private-',
+  ];
+
+  const NOISE_PATTERNS = [
+    /text-decoration/,
+    /skip-ink/,
+    /underline-offset/,
+    /decoration-thickness/,
+    /decoration-color/,
+    /decoration-style/,
+    /current-color/,
+    /link-current/,
+    /ring-inset/,
+    /ring-offset/,
+    /ring-shadow/,
+    /ring-color/,
+    /prose-/,
+    /preloader/,
+    /navigation-size/,
+    /pagination-/,
+    /scrollbar-/,
+    // Toast/notification lib internals
+    /spinner-color/,
+    /toast-background/,
+    /toast-shadow/,
+    /toast-bd-/,
+    /bounce-in/,
+    /bounce-out/,
+    /track-progress/,
+    // Animation library internals
+    /aos-/,
+    /gsap-/,
+  ];
+
+  function isNoisyVar(key) {
+    if (NOISE_PREFIXES.some(p => key.startsWith(p))) return true;
+    if (NOISE_PATTERNS.some(p => p.test(key))) return true;
+    // Webflow/Figma deleted variable markers
+    if (key.includes('<deleted|') || key.includes('|variable-') || key.includes('|>')) return true;
+    // Internal tool variables with special characters
+    if (/[<>|]/.test(key)) return true;
+    return false;
+  }
+
+  // Only keep vars with concrete design values (not references to other vars)
+  function hasUsefulValue(val) {
+    if (!val) return false;
+    const v = val.trim();
+    // Reject pure var() references — they're not useful without resolution
+    if (/^var\(/.test(v)) return false;
+    // Reject none/initial/inherit
+    if (/^(none|initial|inherit|unset|auto|normal)$/.test(v)) return false;
+    return (
+      /^#[0-9a-f]{3,8}$/i.test(v) ||
+      /^rgb/.test(v) ||
+      /^hsl/.test(v) ||
+      /\d+(px|rem|em|ms|s|vh|vw|%)/.test(v) ||
+      // Font family names — quoted or unquoted
+      (/^["']?[A-Z][\w\s-]+["']?/.test(v) && v.length < 80)
+    );
+  }
+
+  // ─── Color helpers ─────────────────────────────────────────────────────────
+  // Canvas element for converting any CSS color (oklch, lab, lch, etc.) to RGB
+  let _colorCanvas = null;
+  let _colorCtx = null;
+  function cssColorToRgb(cssColor) {
+    if (!cssColor) return null;
+    // Fast path for rgb/rgba
+    const rgbMatch = cssColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) return { r: parseInt(rgbMatch[1]), g: parseInt(rgbMatch[2]), b: parseInt(rgbMatch[3]) };
+    // For oklch, lab, lch, color(), etc. — use canvas to convert
+    try {
+      if (!_colorCanvas) { _colorCanvas = document.createElement('canvas'); _colorCanvas.width = 1; _colorCanvas.height = 1; _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true }); }
+      _colorCtx.clearRect(0, 0, 1, 1);
+      _colorCtx.fillStyle = '#000000'; // reset
+      _colorCtx.fillStyle = cssColor;
+      _colorCtx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = _colorCtx.getImageData(0, 0, 1, 1).data;
+      if (a < 10) return null; // nearly transparent
+      return { r, g, b };
+    } catch(e) { return null; }
+  }
+
+  function rgbToHex(rgb) {
+    // Standard rgb/rgba string
+    const m = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (m) {
+      return '#' + [m[1],m[2],m[3]].map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+    }
+    // oklch, lab, lch, color() and other modern CSS color formats
+    const converted = cssColorToRgb(rgb);
+    if (converted) {
+      return '#' + [converted.r, converted.g, converted.b].map(x => x.toString(16).padStart(2,'0')).join('');
+    }
+    return null;
+  }
+
+  function isTransparent(c) {
+    if (!c || c === 'transparent' || c === 'rgba(0, 0, 0, 0)' || c === 'rgba(0,0,0,0)') return true;
+    // Catch very low alpha values (< 0.15) — e.g. rgba(228,234,200,0.08)
+    const alphaMatch = c.match(/rgba\(\s*\d+[\s,]+\d+[\s,]+\d+[\s,/]+([\d.]+)\s*\)/);
+    if (alphaMatch && parseFloat(alphaMatch[1]) < 0.15) return true;
+    // oklch/lab/lch with very low alpha — e.g. oklch(0.5 0.1 30 / 0.05)
+    const modernAlpha = c.match(/\/\s*([\d.]+)\s*\)/);
+    if (modernAlpha && parseFloat(modernAlpha[1]) < 0.15) return true;
+    return false;
+  }
+
+  function rgbLuminance(rgb) {
+    const m = rgb.match(/\d+/g);
+    if (!m || m.length < 3) return 0.5;
+    return (0.299 * parseInt(m[0]) + 0.587 * parseInt(m[1]) + 0.114 * parseInt(m[2])) / 255;
+  }
+
+  function isBlackOrWhite(hex) {
+    if (!hex) return false;
+    const h = hex.toLowerCase();
+    return h === '#000000' || h === '#ffffff' || h === '#000' || h === '#fff' || h === '#0000000' || h === '#ffffffff';
+  }
+
+  function colorDistance(hex1, hex2) {
+    const r1=parseInt(hex1.slice(1,3),16), g1=parseInt(hex1.slice(3,5),16), b1=parseInt(hex1.slice(5,7),16);
+    const r2=parseInt(hex2.slice(1,3),16), g2=parseInt(hex2.slice(3,5),16), b2=parseInt(hex2.slice(5,7),16);
+    return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
+  }
+
+  function dedupeColors(colors) {
+    const result = [];
+    for (const c of colors) {
+      if (!c || c.length < 4) continue;
+      const tooClose = result.some(r => colorDistance(c, r) < 25);
+      if (!tooClose) result.push(c);
+    }
+    return result;
+  }
+
+  // ─── Font helpers ──────────────────────────────────────────────────────────
+  // Generic/system font stacks that are not real named fonts
+  const SYSTEM_FONT_STACKS = new Set([
+    'serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui',
+    'ui-sans-serif', 'ui-serif', 'ui-monospace', 'ui-rounded',
+    '-apple-system', 'blinkmacsystemfont', 'segoe ui', 'helvetica neue',
+    'arial', 'noto sans', 'noto serif',
+  ]);
+
+  const JUNK_FONT_PATTERNS = [/^\d/, /^[a-z]{1,3}$/, /^-/, /inherit/, /initial/, /unset/];
+
+  function cleanFont(rawFamily) {
+    if (!rawFamily) return null;
+    const first = rawFamily.split(',')[0].replace(/['"]/g, '').trim();
+    if (!first || first.length < 2 || first.length > 60) return null;
+    if (JUNK_FONT_PATTERNS.some(p => p.test(first))) return null;
+    // System font stacks — return null so we skip them entirely
+    // (they're not real brand font decisions)
+    if (SYSTEM_FONT_STACKS.has(first.toLowerCase())) return null;
+    return first;
+  }
+
+  // ─── Page extraction ───────────────────────────────────────────────────────
+  function extractPageTokens() {
+    const tokens = {
+      url: window.location.href,
+      title: document.title,
+      colors: [],
+      accentColors: [],
+      fonts: [],
+      borderRadii: [],
+      shadows: [],
+      transitions: [],
+      cssVars: {},
+      layoutInfo: {},
+      animations: [],
+      hoverStates: [],
+      animationDetails: [],
+    };
+
+    // ── 1. CSS Custom Properties — filtered ──
+    const sheets = Array.from(document.styleSheets);
+    for (const sheet of sheets) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          if (rule.style) {
+            for (const prop of rule.style) {
+              if (prop.startsWith('--') && !isNoisyVar(prop)) {
+                const val = rule.style.getPropertyValue(prop).trim();
+                if (hasUsefulValue(val)) {
+                  tokens.cssVars[prop] = val;
+                }
+              }
+            }
+          }
+          if (rule.type === CSSRule.KEYFRAMES_RULE) {
+            const name = rule.name;
+            // Skip CSS Modules hashed names
+            if (/^_.*_[a-z0-9]{4,}_\d+$/.test(name)) continue;
+            if (name.startsWith('__')) continue;
+            // Skip Toastify, react-hot-toast, etc.
+            if (/^Toastify|^hot-toast|^sonner|^nprogress/i.test(name)) continue;
+            // Skip very long generated names (likely hashed)
+            if (name.length > 40) continue;
+            // Extract first and last keyframe content for from→to description
+            try {
+              const frames = Array.from(rule.cssRules || []);
+              const first = frames[0]?.cssText?.replace(/\s+/g, ' ').slice(0, 150);
+              const last = frames.length > 1 ? frames[frames.length-1]?.cssText?.replace(/\s+/g, ' ').slice(0, 150) : null;
+              tokens.animations.push({ name, from: first || null, to: last || null });
+            } catch(e) {
+              tokens.animations.push({ name, from: null, to: null });
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
+    // ── 1b. Extract :hover rules from stylesheets ──
+    for (const sheet of sheets) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          if (rule.selectorText?.includes(':hover')) {
+            const sel = rule.selectorText;
+            // Skip framework noise and pseudo-elements
+            if (/^_|^__|Toastify|nprogress|react-|chakra-/i.test(sel)) continue;
+            if (sel.length > 100) continue;
+            const props = {};
+            for (const prop of ['background','background-color','color','transform','box-shadow','border-color','opacity','filter','text-decoration','letter-spacing','scale']) {
+              const val = rule.style?.getPropertyValue(prop);
+              if (val) props[prop] = val;
+            }
+            if (Object.keys(props).length > 0) {
+              tokens.hoverStates.push({ selector: sel.slice(0, 80), ...props });
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    // Deduplicate and limit
+    const seenHovers = new Set();
+    tokens.hoverStates = tokens.hoverStates.filter(h => {
+      const key = h.selector + JSON.stringify(h);
+      if (seenHovers.has(key)) return false;
+      seenHovers.add(key);
+      return true;
+    }).slice(0, 20);
+
+    // ── 2. Aggressive color scan from computed styles ──
+    const colorSet = new Set();
+    const accentSet = new Set();
+    const fontSet = new Set();
+    const radiusSet = new Set();
+    const shadowSet = new Set();
+    const transSet = new Set();
+
+    let scanned = 0;
+    const allEls = document.querySelectorAll('*');
+    for (const el of allEls) {
+      if (scanned > 500) break;
+      try {
+        const cs = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+
+        // Only sample visible elements
+        if (rect.width === 0 || rect.height === 0) continue;
+
+        scanned++;
+
+        // Background colors
+        const bg = cs.backgroundColor;
+        if (!isTransparent(bg)) {
+          const hex = rgbToHex(bg);
+          if (hex) colorSet.add(hex);
+        }
+
+        // Text colors
+        const color = cs.color;
+        if (!isTransparent(color)) {
+          const hex = rgbToHex(color);
+          if (hex) colorSet.add(hex);
+        }
+
+        // Border colors (often accent colors)
+        const borderColor = cs.borderColor;
+        if (!isTransparent(borderColor) && borderColor !== 'rgb(0, 0, 0)') {
+          const hex = rgbToHex(borderColor);
+          if (hex) accentSet.add(hex);
+        }
+
+        // Outline colors
+        const outline = cs.outlineColor;
+        if (!isTransparent(outline)) {
+          const hex = rgbToHex(outline);
+          if (hex) accentSet.add(hex);
+        }
+
+        // Fonts — only from text-rendering elements
+        const tag = el.tagName.toLowerCase();
+        if (['h1','h2','h3','h4','h5','h6','p','span','a','button','li','label'].includes(tag)) {
+          const font = cleanFont(cs.fontFamily);
+          if (font) fontSet.add(font);
+        }
+
+        // Border radius (only meaningful values)
+        const br = cs.borderRadius;
+        if (br && br !== '0px' && br !== '0%') {
+          // Filter scientific notation (e.g. 1.67772e+07px = computed 9999px)
+          if (/e\+\d+/i.test(br)) {
+            // Replace with canonical pill value
+            radiusSet.add('9999px');
+          } else {
+            // Filter absurdly large values (> 10000px)
+            const firstVal = parseFloat(br);
+            if (!isNaN(firstVal) && firstVal > 10000) {
+              radiusSet.add('9999px');
+            } else {
+              radiusSet.add(br);
+            }
+          }
+        }
+
+        // Box shadows — parenthesis-depth splitter handles rgba(r,g,b,a) commas correctly
+        const bs = cs.boxShadow;
+        if (bs && bs !== 'none') {
+          const hasRealLayer = splitShadowLayers(bs).some(isRealShadowLayer);
+          if (hasRealLayer) shadowSet.add(bs);
+        }
+
+        // Transitions (filter out defaults)
+        const tr = cs.transition;
+        if (tr && tr !== 'all 0s ease 0s' && tr !== 'none' && !tr.includes('0s ease 0s')) {
+          transSet.add(tr);
+        }
+
+      } catch(e) {}
+    }
+
+    // ── 3. Deduplicate and rank colors ──
+    const allColors = dedupeColors([...colorSet]);
+    const neutrals = allColors.filter(c => isLowSaturation(c));
+    const accents = dedupeColors([...allColors.filter(c => !isLowSaturation(c)), ...accentSet]);
+    accents.sort((a, b) => colorSaturation(b) - colorSaturation(a));
+    tokens.colors = dedupeColors([...accents.slice(0, 6), ...neutrals.slice(0, 4)]).slice(0, 10);
+    tokens.accentColors = accents.slice(0, 5);
+
+    tokens.fonts = [...fontSet].filter(Boolean).slice(0, 5);
+    tokens.borderRadii = [...radiusSet].slice(0, 6);
+    tokens.shadows = [...shadowSet].slice(0, 4);
+    tokens.transitions = [...transSet].slice(0, 4);
+
+    // ── 3b. Computed animation properties from visible elements ──
+    const animDetailSet = new Set();
+    document.querySelectorAll('[style*="animation"], [class*="animate"], [class*="motion"]').forEach(el => {
+      try {
+        const cs = window.getComputedStyle(el);
+        const anim = cs.animation;
+        if (anim && anim !== 'none' && anim.length < 200) animDetailSet.add(anim);
+      } catch(e) {}
+    });
+    tokens.animationDetails = [...animDetailSet].slice(0, 8);
+
+    // ── 3c. Button style extraction ──
+    tokens.buttonStyles = extractButtonStyles();
+
+    // ── 3d. Typography patterns ──
+    tokens.typographyPatterns = extractTypographyPatterns();
+
+    // ── 3e. Badge/tag styles ──
+    tokens.badgeStyles = extractBadgeStyles();
+
+    // ── 3f. Form/input field styles ──
+    tokens.inputStyles = extractInputStyles();
+
+    // ── 3g. Gradient values ──
+    tokens.gradients = extractGradients();
+
+    // ── 3h. Image visual properties ──
+    tokens.imageStyles = extractImageStyles();
+
+    // ── 3i. Link/anchor styles ──
+    tokens.linkStyles = extractLinkStyles();
+
+    // ── 3j. Footer details ──
+    tokens.footerStyles = extractFooterStyles();
+
+    // ── 3k. Font weight usage ──
+    tokens.fontWeights = extractFontWeights();
+
+    // ── 3b. Detect actual page background ──
+    // Scan body + html + top-level containers, not modals/overlays
+    tokens.pageBackground = detectActualPageBackground();
+
+    // ── 4. Layout info ──
+    const bodyCs = window.getComputedStyle(document.body);
+    tokens.layoutInfo = {
+      maxWidth: bodyCs.maxWidth,
+      hasSidebar: !!document.querySelector('aside,[class*="sidebar"],[class*="side-nav"]'),
+      hasNav: !!document.querySelector('nav,header'),
+      hasHero: !!document.querySelector('[class*="hero"],[class*="banner"],[class*="jumbotron"]'),
+      pageType: detectPageType(),
+    };
+
+    // ── 5. Section content map ──
+    tokens.sectionContentMap = extractSectionContentMap();
+
+    // ── 6. Deep visual analysis ──
+    tokens.visualProfile = extractVisualProfile();
+
+    return tokens;
+  }
+
+  // ─── Button style extraction ──────────────────────────────────────────────
+  function extractButtonStyles() {
+    const result = { primary: null, ghost: null, secondary: null, navCta: null };
+    const btns = document.querySelectorAll(
+      'button, a[class*="btn"], a[class*="button"], [role="button"], input[type="submit"]'
+    );
+    const candidates = [];
+    for (const btn of Array.from(btns).slice(0, 15)) {
+      try {
+        const rect = btn.getBoundingClientRect();
+        if (rect.width < 40 || rect.height < 20 || rect.width > 600) continue;
+        const cs = window.getComputedStyle(btn);
+        const bg = cs.backgroundColor;
+        const bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
+        const colorHex = rgbToHex(cs.color);
+        const bgSat = bgHex ? colorSaturation(bgHex) : 0;
+        const bgLum = bgHex ? (parseInt(bgHex.slice(1,3),16)*0.299+parseInt(bgHex.slice(3,5),16)*0.587+parseInt(bgHex.slice(5,7),16)*0.114)/255 : 1;
+        const cls = (btn.className || '').toString();
+        const isNavCta = !!btn.closest('nav, header, [class*="nav"], [class*="header"], [role="navigation"]');
+
+        const data = {
+          padding: cs.padding,
+          fontSize: cs.fontSize,
+          fontWeight: cs.fontWeight,
+          letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
+          textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
+          backgroundColor: bgHex,
+          color: colorHex,
+          borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+          border: cs.border !== 'none' && cs.borderWidth !== '0px' ? cs.border : null,
+          boxShadow: cs.boxShadow !== 'none' ? cs.boxShadow : null,
+          gap: cs.gap !== 'normal' ? cs.gap : null,
+          height: cs.height !== 'auto' ? cs.height : `${Math.round(rect.height)}px`,
+          lineHeight: cs.lineHeight,
+          fontFamily: cleanFont(cs.fontFamily) || null,
+          clipPath: cs.clipPath !== 'none' ? cs.clipPath : null,
+          isNavCta, cls, bgSat, bgLum,
+          width: Math.round(rect.width),
+          text: btn.innerText?.trim().slice(0, 30) || '',
+        };
+
+        // Check for pseudo-element border simulation (used with clip-path)
+        if (data.clipPath) {
+          try {
+            const before = window.getComputedStyle(btn, '::before');
+            if (before.content !== 'none' && before.position === 'absolute') {
+              data.pseudoBorder = {
+                clipPath: before.clipPath !== 'none' ? before.clipPath?.slice(0, 120) : null,
+                bg: !isTransparent(before.backgroundColor) ? rgbToHex(before.backgroundColor) : null,
+              };
+            }
+          } catch(e) {}
+        }
+
+        candidates.push(data);
+      } catch(e) {}
+    }
+
+    // Score-based classification
+    candidates.forEach(c => {
+      let score = 0;
+      // High saturation bg = likely primary
+      if (c.bgSat > 30) score += 3;
+      // Class name hints
+      if (/primary|cta|main|action/i.test(c.cls)) score += 5;
+      if (/red|blue|accent|brand/i.test(c.cls) && !/outline|ghost/i.test(c.cls)) score += 4;
+      // Bold weight = more prominent
+      if (c.fontWeight && parseInt(c.fontWeight) >= 700) score += 1;
+      // Wider buttons = more prominent
+      if (c.width > 140) score += 1;
+      // Ghost indicators
+      if (/ghost|outline|secondary|subtle/i.test(c.cls)) score -= 5;
+      if (!c.backgroundColor && c.border) score -= 3;
+      c._score = score;
+    });
+
+    // Primary = highest score
+    const sorted = [...candidates].sort((a, b) => b._score - a._score);
+    if (sorted.length > 0 && sorted[0]._score > 0) {
+      result.primary = sorted[0];
+    } else {
+      // Fallback: highest saturation
+      const withBg = candidates.filter(c => c.backgroundColor && c.bgSat > 10);
+      if (withBg.length) {
+        withBg.sort((a, b) => b.bgSat - a.bgSat);
+        result.primary = withBg[0];
+      }
+    }
+
+    // Ghost = transparent bg with border, or class hint
+    const ghosts = candidates.filter(c =>
+      (!c.backgroundColor && c.border) || /ghost|outline/i.test(c.cls)
+    );
+    if (ghosts.length) result.ghost = ghosts[0];
+
+    // Secondary = any remaining button that's not primary or ghost
+    const muted = candidates.filter(c =>
+      c !== result.primary && c !== result.ghost && c.backgroundColor
+    );
+    if (muted.length) result.secondary = muted[0];
+
+    // Nav CTA = nav/header button, separate from hero primary
+    const navBtns = candidates.filter(c => c.isNavCta && c.backgroundColor);
+    if (navBtns.length) {
+      // Pick the most prominent nav button
+      navBtns.sort((a, b) => b._score - a._score);
+      result.navCta = navBtns[0];
+    }
+
+    // Cleanup internal fields
+    for (const key of ['primary', 'ghost', 'secondary', 'navCta']) {
+      if (result[key]) {
+        delete result[key].bgSat;
+        delete result[key].bgLum;
+        delete result[key]._score;
+        delete result[key].cls;
+        delete result[key].isNavCta;
+      }
+    }
+    return result;
+  }
+
+  // ─── Typography pattern extraction ──────────────────────────────────────────
+  function extractTypographyPatterns() {
+    const patterns = {};
+    const levels = [
+      { key: 'h1', selector: 'h1' },
+      { key: 'h2', selector: 'h2' },
+      { key: 'h3', selector: 'h3' },
+      { key: 'body', selector: 'p' },
+    ];
+
+    for (const { key, selector } of levels) {
+      const els = document.querySelectorAll(selector);
+      for (const el of els) {
+        try {
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) continue;
+          if (!el.innerText || el.innerText.trim().length < 2) continue;
+          const cs = window.getComputedStyle(el);
+          patterns[key] = {
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            lineHeight: cs.lineHeight,
+            letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
+            textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
+            fontFamily: cleanFont(cs.fontFamily),
+          };
+          break; // first visible one is enough
+        } catch(e) {}
+      }
+    }
+
+    // Detect uppercase labels (small uppercase text elements)
+    const allSmall = document.querySelectorAll('span, div, p, label');
+    for (const el of Array.from(allSmall).slice(0, 100)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        if (cs.textTransform === 'uppercase' && parseInt(cs.fontSize) <= 14) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0 && el.innerText?.trim().length > 1) {
+            patterns.label = {
+              fontSize: cs.fontSize,
+              fontWeight: cs.fontWeight,
+              lineHeight: cs.lineHeight,
+              letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
+              textTransform: 'uppercase',
+              fontFamily: cleanFont(cs.fontFamily),
+            };
+            break;
+          }
+        }
+      } catch(e) {}
+    }
+
+    return patterns;
+  }
+
+  // ─── Badge/tag style extraction ─────────────────────────────────────────────
+  function extractBadgeStyles() {
+    const badges = document.querySelectorAll(
+      '[class*="badge"], [class*="tag"], [class*="chip"], [class*="label"], [class*="pill"]'
+    );
+    for (const el of Array.from(badges).slice(0, 10)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        // Badges are small elements
+        if (rect.width < 20 || rect.width > 300 || rect.height < 16 || rect.height > 60) continue;
+        if (!el.innerText || el.innerText.trim().length < 1) continue;
+        const cs = window.getComputedStyle(el);
+        const bg = cs.backgroundColor;
+        if (isTransparent(bg)) continue;
+        return {
+          backgroundColor: rgbToHex(bg),
+          color: rgbToHex(cs.color),
+          borderRadius: cs.borderRadius,
+          padding: cs.padding,
+          fontSize: cs.fontSize,
+          fontWeight: cs.fontWeight,
+          border: cs.borderWidth !== '0px' ? cs.border : null,
+        };
+      } catch(e) {}
+    }
+    return null;
+  }
+
+  // ─── Section content map ──────────────────────────────────────────────────
+  function extractSectionContentMap() {
+    // Try semantic <section> first, then fall back to structural detection
+    let sectionEls = Array.from(document.querySelectorAll('section, main > section, [class*="section"]'));
+
+    // If no <section> tags found, detect sections from main > div or body > div > div
+    if (sectionEls.length < 2) {
+      const mainEl = document.querySelector('main') || document.querySelector('#__next > div') || document.querySelector('#app > div') || document.querySelector('[class*="page"], [class*="content"], [class*="wrapper"]');
+      if (mainEl) {
+        const candidates = Array.from(mainEl.children).filter(el => {
+          if (el.tagName === 'NAV' || el.tagName === 'HEADER' || el.tagName === 'FOOTER') return false;
+          if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return false;
+          const r = el.getBoundingClientRect();
+          return r.height > 200 && r.width > 300;
+        });
+        if (candidates.length > sectionEls.length) sectionEls = candidates;
+      }
+    }
+
+    const map = [];
+
+    for (const sec of sectionEls.slice(0, 12)) {
+      const rect = sec.getBoundingClientRect();
+      if (rect.height < 100 || rect.width < 300) continue;
+
+      const heading = sec.querySelector('h1, h2, h3');
+      const headingText = heading?.innerText?.trim().slice(0, 60) || '';
+      const hasH1 = !!sec.querySelector('h1');
+
+      // ── Detect colored/highlighted words in headings ──
+      let headingColoredWords = [];
+      if (heading) {
+        const headingColor = window.getComputedStyle(heading).color;
+        heading.querySelectorAll('*').forEach(child => {
+          const cs = window.getComputedStyle(child);
+          const text = child.innerText?.trim();
+          if (!text || text.length < 2 || text.length > 40) return;
+          // Check for different text color
+          if (cs.color !== headingColor) {
+            headingColoredWords.push({ text, style: `color:${rgbToHex(cs.color)||cs.color}` });
+          }
+          // Check for background highlight (pill highlight)
+          if (!isTransparent(cs.backgroundColor)) {
+            headingColoredWords.push({ text, style: `bg:${rgbToHex(cs.backgroundColor)||cs.backgroundColor}` });
+          }
+          // Check for gradient text (background-clip: text)
+          if (cs.webkitBackgroundClip === 'text' || cs.backgroundClip === 'text') {
+            headingColoredWords.push({ text, style: `gradient-text` });
+          }
+        });
+      }
+
+      // ── Detect decorative gradient elements in section ──
+      let sectionDecorations = [];
+      sec.querySelectorAll('div, span').forEach(el => {
+        const cs = window.getComputedStyle(el);
+        const bgImg = cs.backgroundImage;
+        const r = el.getBoundingClientRect();
+        if (bgImg && bgImg.includes('gradient') && r.width > 50 && r.height > 10) {
+          // Check if it's decorative (no text content, or position absolute)
+          const hasText = el.innerText?.trim().length > 0;
+          const isDecorative = !hasText || cs.position === 'absolute' || cs.position === 'fixed' || cs.zIndex === '-1';
+          if (isDecorative || !hasText) {
+            sectionDecorations.push({
+              size: `${Math.round(r.width)}×${Math.round(r.height)}`,
+              gradient: bgImg.slice(0, 120),
+              transform: cs.transform !== 'none' ? cs.transform.slice(0,40) : null
+            });
+          }
+        }
+      });
+      // Deduplicate by gradient value
+      const seenGrads = new Set();
+      sectionDecorations = sectionDecorations.filter(d => {
+        if (seenGrads.has(d.gradient)) return false;
+        seenGrads.add(d.gradient);
+        return true;
+      }).slice(0, 3);
+
+      // Content element detection
+      const hasForm = !!sec.querySelector('form, input[type="email"], input[type="text"]');
+      const hasVideo = !!sec.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"], iframe[src*="loom"]');
+      const imgCount = sec.querySelectorAll('img').length;
+      const smallImgCount = Array.from(sec.querySelectorAll('img')).filter(i => {
+        const r = i.getBoundingClientRect();
+        return r.width < 150 && r.height < 80 && r.width > 30;
+      }).length;
+      const largeSvgCount = Array.from(sec.querySelectorAll('svg')).filter(s => {
+        const r = s.getBoundingClientRect();
+        return r.width > 200 && r.height > 200;
+      }).length;
+      const hasCanvas = !!sec.querySelector('canvas');
+      const hasSwiper = !!sec.querySelector('.swiper, [class*="slider"], [class*="carousel"]');
+      const hasNumberedItems = /\b0[1-9]\b|\bstep\s*[1-9]/i.test(sec.innerText);
+      const hasStats = /\d+[KkMm+%]|\$\d/.test(sec.innerText);
+      const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
+      const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
+
+      // Layout detection
+      let layout = 'stacked'; // default
+      const innerContainers = sec.querySelectorAll(':scope > div > div, :scope > div');
+      for (const child of Array.from(innerContainers).slice(0, 5)) {
+        const cs = window.getComputedStyle(child);
+        if ((cs.display === 'flex' || cs.display === 'grid') && child.children.length >= 2) {
+          const c1 = child.children[0].getBoundingClientRect();
+          const c2 = child.children[1].getBoundingClientRect();
+          if (Math.abs(c1.top - c2.top) < 50 && c1.width > 200 && c2.width > 200) {
+            layout = 'split-columns';
+            break;
+          }
+        }
+        if (cs.display === 'grid') {
+          const cols = cs.gridTemplateColumns;
+          if (cols && cols.split(' ').length >= 3) { layout = 'multi-column-grid'; break; }
+        }
+      }
+
+      // CTA elements
+      const ctaButtons = Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], button[class*="btn"], button[class*="button"]'))
+        .map(b => (b.innerText || '').trim().slice(0, 25))
+        .filter(t => t.length > 1)
+        .slice(0, 3);
+      const arrowLinks = Array.from(sec.querySelectorAll('a'))
+        .filter(a => /→|→|arrow/i.test(a.innerText + (a.className || '')))
+        .map(a => (a.innerText || '').trim().slice(0, 30))
+        .slice(0, 2);
+
+      // Classify section type
+      let type = 'content';
+      if (hasH1 && (hasForm || ctaButtons.length > 0)) type = 'hero';
+      else if (smallImgCount >= 4) type = 'logo-strip';
+      else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
+      else if (hasNumberedItems) type = 'numbered-steps';
+      else if (hasSwiper) type = 'slider/carousel';
+      else if (hasAccordion) type = 'faq/accordion';
+      else if (hasVideo) type = 'video-showcase';
+      else if (hasStats) type = 'stats/metrics';
+      else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
+      else if (layout === 'split-columns') type = 'two-column';
+      else if (layout === 'multi-column-grid') type = 'feature-grid';
+
+      // Rich visual descriptions — style, framing, composition, choreography
+      const visualDescriptions = [];
+
+      // ── Analyze images with full visual context ──
+      if (type !== 'logo-strip') {
+        const significantImgs = Array.from(sec.querySelectorAll('img')).filter(i => {
+          const r = i.getBoundingClientRect();
+          return r.width > 80 && r.height > 80;
+        });
+        for (const img of significantImgs.slice(0, 4)) {
+          const r = img.getBoundingClientRect();
+          const cs = window.getComputedStyle(img);
+          const alt = (img.alt || '').trim();
+
+          // Content type from alt, src, class
+          const altLow = alt.toLowerCase();
+          const srcLow = (img.src || '').toLowerCase();
+          const clsLow = (img.className || '').toLowerCase();
+          let contentType = 'ui-mockup';
+          if (/dashboard|analytics|chart|graph|metric/.test(altLow + srcLow)) contentType = 'dashboard-ui';
+          else if (/table|list|data|cap.table|investor|share/.test(altLow + srcLow)) contentType = 'data-table-ui';
+          else if (/diagram|flow|process|architecture/.test(altLow + srcLow)) contentType = 'flow-diagram';
+          else if (/form|input|config|setting/.test(altLow + srcLow)) contentType = 'form-ui';
+
+          // Container / frame analysis
+          const container = img.closest('div[class],figure,[class*="card"],[class*="frame"],[class*="mock"]');
+          const containerCs = container ? window.getComputedStyle(container) : null;
+          let framing = [];
+          if (containerCs) {
+            const hasBorder = containerCs.borderWidth !== '0px' && containerCs.borderStyle !== 'none';
+            const hasBg = containerCs.backgroundColor && !isTransparent(containerCs.backgroundColor);
+            const hasPad = parseInt(containerCs.padding) > 6;
+            const hasRadius = parseInt(containerCs.borderRadius) > 0;
+            if (hasBorder) framing.push(`border: ${containerCs.border.slice(0,40)}`);
+            if (hasBg) framing.push(`container-bg: ${rgbToHex(containerCs.backgroundColor)}`);
+            if (hasPad) framing.push(`padding: ${containerCs.padding}`);
+            if (hasRadius) framing.push(`radius: ${containerCs.borderRadius}`);
+          }
+          const imgRadius = cs.borderRadius !== '0px' ? cs.borderRadius : null;
+          if (imgRadius) framing.push(`img-radius: ${imgRadius}`);
+
+          // Perspective / transform
+          const transform = cs.transform;
+          let perspective = 'flat';
+          if (transform && transform !== 'none' && transform.includes('matrix3d')) perspective = '3d-angled';
+          else if (transform && transform !== 'none') perspective = 'slightly-rotated';
+
+          // Placement
+          const secRect = sec.getBoundingClientRect();
+          const relX = (r.left - secRect.left) / secRect.width;
+          const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
+
+          // Build rich description
+          let desc = `[${contentType}] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}`;
+          if (alt) desc += `, "${alt}"`;
+          desc += `, perspective: ${perspective}`;
+          if (framing.length > 0) desc += `, frame: {${framing.join(', ')}}`;
+
+          visualDescriptions.push(desc);
+        }
+      }
+
+      // ── Analyze large SVGs with structural content detection ──
+      const largeSvgs = Array.from(sec.querySelectorAll('svg')).filter(s => {
+        const r = s.getBoundingClientRect();
+        return r.width > 150 && r.height > 150;
+      });
+      for (const svg of largeSvgs.slice(0, 3)) {
+        const r = svg.getBoundingClientRect();
+        const cs = window.getComputedStyle(svg);
+        const pathCount = svg.querySelectorAll('path,circle,ellipse,line,rect,polygon').length;
+        const textCount = svg.querySelectorAll('text').length;
+        const embeddedImages = svg.querySelectorAll('image').length;
+        const clipPaths = svg.querySelectorAll('clipPath').length;
+        const circles = svg.querySelectorAll('circle').length;
+        const rects = svg.querySelectorAll('rect').length;
+        const lines = svg.querySelectorAll('line,polyline').length;
+        const hasAnim = cs.animation !== 'none' || !!svg.querySelector('animate,animateTransform');
+        const svgTexts = Array.from(svg.querySelectorAll('text')).map(t => (t.textContent || '').trim()).filter(t => t.length > 1).slice(0, 5);
+
+        // Content-aware SVG classification
+        let svgDesc = '';
+        if (embeddedImages > 5 && clipPaths > 10) {
+          // Avatar grid / people illustration with clipped photos
+          svgDesc = `illustration with ${embeddedImages} embedded avatar/icon images, clipped into circular frames — appears to show a people/user flow or organizational diagram`;
+        } else if (textCount > 5 && (circles > 3 || rects > 5)) {
+          // Labeled data visualization
+          svgDesc = `labeled data visualization with ${textCount} text labels${svgTexts.length > 0 ? ' including "'+svgTexts.slice(0,3).join('", "')+'"' : ''}`;
+        } else if (embeddedImages > 0) {
+          svgDesc = `illustration containing ${embeddedImages} embedded images — likely a product diagram or feature showcase`;
+        } else if (pathCount > 100 && circles > 5) {
+          svgDesc = `complex circular/radial diagram with ${pathCount} paths and ${circles} circles — possibly a pie chart, donut graph, or radial progress indicator`;
+        } else if (pathCount > 100) {
+          svgDesc = `detailed vector illustration with ${pathCount} paths — a complex product or brand visual rendered entirely in SVG`;
+        } else if (lines > 5 && pathCount > 20) {
+          svgDesc = `line-based diagram or chart with ${lines} lines and ${pathCount} paths — possibly a line graph, flow chart, or connection map`;
+        } else if (pathCount > 40) {
+          svgDesc = `schematic diagram with ${pathCount} paths`;
+        } else if (pathCount > 10) {
+          svgDesc = `simple line illustration with ${pathCount} paths`;
+        } else {
+          svgDesc = `decorative SVG element`;
+        }
+
+        // Extract SVG color palette
+        const svgColors = new Set();
+        svg.querySelectorAll('[stroke],[fill]').forEach(el => {
+          const s = el.getAttribute('stroke');
+          const f = el.getAttribute('fill');
+          if (s && s !== 'none' && s !== 'currentColor' && s.length < 30) svgColors.add(s);
+          if (f && f !== 'none' && f !== 'currentColor' && f.length < 30) svgColors.add(f);
+        });
+
+        const secRect = sec.getBoundingClientRect();
+        const relX = (r.left - secRect.left) / secRect.width;
+        const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
+
+        let desc = `[svg] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}: ${svgDesc}`;
+        if (hasAnim) desc += ' (animated)';
+        if (svgColors.size > 0) desc += `. Colors: ${[...svgColors].slice(0, 3).join(', ')}`;
+
+        visualDescriptions.push(desc);
+      }
+
+      // ── Canvas detection with size/placement context ──
+      const canvases = sec.querySelectorAll('canvas');
+      for (const c of Array.from(canvases).slice(0, 2)) {
+        const cr = c.getBoundingClientRect();
+        if (cr.width > 100 && cr.height > 100) {
+          const secRect = sec.getBoundingClientRect();
+          const isFullSection = cr.width > secRect.width * 0.7 && cr.height > secRect.height * 0.4;
+          const placement = isFullSection ? 'full-section-background' : `contained ${Math.round(cr.width)}×${Math.round(cr.height)}`;
+          visualDescriptions.push(`[canvas-animation] ${placement} — animated WebGL/canvas element (particles, 3D scene, or data visualization). Recreate as an animated SVG or CSS animation with similar visual weight.`);
+        }
+      }
+      if (hasCanvas && canvases.length === 0) visualDescriptions.push('[canvas-animation] WebGL/canvas element');
+
+      // ── Lottie animation detection ──
+      const lotties = sec.querySelectorAll('[class*="lottie"], lottie-player, [data-animation-path], dotlottie-player, [data-lottie]');
+      for (const l of Array.from(lotties).slice(0, 2)) {
+        const lr = l.getBoundingClientRect();
+        if (lr.width > 50 && lr.height > 50) {
+          visualDescriptions.push(`[lottie-animation] ${Math.round(lr.width)}×${Math.round(lr.height)} — animated vector illustration. Recreate as a looping CSS animation or SVG animation.`);
+        }
+      }
+
+      // ── Video detection with background vs player distinction ──
+      const videos = sec.querySelectorAll('video');
+      for (const v of Array.from(videos).slice(0, 2)) {
+        const vr = v.getBoundingClientRect();
+        if (vr.width > 100 && vr.height > 50) {
+          const isBg = (v.autoplay || v.hasAttribute('autoplay')) && (v.muted || v.hasAttribute('muted')) && (v.loop || v.hasAttribute('loop'));
+          const poster = v.poster ? `, poster image available` : '';
+          visualDescriptions.push(`[${isBg ? 'video-background' : 'video-player'}] ${Math.round(vr.width)}×${Math.round(vr.height)}${isBg ? ', autoplay muted loop — ambient background video' : ' — interactive video player'}${poster}`);
+        }
+      }
+      if (hasVideo && videos.length === 0) visualDescriptions.push('[video] embedded video element');
+
+      if (hasForm) visualDescriptions.push('[form] email/text input with CTA button');
+
+      // ── Per-section background color & gradient ──
+      // Walk up parent chain to find actual visible background
+      let secBgHex = null;
+      let secGradient = null;
+      let bgEl = sec;
+      while (bgEl && bgEl !== document.body) {
+        const cs = window.getComputedStyle(bgEl);
+        const bg = cs.backgroundColor;
+        const bgImg = cs.backgroundImage;
+        if (!secBgHex && !isTransparent(bg)) {
+          secBgHex = rgbToHex(bg);
+        }
+        if (!secGradient && bgImg && bgImg.includes('gradient')) {
+          secGradient = (bgImg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/)||[])[0]?.slice(0, 200) || null;
+        }
+        if (secBgHex || secGradient) break;
+        bgEl = bgEl.parentElement;
+      }
+
+      const entry = {
+        type,
+        heading: headingText,
+        layout,
+        bgColor: secBgHex,
+        gradient: secGradient,
+        visualDescriptions: visualDescriptions.length > 0 ? visualDescriptions : null,
+        ctas: ctaButtons.length > 0 ? ctaButtons : null,
+        arrowLinks: arrowLinks.length > 0 ? arrowLinks : null,
+        hasSlider: hasSwiper || false,
+        hasNumberedItems,
+        headingColoredWords: headingColoredWords.length > 0 ? headingColoredWords : null,
+        decorativeGradients: sectionDecorations.length > 0 ? sectionDecorations : null,
+      };
+
+      map.push(entry);
+    }
+
+    return map;
+  }
+
+  // ─── Form/input field style extraction ────────────────────────────────────
+  function extractInputStyles() {
+    const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"], input[type="search"], input:not([type]), textarea, select');
+    for (const el of Array.from(inputs).slice(0, 5)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 60 || rect.height < 20) continue;
+        const cs = window.getComputedStyle(el);
+        const bg = cs.backgroundColor;
+        return {
+          backgroundColor: !isTransparent(bg) ? rgbToHex(bg) : null,
+          color: rgbToHex(cs.color),
+          border: cs.borderWidth !== '0px' ? cs.border : null,
+          borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+          padding: cs.padding,
+          fontSize: cs.fontSize,
+          fontFamily: cleanFont(cs.fontFamily),
+          height: cs.height !== 'auto' ? cs.height : null,
+          placeholderColor: null, // can't reliably extract ::placeholder
+        };
+      } catch(e) {}
+    }
+    return null;
+  }
+
+  // ─── Gradient value extraction ──────────────────────────────────────────────
+  function extractGradients() {
+    const gradients = [];
+    const seen = new Set();
+    const candidates = document.querySelectorAll('section, [class*="hero"], [class*="gradient"], [class*="bg-"], header, footer, main > div');
+    for (const el of Array.from(candidates).slice(0, 30)) {
+      try {
+        const bg = window.getComputedStyle(el).backgroundImage;
+        if (!bg || bg === 'none') continue;
+        // Extract gradient functions only
+        const matches = bg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/g);
+        if (matches) {
+          for (const g of matches) {
+            // Skip noise/texture URLs and very short gradients
+            if (g.length < 30 || seen.has(g)) continue;
+            seen.add(g);
+            const rect = el.getBoundingClientRect();
+            const gradientColors = (g.match(/#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)/g) || []).slice(0, 5);
+            gradients.push({
+              value: g.length > 200 ? g.slice(0, 200) + '...' : g,
+              element: el.tagName.toLowerCase(),
+              colors: gradientColors,
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+            });
+          }
+        }
+      } catch(e) {}
+    }
+    return gradients.slice(0, 4);
+  }
+
+  // ─── Image visual property extraction ───────────────────────────────────────
+  function extractImageStyles() {
+    const imgs = document.querySelectorAll('img');
+    const styles = [];
+    for (const img of Array.from(imgs).slice(0, 10)) {
+      try {
+        const rect = img.getBoundingClientRect();
+        if (rect.width < 80 || rect.height < 80) continue;
+        const cs = window.getComputedStyle(img);
+        const br = cs.borderRadius;
+        const objectFit = cs.objectFit !== 'fill' ? cs.objectFit : null;
+        // Filter out lazy-load blur placeholders (blur(5px), blur(10px), blur(20px))
+        const rawFilter = cs.filter !== 'none' ? cs.filter : null;
+        const filter = rawFilter && !(/^blur\(\d+px\)$/.test(rawFilter)) ? rawFilter : null;
+        const border = cs.borderWidth !== '0px' ? cs.border : null;
+        const shadow = cs.boxShadow !== 'none' ? cs.boxShadow : null;
+        const aspectRatio = rect.width > 0 ? Math.round((rect.height / rect.width) * 100) / 100 : null;
+        if (br !== '0px' || objectFit || filter || border || shadow) {
+          styles.push({ borderRadius: br !== '0px' ? br : null, objectFit, filter, border, boxShadow: shadow, aspectRatio });
+        }
+      } catch(e) {}
+    }
+    // Return the most representative pattern (prefer non-blurred images)
+    if (styles.length === 0) return null;
+    const nonBlurred = styles.find(s => !s.filter);
+    return nonBlurred || styles[0];
+  }
+
+  // ─── Link/anchor style extraction ───────────────────────────────────────────
+  function extractLinkStyles() {
+    const links = document.querySelectorAll('a:not([class*="btn"]):not([class*="button"]):not([class*="nav"])');
+    for (const link of Array.from(links).slice(0, 20)) {
+      try {
+        const text = (link.innerText || '').trim();
+        if (text.length < 3 || text.length > 60) continue;
+        const rect = link.getBoundingClientRect();
+        if (rect.width === 0) continue;
+        const cs = window.getComputedStyle(link);
+        const color = rgbToHex(cs.color);
+        const textDecoration = cs.textDecorationLine || cs.textDecoration;
+        const hasUnderline = textDecoration && textDecoration.includes('underline');
+        return {
+          color,
+          textDecoration: hasUnderline ? 'underline' : 'none',
+          textDecorationColor: hasUnderline && cs.textDecorationColor ? rgbToHex(cs.textDecorationColor) : null,
+          textUnderlineOffset: cs.textUnderlineOffset !== 'auto' ? cs.textUnderlineOffset : null,
+          fontWeight: cs.fontWeight,
+        };
+      } catch(e) {}
+    }
+    return null;
+  }
+
+  // ─── Footer style extraction ────────────────────────────────────────────────
+  function extractFooterStyles() {
+    const footer = document.querySelector('footer');
+    if (!footer) return null;
+    try {
+      const cs = window.getComputedStyle(footer);
+      const bg = cs.backgroundColor;
+      const bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
+      const rect = footer.getBoundingClientRect();
+      // Count columns in footer
+      const cols = footer.querySelectorAll(':scope > div, :scope > section, :scope > nav').length;
+      // Check for border-top
+      const borderTop = cs.borderTopWidth !== '0px' ? cs.borderTop : null;
+      return {
+        backgroundColor: bgHex,
+        color: rgbToHex(cs.color),
+        padding: cs.padding,
+        borderTop,
+        columns: cols > 1 ? cols : null,
+        gap: cs.gap !== 'normal' ? cs.gap : null,
+      };
+    } catch(e) {}
+    return null;
+  }
+
+  // ─── Font weight usage extraction ───────────────────────────────────────────
+  function extractFontWeights() {
+    const weights = new Set();
+    const textEls = document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,a,button,li,label,strong,em');
+    for (const el of Array.from(textEls).slice(0, 100)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        const w = window.getComputedStyle(el).fontWeight;
+        if (w) weights.add(w);
+      } catch(e) {}
+    }
+    return [...weights].sort((a, b) => parseInt(a) - parseInt(b));
+  }
+
+  function detectActualPageBackground() {
+    function getBgHex(el) {
+      try {
+        const bg = window.getComputedStyle(el).backgroundColor;
+        if (isTransparent(bg)) return null;
+        return rgbToHex(bg);
+      } catch(e) { return null; }
+    }
+
+    function hexLum2(hex) {
+      if (!hex || hex.length < 4) return 0.5;
+      const h = hex.length === 4
+        ? '#' + hex[1]+hex[1] + hex[2]+hex[2] + hex[3]+hex[3]
+        : hex;
+      const r = parseInt(h.slice(1,3),16), g = parseInt(h.slice(3,5),16), b = parseInt(h.slice(5,7),16);
+      return (0.299*r + 0.587*g + 0.114*b) / 255;
+    }
+
+    // ── Step 0: Text color cross-check ──
+    // The default text color on body is the most reliable signal for page brightness.
+    // Dark text (luminance < 0.3) = light page.  Light text (luminance > 0.7) = dark page.
+    // This catches sites where bg is set via texture/SVG/gradient or transparent inheritance.
+    function getBodyTextLuminance() {
+      try {
+        const bodyColor = window.getComputedStyle(document.body).color;
+        const m = bodyColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (m) return (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
+      } catch(e) {}
+      return 0.5; // unknown
+    }
+
+    const bodyTextLum = getBodyTextLuminance();
+
+    // ── Step 1: Count transparent vs explicit-bg sections ──
+    const sectionEls = document.querySelectorAll(
+      'section, main > div, [class*="section"], [class*="hero"]'
+    );
+    let transparentSections = 0;
+    let explicitBgSections = 0;
+    for (const sec of Array.from(sectionEls).slice(0, 20)) {
+      try {
+        const rect = sec.getBoundingClientRect();
+        if (rect.width < window.innerWidth * 0.5 || rect.height < 100) continue;
+        const bg = window.getComputedStyle(sec).backgroundColor;
+        if (isTransparent(bg)) transparentSections++;
+        else explicitBgSections++;
+      } catch(e) {}
+    }
+
+    // If most sections are transparent AND body text is dark → page is light (browser default white)
+    const mostSectionsTransparent = transparentSections > explicitBgSections * 2;
+
+    // ── Step 2: Area-based scan of elements with explicit backgrounds ──
+    const areaByColor = {};
+
+    // Always include html element (some sites set bg only on <html>)
+    const htmlBgEarly = getBgHex(document.documentElement);
+    if (htmlBgEarly) {
+      // html covers the entire page — give it the viewport area as weight
+      areaByColor[htmlBgEarly] = window.innerWidth * window.innerHeight;
+    }
+
+    const candidates = document.querySelectorAll(
+      'body, main, article, section, [class*="section"], [class*="hero"], ' +
+      '[class*="page"], [class*="container"], [class*="wrapper"], #__next, #root, #app'
+    );
+
+    for (const el of Array.from(candidates).slice(0, 40)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < window.innerWidth * 0.5) continue;
+        if (rect.height < 100) continue;
+
+        const hex = getBgHex(el);
+        if (!hex) continue;
+
+        const visTop = Math.max(0, rect.top);
+        const visBot = Math.min(window.innerHeight * 3, rect.bottom);
+        const visHeight = Math.max(0, visBot - visTop);
+        const area = rect.width * visHeight;
+        if (area <= 0) continue;
+
+        areaByColor[hex] = (areaByColor[hex] || 0) + area;
+      } catch(e) {}
+    }
+
+    const sorted = Object.entries(areaByColor)
+      .filter(([hex]) => hexLum2(hex) > 0.01)
+      .sort(([, a], [, b]) => b - a);
+
+    // ── Step 3: Cross-check result against text color ──
+    if (sorted.length > 0) {
+      const dominantHex = sorted[0][0];
+      const dominantLum = hexLum2(dominantHex);
+
+      // CONFLICT CHECK: dominant bg is dark but body text is also dark?
+      // This means the detected bg is from a sub-section, not the main page.
+      // Example: site has transparent body + one dark section → detected as dark,
+      // but default text is black → page is actually light.
+      if (dominantLum < 0.25 && bodyTextLum < 0.3) {
+        // Dark bg detected but dark text → OVERRIDE: page is light.
+        // If most sections are transparent, the real bg is white (browser default).
+        if (mostSectionsTransparent) {
+          return '#ffffff';
+        }
+        // Look for a light color in the sorted list
+        const lightEntry = sorted.find(([hex]) => hexLum2(hex) > 0.5);
+        if (lightEntry) return lightEntry[0];
+        return '#ffffff'; // safe fallback — dark text means light bg
+      }
+
+      // CONFLICT CHECK: dominant bg is light but body text is also light?
+      // Unlikely but handle: dark page with one large light section.
+      if (dominantLum > 0.75 && bodyTextLum > 0.7) {
+        const darkEntry = sorted.find(([hex]) => hexLum2(hex) < 0.3);
+        if (darkEntry) return darkEntry[0];
+      }
+
+      return dominantHex;
+    }
+
+    // ── Step 4: No explicit bg from sections — check html/body directly ──
+    // Many sites set background on <html> (not on sections or body).
+    const htmlBg = getBgHex(document.documentElement);
+    const bodyBg = getBgHex(document.body);
+    if (htmlBg) return htmlBg;
+    if (bodyBg) return bodyBg;
+
+    // CSS variable fallback
+    const rootStyle = getComputedStyle(document.documentElement);
+    const bgVarNames = ['--background','--bg','--page-bg','--bg-color','--color-bg','--surface'];
+    for (const v of bgVarNames) {
+      const val = rootStyle.getPropertyValue(v).trim();
+      if (val && /^#[0-9a-f]{3,8}$/i.test(val)) return val;
+    }
+
+    // Final fallback: infer from text color
+    // Dark text → light page, light text → dark page
+    if (bodyTextLum < 0.3) return '#ffffff';
+    if (bodyTextLum > 0.7) return '#111111';
+    return '#ffffff';
+  }
+
+  // ─── Deep visual profile extraction ─────────────────────────────────────────
+  function extractVisualProfile() {
+    const profile = {
+      sectionRhythm: [],         // per-section bg color + has-image signal
+      hasFullBleedImages: false,
+      hasBackgroundImages: false,
+      hasMeshGradient: false,
+      hasGlassmorphism: false,
+      blendModes: [],             // mix-blend-mode values used on the page
+      hasFloatingCards: false,
+      hasParallaxHint: false,
+      hasScrollAnimation: false,
+      hasNoiseTexture: false,    // grainy/noise SVG or CSS grain overlay
+      imageTreatment: 'none',    // 'cinematic' | 'illustrative' | 'screenshot' | 'none'
+      sectionColorPattern: 'unknown', // 'alternating' | 'progressive-dark' | 'uniform-light' | 'uniform-dark'
+      dominantSectionBg: null,
+      hasOverlaidUIOnPhoto: false,
+      navStyle: 'default',       // 'transparent-hero' | 'frosted' | 'solid'
+      hasGradientSection: false,
+      gradientStyle: null,       // 'aurora' | 'mesh' | 'linear' | 'radial'
+      textOnImageCount: 0,
+      splitLayoutCount: 0,       // text-left image-right sections
+    };
+
+    // ── Scan top-level sections ──
+    const sectionEls = document.querySelectorAll(
+      'section, [class*="section"], [class*="block"], [class*="row"], main > div, article > div'
+    );
+
+    const sectionData = [];
+    let darkCount = 0, lightCount = 0;
+    const sectionPaddingsY = [];
+    const sectionPaddingsX = [];
+    const gridGaps = [];
+
+    for (const sec of Array.from(sectionEls).slice(0, 20)) {
+      const cs = window.getComputedStyle(sec);
+      const rect = sec.getBoundingClientRect();
+      if (rect.height < 80 || rect.width < 200) continue;
+
+      // Collect spacing data
+      const pTop = parseInt(cs.paddingTop);
+      const pBot = parseInt(cs.paddingBottom);
+      const pLeft = parseInt(cs.paddingLeft);
+      if (pTop > 20 && pTop < 300) sectionPaddingsY.push(pTop);
+      if (pBot > 20 && pBot < 300) sectionPaddingsY.push(pBot);
+      if (pLeft > 10 && pLeft < 200) sectionPaddingsX.push(pLeft);
+      const gapVal = parseInt(cs.gap);
+      if (gapVal > 0 && gapVal < 200) gridGaps.push(gapVal);
+
+      const bg = cs.backgroundColor;
+      const bgImg = cs.backgroundImage;
+      const hex = bg && !isTransparent(bg) ? rgbToHex(bg) : null;
+
+      const secInfo = {
+        bgHex: hex,
+        hasBackgroundImage: bgImg && bgImg !== 'none',
+        hasChildImages: !!sec.querySelector('img, video'),
+        hasGradient: bgImg && (bgImg.includes('gradient') || bgImg.includes('linear') || bgImg.includes('radial')),
+        height: Math.round(rect.height),
+        width: Math.round(rect.width),
+        isFullBleed: rect.width >= window.innerWidth * 0.9,
+        hasOverlay: !!sec.querySelector('[class*="overlay"],[class*="mask"],[style*="position: absolute"]'),
+      };
+
+      // Check for glassmorphism within section
+      const sectionChildren = sec.querySelectorAll('*');
+      for (const child of Array.from(sectionChildren).slice(0, 30)) {
+        const ccs = window.getComputedStyle(child);
+        if (ccs.backdropFilter && ccs.backdropFilter !== 'none') {
+          profile.hasGlassmorphism = true;
+        }
+        const bm = ccs.mixBlendMode;
+        if (bm && bm !== 'normal') profile.blendModes.push(bm);
+        if (ccs.position === 'absolute' || ccs.position === 'fixed') {
+          const childBg = ccs.backgroundColor;
+          if (!isTransparent(childBg) && !!sec.querySelector('img,video')) {
+            profile.hasOverlaidUIOnPhoto = true;
+          }
+        }
+      }
+      profile.blendModes = [...new Set(profile.blendModes)];
+
+      // Track dark/light
+      if (hex) {
+        const lum = hexLuminanceFromRgb(bg);
+        if (lum < 0.2) darkCount++;
+        else if (lum > 0.75) lightCount++;
+      }
+
+      sectionData.push(secInfo);
+    }
+
+    profile.sectionRhythm = sectionData.slice(0, 10);
+
+    // ── Spacing system ──
+    {
+      const median = arr => { if (!arr.length) return null; const s = [...arr].sort((a,b)=>a-b); return s[Math.floor(s.length/2)]; };
+      const mPadY = median(sectionPaddingsY);
+      const mPadX = median(sectionPaddingsX);
+      const mGap = median(gridGaps);
+
+      // Find container max-width
+      let containerMaxWidth = null;
+      const containers = document.querySelectorAll('main, [class*="container"], [class*="wrapper"], [class*="content"]');
+      for (const c of Array.from(containers).slice(0, 10)) {
+        try {
+          const cCs = window.getComputedStyle(c);
+          const mw = cCs.maxWidth;
+          if (mw && mw !== 'none' && mw !== '0px') { containerMaxWidth = mw; break; }
+        } catch(e) {}
+      }
+
+      // Card gap — look for grid/flex containers with multiple card children
+      let cardGap = null;
+      const cardContainers = document.querySelectorAll('[class*="grid"], [class*="cards"], [class*="features"]');
+      for (const cc of Array.from(cardContainers).slice(0, 5)) {
+        try {
+          const ccCs = window.getComputedStyle(cc);
+          const g = parseInt(ccCs.gap);
+          if (g > 0 && g < 100 && cc.children.length >= 2) { cardGap = g + 'px'; break; }
+        } catch(e) {}
+      }
+
+      profile.spacingSystem = {
+        sectionPaddingY: mPadY ? mPadY + 'px' : null,
+        sectionPaddingX: mPadX ? mPadX + 'px' : null,
+        containerMaxWidth,
+        gridGap: mGap ? mGap + 'px' : null,
+        cardGap,
+      };
+    }
+
+    // ── Section color pattern ──
+    // Key insight: many sections have transparent/inherited backgrounds,
+    // so darkCount+lightCount can be low even on a clearly light page.
+    // Use body text color luminance as the primary tiebreaker — it's the most reliable
+    // signal when backgrounds are transparent/inherited.
+    const pageBgLumForPattern = (() => {
+      // First check body background-color
+      const bodyBg = window.getComputedStyle(document.body).backgroundColor;
+      if (!isTransparent(bodyBg)) {
+        const m = bodyBg.match(/\d+/g);
+        if (m) return (0.299*+m[0] + 0.587*+m[1] + 0.114*+m[2]) / 255;
+      }
+      // Fallback: infer from body text color (dark text = light page, light text = dark page)
+      try {
+        const bodyColor = window.getComputedStyle(document.body).color;
+        const cm = bodyColor.match(/\d+/g);
+        if (cm) {
+          const textLum = (0.299*+cm[0] + 0.587*+cm[1] + 0.114*+cm[2]) / 255;
+          // Invert: dark text → page is light (lum ~0.9), light text → page is dark (lum ~0.1)
+          return textLum < 0.3 ? 0.9 : textLum > 0.7 ? 0.1 : 0.5;
+        }
+      } catch(e) {}
+      return 0.9; // default light if unknown
+    })();
+
+    // Count transparent sections — they inherit from the page bg
+    const transparentSectionCount = sectionData.filter(s => !s.bgHex).length;
+    const totalSectionCount = sectionData.length;
+    const mostTransparent = transparentSectionCount > totalSectionCount * 0.6;
+
+    // If most sections are transparent and page bg is light, treat transparent sections as light
+    if (mostTransparent && pageBgLumForPattern > 0.6) {
+      lightCount += transparentSectionCount;
+    } else if (mostTransparent && pageBgLumForPattern < 0.3) {
+      darkCount += transparentSectionCount;
+    }
+
+    if (darkCount > 2 && lightCount > 2) {
+      profile.sectionColorPattern = 'alternating';
+    } else if (darkCount > lightCount * 2 && darkCount > 2) {
+      profile.sectionColorPattern = 'uniform-dark';
+    } else if (lightCount > darkCount * 2 || (darkCount === 0 && pageBgLumForPattern > 0.6)) {
+      profile.sectionColorPattern = 'uniform-light';
+    } else if (darkCount > 0 && lightCount > 0 && darkCount <= lightCount) {
+      // More light than dark — probably light with one dark CTA section = progressive
+      profile.sectionColorPattern = 'progressive-dark';
+    } else if (pageBgLumForPattern < 0.3) {
+      profile.sectionColorPattern = 'uniform-dark';
+    } else {
+      profile.sectionColorPattern = 'uniform-light';
+    }
+
+    // ── Image usage analysis ──
+    // More conservative cinematic detection — avoid false positives from large logos/diagrams
+    const allImgs = document.querySelectorAll('img');
+    let cinematicCount = 0, screenshotCount = 0, illustrationCount = 0;
+    let maxImgArea = 0;
+
+    for (const img of Array.from(allImgs).slice(0, 30)) {
+      const rect = img.getBoundingClientRect();
+      const area = rect.width * rect.height;
+      if (area > maxImgArea) maxImgArea = area;
+
+      const src = (img.src || img.currentSrc || '').toLowerCase();
+      const alt = (img.alt || '').toLowerCase();
+      const cls = (img.className || '').toLowerCase();
+      const parentCls = (img.closest('section,div')?.className || '').toLowerCase();
+
+      // Skip logo images (often large but not "cinematic")
+      const isLogo = /logo|brand|partner|client|customer|icon/.test(src + alt + cls + parentCls);
+      if (isLogo) continue;
+
+      // Skip very wide but short images (banners, strips)
+      const aspectRatio = rect.height / rect.width;
+      if (aspectRatio < 0.2) continue;
+
+      // Cinematic: large, fills significant viewport, and NOT a product screenshot
+      const fillsViewport = rect.width > window.innerWidth * 0.5 && rect.height > 300;
+      const hasOverlay = img.closest('[class*="hero"],[class*="banner"],[class*="cover"]');
+      const isInDarkSection = (() => {
+        const sec = img.closest('section,[class*="section"]');
+        if (!sec) return false;
+        const bg = window.getComputedStyle(sec).backgroundColor;
+        if (isTransparent(bg)) return false;
+        const m = bg.match(/\d+/g);
+        return m ? (0.299*+m[0] + 0.587*+m[1] + 0.114*+m[2]) / 255 < 0.3 : false;
+      })();
+
+      if (fillsViewport && (hasOverlay || isInDarkSection)) cinematicCount++;
+
+      // Screenshot: UI-like aspect ratio (~16:9 to 4:3 of desktop), in a feature section
+      if (rect.width > 200 && aspectRatio > 0.5 && aspectRatio < 0.85) screenshotCount++;
+      if (src.includes('illustration') || src.includes('hero-img') || src.includes('graphic')) illustrationCount++;
+    }
+
+    profile.hasFullBleedImages = maxImgArea > (window.innerWidth * window.innerHeight * 0.4);
+    profile.hasBackgroundImages = sectionData.some(s => s.hasBackgroundImage);
+
+    // Only declare cinematic if genuinely large + dark/overlay context
+    if (cinematicCount > 1) profile.imageTreatment = 'cinematic';
+    else if (screenshotCount > 2) profile.imageTreatment = 'screenshot';
+    else if (illustrationCount > 0) profile.imageTreatment = 'illustrative';
+    // cinematicCount === 1 alone is NOT enough — could be a product screenshot in dark section
+
+    // ── Gradient detection ──
+    const allEls = document.querySelectorAll('*');
+    for (const el of Array.from(allEls).slice(0, 300)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const bg = cs.backgroundImage;
+        if (!bg || bg === 'none') continue;
+        if (bg.includes('gradient')) {
+          profile.hasGradientSection = true;
+          // Try to classify gradient style
+          const colorCount = (bg.match(/#[0-9a-f]{3,8}|rgb/gi) || []).length;
+          const rect = el.getBoundingClientRect();
+          if (colorCount >= 4 && rect.width > 600) {
+            profile.gradientStyle = 'aurora'; // multi-color wide gradient
+          } else if (bg.includes('radial-gradient') && colorCount >= 3) {
+            profile.gradientStyle = 'mesh';
+          } else if (bg.includes('linear-gradient')) {
+            profile.gradientStyle = profile.gradientStyle || 'linear';
+          }
+        }
+      } catch(e) {}
+    }
+
+    // ── Nav style detection ──
+    const nav = document.querySelector('nav, header');
+    if (nav) {
+      const navCs = window.getComputedStyle(nav);
+      if (navCs.backdropFilter && navCs.backdropFilter !== 'none') {
+        profile.navStyle = 'frosted';
+      } else if (isTransparent(navCs.backgroundColor)) {
+        profile.navStyle = 'transparent-hero';
+      } else {
+        profile.navStyle = 'solid';
+      }
+    }
+
+    // ── Split layout detection ──
+    const splitSections = document.querySelectorAll(
+      '[class*="split"],[class*="two-col"],[class*="grid-2"],[class*="flex-row"]'
+    );
+    // Also count sections where we see img + text siblings in a flex/grid
+    let splitCount = splitSections.length;
+    for (const sec of Array.from(sectionEls).slice(0, 20)) {
+      const cs = window.getComputedStyle(sec);
+      if ((cs.display === 'flex' || cs.display === 'grid') && sec.children.length === 2) {
+        const hasImg = sec.querySelector('img');
+        const hasText = sec.querySelector('h1,h2,h3,p');
+        if (hasImg && hasText) splitCount++;
+      }
+    }
+    profile.splitLayoutCount = Math.min(splitCount, 20);
+
+    // ── Text-on-image detection ──
+    for (const sec of sectionData) {
+      if (sec.hasBackgroundImage || sec.hasChildImages) {
+        const secEl = Array.from(sectionEls)[sectionData.indexOf(sec)];
+        if (secEl && secEl.querySelector('h1,h2,h3,p')) profile.textOnImageCount++;
+      }
+    }
+
+    // ── Animation pattern detection ──
+    const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"]');
+    profile.hasScrollAnimation = dataAttribs.length > 0;
+
+    const allClasses = Array.from(document.querySelectorAll('[class]')).map(el => el.className.toString()).join(' ');
+    if (allClasses.includes('is-visible') || allClasses.includes('in-view') || allClasses.includes('animated')) {
+      profile.hasScrollAnimation = true;
+    }
+
+    // Detailed animation patterns
+    profile.animationPatterns = {
+      hasTextReveal: false,       // text typing / reveal / mask animation
+      hasMaskReveal: false,       // clip-path or mask-based scroll reveals
+      hasSlider: false,           // Swiper or carousel slider
+      sliderType: null,           // 'swiper' | 'scroll-snap' | 'custom'
+      hasArrowAnimation: false,   // arrow slides on hover
+      hasHeroAnimation: false,    // animated hero (typing, rotation, etc.)
+      hasCounterAnimation: false, // animated numbers
+      hasStaggerReveal: false,    // staggered entry of child elements
+    };
+
+    // Text reveal / typing animation
+    if (allClasses.includes('animated-text') || allClasses.includes('typewriter') ||
+        allClasses.includes('typing') || allClasses.includes('text-rotate') ||
+        allClasses.includes('text-animation') || allClasses.includes('text-reveal')) {
+      profile.animationPatterns.hasTextReveal = true;
+      profile.animationPatterns.hasHeroAnimation = true;
+    }
+
+    // Mask reveal animation
+    if (allClasses.includes('reveal-mask') || allClasses.includes('clip-reveal') ||
+        allClasses.includes('mask-reveal') || allClasses.includes('overflow-reveal')) {
+      profile.animationPatterns.hasMaskReveal = true;
+      profile.hasScrollAnimation = true;
+    }
+
+    // Slider detection
+    const swiperEls = document.querySelectorAll('.swiper, .swiper-slide, [class*="slider"], [class*="carousel"]');
+    if (swiperEls.length > 0) {
+      profile.animationPatterns.hasSlider = true;
+      profile.animationPatterns.sliderType = document.querySelector('.swiper, .swiper-slide') ? 'swiper' : 'custom';
+    }
+
+    // Arrow animation on buttons/links
+    const arrowWrappers = document.querySelectorAll('[class*="arrow"], [class*="link-arrow"], [class*="cta-arrow"]');
+    if (arrowWrappers.length >= 2) {
+      profile.animationPatterns.hasArrowAnimation = true;
+    }
+
+    // Staggered reveal
+    if (allClasses.includes('stagger') || allClasses.includes('delay-') ||
+        document.querySelectorAll('[style*="animation-delay"],[style*="transition-delay"]').length >= 3) {
+      profile.animationPatterns.hasStaggerReveal = true;
+    }
+
+    // ── Noise / grain texture detection ──
+    {
+      const noiseEls = document.querySelectorAll(
+        '[class*="noise"], [class*="grain"], [class*="texture"], [class*="film-grain"]'
+      );
+      if (noiseEls.length > 0) {
+        profile.hasNoiseTexture = true;
+      } else {
+        // Check for noise SVG backgrounds on major containers
+        const containers = [document.body, document.documentElement,
+          ...Array.from(document.querySelectorAll('body > div, main, [class*="wrapper"]')).slice(0, 5)];
+        for (const el of containers) {
+          try {
+            const bg = window.getComputedStyle(el).backgroundImage;
+            if (bg && bg !== 'none' && (bg.includes('noise') || bg.includes('grain'))) {
+              profile.hasNoiseTexture = true;
+              break;
+            }
+          } catch(e) {}
+        }
+      }
+    }
+
+    // ── UI Pattern Detection ──
+    profile.uiPatterns = detectUIPatterns();
+
+    return profile;
+  }
+
+  function detectUIPatterns() {
+    const patterns = {
+      hasMarquee: false,
+      hasPricingGrid: false,
+      pricingColumnCount: 0,
+      hasTestimonialCarousel: false,
+      hasDualCTA: false,         // QR code + button side by side
+      hasQRCode: false,
+      hasStickyNav: false,
+      hasLogoStrip: false,
+      hasFeatureList: false,     // icon + text list items
+      hasStepIndicator: false,   // numbered steps
+      hasDarkFooter: false,
+      hasVideoSection: false,
+      hasTabSection: false,
+      hasAccordion: false,
+      hasCounterSection: false,  // animated numbers / stats
+      pageStructure: [],         // ordered list of detected sections
+    };
+
+    // ── Marquee ──
+    const marqueeEl = document.querySelector(
+      '[class*="marquee"],[class*="ticker"],[class*="scroll-banner"],[class*="logo-strip"],[class*="brand-strip"],[style*="animation"][style*="translate"]'
+    );
+    if (marqueeEl) {
+      patterns.hasMarquee = true;
+    } else {
+      // Detect via animation: if an element has many img children and an animation
+      document.querySelectorAll('ul, div, section').forEach(el => {
+        const cs = window.getComputedStyle(el);
+        if (cs.animation && cs.animation !== 'none' && el.querySelectorAll('img').length > 4) {
+          patterns.hasMarquee = true;
+        }
+      });
+    }
+
+    // Logo strip (many logos in a row, even without animation)
+    const potentialStrips = document.querySelectorAll('div, section, ul');
+    for (const el of potentialStrips) {
+      const imgs = el.querySelectorAll('img');
+      if (imgs.length >= 4) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 600 && rect.height < 200) {
+          patterns.hasLogoStrip = true;
+          break;
+        }
+      }
+    }
+
+    // ── Pricing grid ──
+    const pricingSection = document.querySelector(
+      '[class*="pricing"],[class*="plan"],[class*="tier"],[id*="pricing"],[id*="plans"]'
+    );
+    if (pricingSection) {
+      patterns.hasPricingGrid = true;
+      // Count columns
+      const cards = pricingSection.querySelectorAll('[class*="card"],[class*="plan"],[class*="tier"]');
+      patterns.pricingColumnCount = Math.min(cards.length, 5);
+    } else {
+      // Heuristic: find a container with 2–4 children that each have a price
+      const allEls = document.querySelectorAll('section, div[class]');
+      for (const el of Array.from(allEls).slice(0, 100)) {
+        const children = Array.from(el.children).filter(c => {
+          const text = c.innerText || '';
+          return /€|\$|£|¥|per (day|month|year|week)|\/mo|free/i.test(text);
+        });
+        if (children.length >= 2 && children.length <= 5) {
+          patterns.hasPricingGrid = true;
+          patterns.pricingColumnCount = children.length;
+          break;
+        }
+      }
+    }
+
+    // ── Testimonial carousel ──
+    const carouselEl = document.querySelector(
+      '[class*="carousel"],[class*="swiper"],[class*="slider"],[class*="testimonial"],[class*="review"]'
+    );
+    if (carouselEl) patterns.hasTestimonialCarousel = true;
+
+    // ── QR Code ──
+    const qrEl = document.querySelector(
+      'img[src*="qr"],[class*="qr"],[alt*="qr" i],[alt*="QR"],[alt*="scan"]'
+    );
+    if (qrEl) {
+      patterns.hasQRCode = true;
+      // Check if button is nearby (dual CTA)
+      const parent = qrEl.closest('section, div') || document.body;
+      const nearbyBtn = parent.querySelector('a[href], button');
+      if (nearbyBtn) patterns.hasDualCTA = true;
+    }
+
+    // ── Sticky nav ──
+    const navEl = document.querySelector('nav, header');
+    if (navEl) {
+      const cs = window.getComputedStyle(navEl);
+      patterns.hasStickyNav = cs.position === 'sticky' || cs.position === 'fixed';
+    }
+
+    // ── Feature list (icon + text rows) ──
+    const listItems = document.querySelectorAll('li, [class*="feature-item"],[class*="feature-row"]');
+    let iconListCount = 0;
+    for (const li of Array.from(listItems).slice(0, 50)) {
+      if (li.querySelector('svg, img') && li.innerText?.length > 5) iconListCount++;
+    }
+    if (iconListCount >= 3) patterns.hasFeatureList = true;
+
+    // ── Step indicator ──
+    const stepEls = document.querySelectorAll('[class*="step"],[class*="Step"]');
+    if (stepEls.length >= 2) {
+      patterns.hasStepIndicator = true;
+    } else {
+      // Look for numbered circles (common in step indicators)
+      const numberedCircles = document.querySelectorAll('[class*="number"],[class*="circle"],[class*="badge"]');
+      const withNumbers = Array.from(numberedCircles).filter(el => /^[1-9]$/.test(el.innerText?.trim()));
+      if (withNumbers.length >= 3) patterns.hasStepIndicator = true;
+    }
+
+    // ── Dark footer ──
+    const footer = document.querySelector('footer');
+    if (footer) {
+      const cs = window.getComputedStyle(footer);
+      const bg = cs.backgroundColor;
+      if (bg) {
+        const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (m) {
+          const lum = (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
+          patterns.hasDarkFooter = lum < 0.25;
+        }
+      }
+    }
+
+    // ── Video section ──
+    const videoEl = document.querySelector('video, [class*="video"], iframe[src*="youtube"], iframe[src*="vimeo"]');
+    if (videoEl) patterns.hasVideoSection = true;
+
+    // ── Tabs ──
+    const tabEl = document.querySelector('[role="tablist"], [class*="tabs"], [class*="tab-nav"]');
+    if (tabEl) patterns.hasTabSection = true;
+
+    // ── Accordion ──
+    const accordionEl = document.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
+    if (accordionEl) patterns.hasAccordion = true;
+
+    // ── Stats / counters ──
+    const statsSection = document.querySelector('[class*="stats"],[class*="counter"],[class*="metric"],[class*="number"]');
+    if (statsSection) {
+      // Must have actual numbers
+      if (/\d+[KkMmBb%+]/.test(statsSection.innerText)) patterns.hasCounterSection = true;
+    }
+
+    // ── Page structure (ordered sections) ──
+    const structure = [];
+    const mainSections = document.querySelectorAll('main > section, main > div, body > section, body > div > section');
+    for (const sec of Array.from(mainSections).slice(0, 20)) {
+      const text = (sec.innerText || '').slice(0, 200).toLowerCase();
+      const hasH1 = !!sec.querySelector('h1');
+      const hasH2 = !!sec.querySelector('h2');
+      const hasImg = !!sec.querySelector('img');
+      const hasVideo = !!sec.querySelector('video, iframe');
+      const hasForm = !!sec.querySelector('form, input');
+      const rect = sec.getBoundingClientRect();
+
+      // Skip tiny or invisible sections
+      if (rect.height < 60) continue;
+
+      let label = '';
+      if (hasH1) label = 'hero';
+      else if (/partner|trusted by|as seen|logo/i.test(text) && hasImg) label = 'logo-strip';
+      else if (/pric|plan|tier|free|month|year/i.test(text)) label = 'pricing';
+      else if (/review|testimonial|love|said|customer|quote/i.test(text)) label = 'testimonials';
+      else if (/faq|question|answer|accordion/i.test(text)) label = 'faq';
+      else if (/contact|reach out|form/i.test(text) && hasForm) label = 'contact';
+      else if (hasVideo) label = 'video';
+      else if (hasH2 && hasImg) label = 'feature-split';
+      else if (hasH2) label = 'content-section';
+
+      if (!label) continue;
+
+      // Deduplicate: don't push the same label consecutively more than once
+      // (carousel slides / slider items show as duplicate sections)
+      const last = structure[structure.length - 1];
+      if (last === label) continue;
+
+      structure.push(label);
+    }
+
+    // Post-process: if testimonials appears 3+ times total, collapse to "testimonials (carousel)"
+    const testimonialCount = structure.filter(s=>s==='testimonials').length;
+    if (testimonialCount >= 3) {
+      const deduped = [];
+      let testimonialAdded = false;
+      for (const s of structure) {
+        if (s === 'testimonials') {
+          if (!testimonialAdded) { deduped.push('testimonials (carousel)'); testimonialAdded = true; }
+        } else {
+          deduped.push(s);
+        }
+      }
+      patterns.pageStructure = deduped;
+    } else {
+      patterns.pageStructure = structure;
+    }
+
+    // ── Decorative background geometry ──
+    // Large SVGs or elements used as abstract background blobs/shapes
+    {
+      let blobCount = 0;
+      const decorCandidates = document.querySelectorAll(
+        'svg, [class*="blob"], [class*="shape"], [class*="bg-"], [class*="background-shape"], [class*="deco"], [class*="abstract"], [class*="orb"], [class*="glow"]'
+      );
+      for (const el of decorCandidates) {
+        try {
+          const rect = el.getBoundingClientRect();
+          const cs = window.getComputedStyle(el);
+          // Large, behind content (not a logo or icon)
+          const isBig = rect.width > 200 || rect.height > 200;
+          const isBackground = cs.position === 'absolute' || cs.position === 'fixed'
+            || parseInt(cs.zIndex) < 1 || el.closest('[class*="hero"],[class*="banner"]');
+          const hasNoText = (el.innerText||'').trim().length < 10;
+          if (isBig && hasNoText) blobCount++;
+        } catch(e) {}
+      }
+      // Also detect pseudo-element blobs via large border-radius on section ::before/::after
+      const heroSec = document.querySelector('[class*="hero"], section');
+      if (heroSec) {
+        const before = window.getComputedStyle(heroSec, '::before');
+        const after = window.getComputedStyle(heroSec, '::after');
+        for (const ps of [before, after]) {
+          if (ps.content !== 'none' && ps.borderRadius &&
+              (ps.borderRadius.includes('50%') || parseInt(ps.borderRadius) > 50)) {
+            blobCount++;
+          }
+        }
+      }
+      patterns.hasDecorativeGeometry = blobCount > 0;
+      patterns.decorativeGeometryCount = blobCount;
+    }
+
+    // ── Icon system ──
+    // Detect small icons (SVG or IMG) consistently paired with headings/labels
+    {
+      const iconPairCount = { svg: 0, img: 0 };
+      // Look for heading-adjacent icons (icon before h3/h4, or inside feature list items)
+      const featureItems = document.querySelectorAll(
+        '[class*="feature"] li, [class*="feature-item"], [class*="use-case"], [class*="benefit"]'
+      );
+      for (const item of featureItems) {
+        if (item.querySelector('svg, img[width], img[height]')) iconPairCount.svg++;
+      }
+      // Also look for h3/h4 siblings with a preceding icon
+      const headings = document.querySelectorAll('h3, h4');
+      for (const h of headings) {
+        const prev = h.previousElementSibling;
+        const parent = h.parentElement;
+        if (prev && (prev.tagName === 'SVG' || prev.tagName === 'IMG')) {
+          iconPairCount.svg++;
+        } else if (parent && parent.querySelector('svg, img')) {
+          // Icon inside same container as heading
+          const parentSvgs = parent.querySelectorAll('svg, img[src*="icon"], img[class*="icon"]');
+          if (parentSvgs.length > 0) iconPairCount.svg++;
+        }
+      }
+      const totalIconPairs = iconPairCount.svg + iconPairCount.img;
+      patterns.hasIconSystem = totalIconPairs >= 3;
+      patterns.iconSystemCount = totalIconPairs;
+
+      // Detect icon style + detailed measurements
+      if (patterns.hasIconSystem) {
+        const sampleSvgs = document.querySelectorAll('[class*="feature"] svg, [class*="use-case"] svg, [class*="icon"] svg, [class*="benefit"] svg');
+        const sampleSvg = sampleSvgs[0] || null;
+        if (sampleSvg) {
+          const hasFill = sampleSvg.querySelector('[fill]:not([fill="none"])');
+          const hasStroke = sampleSvg.querySelector('[stroke]:not([stroke="none"])');
+          patterns.iconStyle = hasFill && !hasStroke ? 'filled' : hasStroke && !hasFill ? 'outlined' : 'mixed';
+        } else {
+          patterns.iconStyle = 'illustrated';
+        }
+
+        // Detailed icon measurements
+        const iconDetails = { size: null, strokeWidth: null, color: null, containerStyle: 'none', containerBg: null, containerRadius: null, containerSize: null, gapToText: null };
+        const iconSamples = Array.from(sampleSvgs).slice(0, 5);
+        const sizes = [];
+        for (const svg of iconSamples) {
+          try {
+            const rect = svg.getBoundingClientRect();
+            if (rect.width > 0 && rect.width < 100) sizes.push(Math.round(rect.width));
+            // Stroke width from SVG paths
+            if (!iconDetails.strokeWidth) {
+              const path = svg.querySelector('path, line, circle, polyline, rect');
+              if (path) {
+                const sw = path.getAttribute('stroke-width') || window.getComputedStyle(path).strokeWidth;
+                if (sw && sw !== '0' && sw !== '0px') iconDetails.strokeWidth = sw.replace('px','');
+              }
+            }
+            // Color
+            if (!iconDetails.color) {
+              const svgCs = window.getComputedStyle(svg);
+              const c = svgCs.color;
+              if (c && !isTransparent(c)) iconDetails.color = rgbToHex(c);
+            }
+            // Container detection: check parent element
+            const parent = svg.parentElement;
+            if (parent && parent !== document.body) {
+              const pCs = window.getComputedStyle(parent);
+              const pBg = pCs.backgroundColor;
+              const pRect = parent.getBoundingClientRect();
+              const isContainer = !isTransparent(pBg) && pRect.width < 100 && pRect.height < 100 && pRect.width > rect.width;
+              if (isContainer && iconDetails.containerStyle === 'none') {
+                iconDetails.containerBg = rgbToHex(pBg);
+                iconDetails.containerRadius = pCs.borderRadius;
+                iconDetails.containerSize = Math.round(pRect.width) + 'px';
+                iconDetails.containerStyle = pCs.borderRadius?.includes('50%') || parseInt(pCs.borderRadius) > pRect.width * 0.4 ? 'circle' : 'square';
+              }
+              // Gap to adjacent text
+              const nextSib = parent.nextElementSibling || svg.nextElementSibling;
+              if (nextSib && nextSib.innerText?.trim().length > 2) {
+                const gap = nextSib.getBoundingClientRect().left - (parent !== document.body ? pRect.right : rect.right);
+                if (gap > 0 && gap < 60) iconDetails.gapToText = Math.round(gap) + 'px';
+              }
+            }
+          } catch(e) {}
+        }
+        if (sizes.length) iconDetails.size = sizes[Math.floor(sizes.length/2)] + 'px'; // median
+        patterns.iconDetails = iconDetails;
+      }
+    }
+
+    // ── Arrow / text link CTA pattern ──
+    // "Learn more →" style links with accent color — distinct from pill buttons
+    {
+      const links = document.querySelectorAll('a');
+      let arrowLinkCount = 0;
+      let arrowLinkColor = null;
+      const arrowPattern = /→|›|»|▶|→|⟶|learn more|view all|see all|read more/i;
+      for (const link of links) {
+        const text = (link.innerText || '').trim();
+        if (arrowPattern.test(text) && text.length < 60) {
+          try {
+            const cs = window.getComputedStyle(link);
+            const color = cs.color;
+            // Must be a distinct color from pure black/white (accent-colored)
+            const lum = hexLuminanceFromRgb(color);
+            const rgb = color.match(/\d+/g);
+            if (rgb) {
+              const [r,g,b] = rgb.map(Number);
+              const sat = Math.max(r,g,b) - Math.min(r,g,b);
+              if (sat > 30) { // has color — not neutral
+                arrowLinkCount++;
+                if (!arrowLinkColor) arrowLinkColor = rgbToHex(color);
+              }
+            }
+          } catch(e) {}
+        }
+      }
+      // Also check for ::after arrow via font-content heuristic
+      const afterArrows = document.querySelectorAll('[class*="arrow-link"],[class*="text-link"],[class*="cta-link"],[class*="learn-more"]');
+      arrowLinkCount += afterArrows.length;
+
+      patterns.hasArrowLinks = arrowLinkCount >= 2;
+      patterns.arrowLinkColor = arrowLinkColor;
+      patterns.arrowLinkCount = arrowLinkCount;
+    }
+
+    return patterns;
+  }
+
+  function hexLuminanceFromRgb(rgb) {
+    const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return 0.5;
+    return (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
+  }
+
+  // ─── Shadow parsing helpers ───────────────────────────────────────────────
+  // Split box-shadow string at layer boundaries (commas at parenthesis depth 0)
+  function splitShadowLayers(shadow) {
+    const layers = [];
+    let depth = 0, current = '';
+    for (let i = 0; i < shadow.length; i++) {
+      const ch = shadow[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) {
+        const trimmed = current.trim();
+        if (trimmed) layers.push(trimmed);
+        current = '';
+        continue;
+      }
+      current += ch;
+    }
+    const last = current.trim();
+    if (last) layers.push(last);
+    return layers;
+  }
+
+  // Determine if a shadow layer has real visual output (not a Tailwind ring zero-filler)
+  function isRealShadowLayer(layer) {
+    const t = layer.trim();
+    if (!t) return false;
+    // Zero-alpha rgba = Tailwind ring filler, discard
+    if (/^rgba?\(\s*0[\s,]+0[\s,]+0[\s,]+0[\s,)]*\)/.test(t)) return false;
+    // oklab() = modern color, always real
+    if (t.includes('oklab(')) return true;
+    // rgba with non-zero alpha
+    if (/rgba\(\s*\d+[\s,]+\d+[\s,]+\d+[\s,]+(?:0\.[1-9]|[1-9])/.test(t)) return true;
+    // rgb with at least one non-zero channel (not pure black as zero-value)
+    // rgb(0,0,0) used as a real shadow is fine for inset, ignore otherwise
+    if (t.includes('inset') && /rgb\(/.test(t)) return true;
+    // hsl/oklch etc
+    if (/^(hsl|oklch|color)\(/.test(t)) return true;
+    return false;
+  }
+
+  function isLowSaturation(hex) {
+    return colorSaturation(hex) < 30;
+  }
+
+  function colorSaturation(hex) {
+    if (!hex || hex.length < 7) return 0;
+    const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+    return Math.max(r,g,b) - Math.min(r,g,b);
+  }
+
+  function detectPageType() {
+    const url = window.location.href;
+    if (url.includes('dashboard') || url.includes('/app/')) return 'dashboard/app';
+    if (document.querySelector('[class*="hero"],[class*="banner"]')) return 'landing page';
+    if (document.querySelector('article,[class*="post"],[class*="blog"]')) return 'blog/article';
+    if (document.querySelector('[class*="pricing"]')) return 'pricing page';
+    if (document.querySelector('[class*="login"],[class*="signin"]')) return 'auth page';
+    if (url.includes('behance') || url.includes('dribbble')) return 'design portfolio';
+    return 'web page';
+  }
+
+  // ─── Element extraction ────────────────────────────────────────────────────
+  // Walk up from a media element to find the nearest content-rich parent (card, section, etc.)
+  function findContentParent(el) {
+    let parent = el.parentElement;
+    for (let d = 0; d < 6 && parent; d++) {
+      // Stop at a container that has heading or paragraph text
+      if (parent.querySelector('h1, h2, h3, h4, p')) return parent;
+      // Stop at a section/article/card-like container
+      const tag = parent.tagName.toLowerCase();
+      if (['section', 'article', 'main'].includes(tag)) return parent;
+      const cls = (parent.className || '').toString().toLowerCase();
+      if (/card|feature|block|hero|content|panel/.test(cls)) return parent;
+      parent = parent.parentElement;
+    }
+    return el.parentElement || el;
+  }
+
+  function extractElementData(el) {
+    const cs = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const props = [
+      'display','flexDirection','alignItems','justifyContent','gap',
+      'padding','paddingTop','paddingBottom','paddingLeft','paddingRight',
+      'backgroundColor','color','backgroundImage',
+      'fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
+      'borderRadius','border','borderColor',
+      'boxShadow','filter','backdropFilter','opacity',
+      'transition','animation','cursor','overflow',
+    ];
+    const styles = {};
+    for (const p of props) {
+      const v = cs[p];
+      if (v && v !== 'none' && v !== 'normal' && v !== 'auto' && v !== '0px' && v !== 'initial') {
+        styles[p] = v;
+      }
+    }
+
+    // ── Fix 1: If backgroundColor is transparent, walk up parents ──
+    if (!styles.backgroundColor || isTransparent(cs.backgroundColor)) {
+      let parent = el.parentElement;
+      while (parent) {
+        const pcs = window.getComputedStyle(parent);
+        if (!isTransparent(pcs.backgroundColor)) {
+          styles.backgroundColor = pcs.backgroundColor;
+          break;
+        }
+        if (pcs.backgroundImage && pcs.backgroundImage !== 'none') {
+          styles.backgroundImage = pcs.backgroundImage;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+    }
+
+    // ── Fix 2: If text color looks wrong (black on dark bg), sample from children ──
+    const rawColor = cs.color;
+    const rawBg = styles.backgroundColor;
+    if (rawColor && rawBg) {
+      const colorLum = rgbLuminance(rawColor);
+      const bgLum = rgbLuminance(rawBg);
+      // Black text on dark background = likely inherited default, find real text color
+      if (colorLum < 0.1 && bgLum < 0.2) {
+        const textChild = el.querySelector('h1, h2, h3, p, span, a, li, strong, em');
+        if (textChild) {
+          const childColor = window.getComputedStyle(textChild).color;
+          if (childColor) styles.color = childColor;
+        }
+      }
+      // White text on light background = same issue
+      if (colorLum > 0.9 && bgLum > 0.8) {
+        const textChild = el.querySelector('h1, h2, h3, p, span, a, li, strong, em');
+        if (textChild) {
+          const childColor = window.getComputedStyle(textChild).color;
+          if (childColor) styles.color = childColor;
+        }
+      }
+    }
+
+    // ── Fix 3: Get transition — compact format ──
+    if (styles.transition) {
+      const full = cs.getPropertyValue('transition');
+      if (full && full !== 'none' && full !== 'all') {
+        // Parse individual transitions and compact them
+        const parts = full.split(',').map(s => s.trim());
+        if (parts.length > 2) {
+          // Check if all share same timing — if so, summarize
+          const timings = parts.map(p => p.replace(/^\S+\s+/, '')); // remove property name
+          const uniqueTimings = [...new Set(timings)];
+          if (uniqueTimings.length === 1) {
+            const props = parts.map(p => p.split(/\s+/)[0]);
+            styles.transition = `${props.join(', ')} ${uniqueTimings[0]}`;
+          } else {
+            // Just take first 2 transitions
+            styles.transition = parts.slice(0, 2).join(', ');
+          }
+        } else {
+          styles.transition = full.slice(0, 150);
+        }
+      }
+      // Remove useless "all 0s" transitions
+      if (!styles.transition || styles.transition === 'all' || /^all\s+0s/.test(styles.transition) ||
+          styles.transition === 'all 0s ease 0s') {
+        delete styles.transition;
+      }
+    }
+
+    // ── Fix: Strip layout props for non-layout elements (SVG, video, canvas, img) ──
+    const tagName = el.tagName.toLowerCase();
+    if (['svg', 'video', 'canvas', 'img', 'picture'].includes(tagName)) {
+      for (const k of ['display', 'flexDirection', 'alignItems', 'justifyContent', 'gap', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'color', 'fontFamily']) {
+        delete styles[k];
+      }
+    }
+
+    // Convert colors to hex
+    for (const k of ['backgroundColor','color','borderColor']) {
+      if (styles[k]) {
+        const hex = rgbToHex(styles[k]);
+        if (hex) styles[k] = hex;
+      }
+    }
+    if (styles.fontFamily) {
+      const cleaned = cleanFont(styles.fontFamily);
+      if (cleaned) styles.fontFamily = cleaned;
+      else delete styles.fontFamily;
+    }
+
+    // ── Gather text hierarchy ──
+    // For media elements (SVG, video, canvas, img), look at parent/sibling context
+    const isMediaElement = ['svg', 'video', 'canvas', 'img', 'picture'].includes(tagName);
+    const contextEl = isMediaElement ? findContentParent(el) : el;
+
+    const textHierarchy = [];
+    const headingEl = contextEl.querySelector('h1, h2, h3, h4');
+    if (headingEl) {
+      const hcs = window.getComputedStyle(headingEl);
+      textHierarchy.push({
+        role: 'heading',
+        tag: headingEl.tagName.toLowerCase(),
+        text: headingEl.innerText?.trim().slice(0, 60) || '',
+        fontSize: hcs.fontSize,
+        fontWeight: hcs.fontWeight,
+        lineHeight: hcs.lineHeight,
+        color: rgbToHex(hcs.color) || hcs.color,
+        fontFamily: cleanFont(hcs.fontFamily) || null,
+      });
+    }
+    const paraEl = contextEl.querySelector('p, [class*="desc"], [class*="subtitle"]');
+    if (paraEl && paraEl !== headingEl) {
+      const pcs = window.getComputedStyle(paraEl);
+      textHierarchy.push({
+        role: 'body',
+        text: paraEl.innerText?.trim().slice(0, 80) || '',
+        fontSize: pcs.fontSize,
+        fontWeight: pcs.fontWeight,
+        color: rgbToHex(pcs.color) || pcs.color,
+      });
+    }
+    // Small labels (like location labels on a map, stat labels)
+    const labelEls = contextEl.querySelectorAll('span, small, [class*="label"], [class*="tag"], [class*="stat"]');
+    const labels = [];
+    labelEls.forEach(lbl => {
+      const t = lbl.innerText?.trim();
+      if (t && t.length > 1 && t.length < 40 && labels.length < 6) {
+        // Avoid duplicating heading/body text
+        if (headingEl && headingEl.contains(lbl)) return;
+        if (paraEl && paraEl.contains(lbl)) return;
+        labels.push(t);
+      }
+    });
+
+    // ── Detect visual content (SVG, canvas, img, video) ──
+    const visualContent = [];
+    // If the element itself is a media element, include it
+    const svgs = tagName === 'svg' ? [el] : [...el.querySelectorAll('svg')];
+    svgs.forEach(svg => {
+      const sr = svg.getBoundingClientRect();
+      if (sr.width > 30 && sr.height > 30) {
+        const pathEls = svg.querySelectorAll('path, circle, line, rect, ellipse, polygon');
+        const pathCount = pathEls.length;
+        const clipPaths = svg.querySelectorAll('clipPath').length;
+        const groups = svg.querySelectorAll('g').length;
+        const hasText = svg.querySelector('text');
+        const isLottie = !!svg.querySelector('[id*="lottie"]');
+
+        // Detect animations (SMIL + CSS)
+        const smilAnimated = svg.querySelectorAll('animate, animateTransform').length > 0;
+        let cssAnimated = false;
+        svg.querySelectorAll('*').forEach(child => {
+          const ccs = window.getComputedStyle(child);
+          if (ccs.animationName && ccs.animationName !== 'none') cssAnimated = true;
+        });
+        const animated = smilAnimated || cssAnimated || isLottie;
+
+        // Collect unique colors used in SVG
+        const svgColors = new Set();
+        const svgStrokes = new Set();
+        pathEls.forEach(p => {
+          const pcs = window.getComputedStyle(p);
+          const fill = pcs.fill;
+          const stroke = pcs.stroke;
+          if (fill && fill !== 'none' && !fill.startsWith('url')) {
+            const hex = rgbToHex(fill);
+            if (hex && hex !== '#000000') svgColors.add(hex);
+          }
+          if (stroke && stroke !== 'none' && !stroke.startsWith('url')) {
+            const hex = rgbToHex(stroke);
+            if (hex) svgStrokes.add(hex);
+          }
+        });
+
+        // Detect gradients in defs
+        const grads = svg.querySelectorAll('linearGradient, radialGradient');
+        const gradientColors = [];
+        grads.forEach(g => {
+          g.querySelectorAll('stop').forEach(s => {
+            const c = s.getAttribute('stop-color');
+            if (c) { const hex = rgbToHex(c); if (hex) gradientColors.push(hex); }
+          });
+        });
+
+        // Check if partially cropped by overflow:hidden parent
+        let cropping = null;
+        let parent = svg.parentElement;
+        for (let d = 0; d < 5 && parent; d++) {
+          const pcs = window.getComputedStyle(parent);
+          if (pcs.overflow === 'hidden') {
+            const pr = parent.getBoundingClientRect();
+            const cropBottom = sr.bottom - pr.bottom;
+            const cropTop = pr.top - sr.top;
+            if (cropBottom > 10 || cropTop > 10) {
+              cropping = {};
+              if (cropBottom > 10) cropping.bottom = Math.round(cropBottom);
+              if (cropTop > 10) cropping.top = Math.round(cropTop);
+            }
+            break;
+          }
+          parent = parent.parentElement;
+        }
+
+        // Detect stroke style (dashed, thin wireframe)
+        let strokeStyle = null;
+        for (const p of pathEls) {
+          const pcs = window.getComputedStyle(p);
+          if (pcs.strokeDasharray && pcs.strokeDasharray !== 'none') { strokeStyle = 'dashed'; break; }
+          if (pcs.strokeWidth && parseFloat(pcs.strokeWidth) < 1.5 && pcs.stroke !== 'none') { strokeStyle = 'thin-wireframe'; break; }
+        }
+
+        // Guess visual subject
+        let subject = null;
+        if (pathCount > 50 && clipPaths > 10) subject = 'globe/sphere wireframe';
+        else if (pathCount > 30) subject = 'complex illustration';
+        else if (pathCount > 10) subject = 'diagram/icon';
+
+        const entry = {
+          type: isLottie ? 'lottie-svg' : 'svg',
+          size: `${Math.round(sr.width)}×${Math.round(sr.height)}`,
+          complexity: pathCount > 50 ? 'very-complex' : pathCount > 20 ? 'complex' : pathCount > 5 ? 'moderate' : 'simple',
+          pathCount,
+          animated,
+          isLottie,
+          hasText: !!hasText,
+          subject,
+        };
+        if (svgColors.size > 0) entry.fillColors = [...svgColors].slice(0, 4);
+        if (svgStrokes.size > 0) entry.strokeColors = [...svgStrokes].slice(0, 4);
+        if (gradientColors.length > 0) entry.gradientColors = [...new Set(gradientColors)].slice(0, 4);
+        if (cropping) entry.cropping = cropping;
+        if (strokeStyle) entry.strokeStyle = strokeStyle;
+        if (clipPaths > 5) entry.clipPaths = clipPaths;
+
+        visualContent.push(entry);
+      }
+    });
+    const canvases = tagName === 'canvas' ? [el] : [...el.querySelectorAll('canvas')];
+    canvases.forEach(c => {
+      const cr = c.getBoundingClientRect();
+      if (cr.width > 30) {
+        visualContent.push({ type: 'canvas', size: `${Math.round(cr.width)}×${Math.round(cr.height)}` });
+      }
+    });
+    const imgs = tagName === 'img' ? [el] : [...el.querySelectorAll('img')];
+    const seenImgSrcs = new Set();
+    imgs.forEach(img => {
+      const ir = img.getBoundingClientRect();
+      if (ir.width < 30) return;
+      // Deduplicate by filename stem (ignore light/dark variants and query strings)
+      const rawSrc = (img.src || '').split('?')[0].split('/').pop() || '';
+      const stem = rawSrc.replace(/[_-](light|dark|2x|3x|@2x|@3x)\b/gi, '').replace(/\.[a-f0-9]{8,}\./i, '.');
+      if (seenImgSrcs.has(stem)) return;
+      seenImgSrcs.add(stem);
+      visualContent.push({
+        type: 'image',
+        size: `${Math.round(ir.width)}×${Math.round(ir.height)}`,
+        alt: img.alt?.slice(0, 40) || null,
+        src: rawSrc.slice(0, 40) || null,
+      });
+    });
+
+    // Video elements
+    const videos = tagName === 'video' ? [el] : [...el.querySelectorAll('video')];
+    videos.forEach(v => {
+      const vr = v.getBoundingClientRect();
+      if (vr.width > 30) {
+        visualContent.push({
+          type: 'video',
+          size: `${Math.round(vr.width)}×${Math.round(vr.height)}`,
+          poster: v.poster ? v.poster.split('/').pop()?.slice(0, 40) : null,
+          autoplay: v.autoplay,
+          loop: v.loop,
+          muted: v.muted,
+        });
+      }
+    });
+
+    // ── Detect border/outline styling of the element ──
+    const borderTop = cs.borderTopWidth;
+    const borderStyle = cs.borderStyle;
+    let borderInfo = null;
+    if (borderTop && borderTop !== '0px' && borderStyle !== 'none') {
+      borderInfo = `${cs.borderWidth} ${borderStyle} ${rgbToHex(cs.borderColor) || cs.borderColor}`;
+    }
+
+    // ── Is this a container/card? ──
+    const isContainer = rect.width > 200 && rect.height > 150 && el.children.length > 1;
+
+    // ── Detect buttons/CTAs inside ──
+    const innerButtons = [];
+    el.querySelectorAll('button, a[class*="btn"], a[class*="button"], [role="button"]').forEach(btn => {
+      const t = btn.innerText?.trim();
+      if (t && t.length > 1 && t.length < 40 && innerButtons.length < 3) {
+        const bcs = window.getComputedStyle(btn);
+        innerButtons.push({
+          text: t,
+          bg: !isTransparent(bcs.backgroundColor) ? (rgbToHex(bcs.backgroundColor) || null) : null,
+          color: rgbToHex(bcs.color) || null,
+          borderRadius: bcs.borderRadius !== '0px' ? bcs.borderRadius : null,
+        });
+      }
+    });
+
+    // ── Detect CSS animations on descendants ──
+    let animatedDescendants = 0;
+    let animationNames = new Set();
+    el.querySelectorAll('*').forEach(child => {
+      const ccs = window.getComputedStyle(child);
+      if (ccs.animationName && ccs.animationName !== 'none') {
+        animatedDescendants++;
+        ccs.animationName.split(',').forEach(n => animationNames.add(n.trim()));
+      }
+    });
+
+    // ── Detect grid/dot patterns ──
+    let hasGridPattern = false;
+    const childEls = el.querySelectorAll('div, span');
+    if (childEls.length > 15) {
+      // Many small same-size children = likely a dot grid or pattern
+      const smallChildren = Array.from(childEls).filter(c => {
+        const cr = c.getBoundingClientRect();
+        return cr.width < 15 && cr.height < 15 && cr.width > 1;
+      });
+      if (smallChildren.length > 10) hasGridPattern = true;
+    }
+
+    return {
+      tag: tagName,
+      id: el.id,
+      classes: el.className?.toString().slice(0, 100) || '',
+      text: isContainer ? null : (el.innerText?.slice(0, 80) || ''),
+      rect: { width: Math.round(rect.width), height: Math.round(rect.height) },
+      styles,
+      isContainer,
+      textHierarchy: textHierarchy.length > 0 ? textHierarchy : null,
+      labels: labels.length > 0 ? labels : null,
+      visualContent: visualContent.length > 0 ? visualContent : null,
+      innerButtons: innerButtons.length > 0 ? innerButtons : null,
+      animatedDescendants: animatedDescendants > 0 ? animatedDescendants : null,
+      animationNames: animationNames.size > 0 ? [...animationNames].slice(0, 5) : null,
+      hasGridPattern,
+      borderInfo,
+      children: [...el.children].slice(0, 8).map(c => {
+        const ccs = window.getComputedStyle(c);
+        const cr = c.getBoundingClientRect();
+        return {
+          tag: c.tagName.toLowerCase(),
+          text: c.innerText?.slice(0, 40) || '',
+          width: Math.round(cr.width),
+          height: Math.round(cr.height),
+          bg: !isTransparent(ccs.backgroundColor) ? (rgbToHex(ccs.backgroundColor) || null) : null,
+        };
+      }),
+      hasPseudoBefore: window.getComputedStyle(el,'::before').content !== 'none',
+      hasPseudoAfter: window.getComputedStyle(el,'::after').content !== 'none',
+      url: window.location.href,
+      pageTitle: document.title,
+    };
+  }
+
+  // ─── Image data extraction ─────────────────────────────────────────────────
+  function extractImageData(el) {
+    const rect = el.getBoundingClientRect();
+    let src = null;
+    if (el.tagName === 'IMG') {
+      src = el.currentSrc || el.src;
+    } else {
+      const bg = window.getComputedStyle(el).backgroundImage;
+      if (bg && bg !== 'none') {
+        const m = bg.match(/url\(["']?(.+?)["']?\)/);
+        if (m) src = m[1];
+      }
+      const img = el.querySelector('img');
+      if (!src && img) src = img.currentSrc || img.src;
+    }
+    return {
+      src,
+      rect: { top: Math.round(rect.top), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) },
+      alt: el.alt || el.getAttribute('aria-label') || '',
+      url: window.location.href,
+      pageTitle: document.title,
+      tag: el.tagName.toLowerCase(),
+    };
+  }
+
+  // ─── Overlay / Picker ──────────────────────────────────────────────────────
+  function createHighlight(color) {
+    const h = document.createElement('div');
+    h.id = '__dp_highlight';
+    const isGreen = color === 'green';
+    h.style.cssText = `position:fixed;pointer-events:none;z-index:2147483647;
+      border:2px solid ${isGreen ? '#34d399' : '#6366f1'};
+      background:${isGreen ? 'rgba(52,211,153,0.08)' : 'rgba(99,102,241,0.08)'};
+      border-radius:4px;transition:top .08s,left .08s,width .08s,height .08s;display:none;`;
+    document.body.appendChild(h);
+    return h;
+  }
+
+  function createTooltip(color) {
+    const t = document.createElement('div');
+    t.id = '__dp_tooltip';
+    t.style.cssText = `position:fixed;pointer-events:none;z-index:2147483647;
+      background:#18181b;color:${color === 'green' ? '#34d399' : '#a5b4fc'};
+      font-size:11px;font-family:monospace;padding:4px 8px;
+      border-radius:4px;border:1px solid #3f3f46;display:none;white-space:nowrap;`;
+    document.body.appendChild(t);
+    return t;
+  }
+
+  function positionHighlight(target) {
+    if (!highlightEl) return;
+    const rect = target.getBoundingClientRect();
+    highlightEl.style.display = 'block';
+    highlightEl.style.top = rect.top + 'px';
+    highlightEl.style.left = rect.left + 'px';
+    highlightEl.style.width = rect.width + 'px';
+    highlightEl.style.height = rect.height + 'px';
+    if (tooltip) {
+      tooltip.style.display = 'block';
+      tooltip.style.top = Math.max(0, rect.top - 26) + 'px';
+      tooltip.style.left = rect.left + 'px';
+    }
+  }
+
+  function removeOverlay() {
+    ['__dp_highlight','__dp_tooltip'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+    highlightEl = null; tooltip = null;
+  }
+
+  // Element picker
+  function activatePicker() {
+    pickerActive = true;
+    highlightEl = createHighlight('purple');
+    tooltip = createTooltip('purple');
+    document.addEventListener('mousemove', onElemMove, true);
+    document.addEventListener('click', onElemClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = 'crosshair';
+  }
+  function deactivatePicker() {
+    pickerActive = false; removeOverlay();
+    document.removeEventListener('mousemove', onElemMove, true);
+    document.removeEventListener('click', onElemClick, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = '';
+    chrome.runtime.sendMessage({ type: 'PICKER_CANCELLED' }).catch(() => {});
+  }
+  function onElemMove(e) {
+    if (!pickerActive || e.target.id?.startsWith('__dp_')) return;
+    positionHighlight(e.target);
+    if (tooltip) {
+      const t = e.target.tagName.toLowerCase();
+      const c = e.target.className?.toString().split(' ')[0] || '';
+      const r = e.target.getBoundingClientRect();
+      const text = (e.target.innerText || '').trim().slice(0, 20);
+      tooltip.textContent = `<${t}${c ? '.'+c : ''}> ${Math.round(r.width)}×${Math.round(r.height)}${text ? ' — "'+text+'"' : ''}`;
+    }
+  }
+  function onElemClick(e) {
+    if (!pickerActive || e.target.id?.startsWith('__dp_')) return;
+    e.preventDefault(); e.stopPropagation();
+    const data = extractElementData(e.target);
+    pickerActive = false;
+    document.removeEventListener('mousemove', onElemMove, true);
+    document.removeEventListener('click', onElemClick, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = '';
+    // Show confirmation animation before removing overlay
+    showSelectionConfirmation(e.target);
+    // Write to storage + send live message
+    chrome.storage.local.set({
+      dp_pending: { type: 'ELEMENT_PICKED', data, timestamp: Date.now() }
+    });
+    chrome.runtime.sendMessage({ type: 'ELEMENT_PICKED', data }).catch(() => {});
+  }
+
+  // Image picker
+  function activateImagePicker() {
+    imagePickerActive = true;
+    highlightEl = createHighlight('green');
+    tooltip = createTooltip('green');
+    document.addEventListener('mousemove', onImgMove, true);
+    document.addEventListener('click', onImgClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = 'crosshair';
+  }
+  function deactivateImagePicker() {
+    imagePickerActive = false; removeOverlay();
+    document.removeEventListener('mousemove', onImgMove, true);
+    document.removeEventListener('click', onImgClick, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = '';
+    chrome.runtime.sendMessage({ type: 'PICKER_CANCELLED' }).catch(() => {});
+  }
+  function findImageTarget(el) {
+    let t = el;
+    while (t && t !== document.body) {
+      if (t.tagName === 'IMG') return t;
+      const bg = window.getComputedStyle(t).backgroundImage;
+      if (bg && bg !== 'none' && bg.startsWith('url')) return t;
+      const img = t.querySelector('img');
+      if (img) return img;
+      t = t.parentElement;
+    }
+    return el;
+  }
+  function onImgMove(e) {
+    if (!imagePickerActive || e.target.id?.startsWith('__dp_')) return;
+    const target = findImageTarget(e.target);
+    positionHighlight(target);
+    if (tooltip) {
+      if (target.tagName === 'IMG') {
+        const src = (target.src || target.currentSrc || '');
+        const filename = src.split('/').pop()?.split('?')[0]?.slice(0, 30) || '';
+        const r = target.getBoundingClientRect();
+        tooltip.textContent = `<img> ${Math.round(r.width)}×${Math.round(r.height)}${filename ? ' — '+filename : ''}`;
+      } else {
+        const r = target.getBoundingClientRect();
+        tooltip.textContent = `<${target.tagName.toLowerCase()}> ${Math.round(r.width)}×${Math.round(r.height)} — click to capture`;
+      }
+    }
+  }
+  function onImgClick(e) {
+    if (!imagePickerActive || e.target.id?.startsWith('__dp_')) return;
+    e.preventDefault(); e.stopPropagation();
+    const target = findImageTarget(e.target);
+    const data = extractImageData(target);
+    imagePickerActive = false;
+    document.removeEventListener('mousemove', onImgMove, true);
+    document.removeEventListener('click', onImgClick, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+    document.body.style.cursor = '';
+    // Show confirmation animation
+    showSelectionConfirmation(target);
+    // Write to storage + send live message
+    chrome.storage.local.set({
+      dp_pending: { type: 'IMAGE_PICKED', data, timestamp: Date.now() }
+    });
+    chrome.runtime.sendMessage({ type: 'IMAGE_PICKED', data }).catch(() => {});
+  }
+
+  // ─── Selection confirmation animation ─────────────────────────────────────
+  function showSelectionConfirmation(target) {
+    // Turn existing highlight green + show "Selected" tooltip
+    if (highlightEl) {
+      const rect = target.getBoundingClientRect();
+      highlightEl.style.display = 'block';
+      highlightEl.style.top = rect.top + 'px';
+      highlightEl.style.left = rect.left + 'px';
+      highlightEl.style.width = rect.width + 'px';
+      highlightEl.style.height = rect.height + 'px';
+      highlightEl.style.borderColor = '#34d399';
+      highlightEl.style.background = 'rgba(52,211,153,0.12)';
+      highlightEl.style.transition = 'opacity 0.4s ease';
+    }
+    if (tooltip) {
+      tooltip.style.display = 'block';
+      tooltip.style.color = '#34d399';
+      tooltip.textContent = '✓ Selected — generating prompt...';
+    }
+    // Fade out and remove after 1.5s
+    setTimeout(() => {
+      if (highlightEl) highlightEl.style.opacity = '0';
+      if (tooltip) tooltip.style.opacity = '0';
+      setTimeout(() => removeOverlay(), 500);
+    }, 1200);
+  }
+
+  function onKeyDown(e) {
+    if (e.key !== 'Escape') return;
+    if (pickerActive) deactivatePicker();
+    if (imagePickerActive) deactivateImagePicker();
+  }
+
+  // ─── Message listener ──────────────────────────────────────────────────────
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'EXTRACT_PAGE') sendResponse({ success: true, data: extractPageTokens() });
+    if (msg.type === 'ACTIVATE_PICKER') { if (!pickerActive) activatePicker(); sendResponse({ success: true }); }
+    if (msg.type === 'DEACTIVATE_PICKER') { deactivatePicker(); sendResponse({ success: true }); }
+    if (msg.type === 'ACTIVATE_IMAGE_PICKER') { if (!imagePickerActive) activateImagePicker(); sendResponse({ success: true }); }
+    if (msg.type === 'DEACTIVATE_IMAGE_PICKER') { deactivateImagePicker(); sendResponse({ success: true }); }
+    return true;
+  });
+})();
