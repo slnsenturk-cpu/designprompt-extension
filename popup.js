@@ -932,25 +932,25 @@ function generateRuleBasedDirection(data, style) {
   const hasIconSys = ui.hasIconSystem;
 
   if (vpr.imageTreatment==='cinematic'&&vpr.sectionColorPattern==='alternating') {
-    lines.push('Dual-mode landing: light sections alternate with immersive dark photography sections. The tonal flip is dramatic and intentional — light sections build trust and readability, dark sections create emotional immersion. This contrast pattern keeps attention across a long scroll.');
+    lines.push('Dual-mode landing: light sections alternate with dark photography sections. The tonal flip is dramatic and intentional.');
   } else if (isDark&&isVibrant&&isCool) {
-    lines.push('Dark-first SaaS with saturated cool accents. This targets developers and technical users who expect precision — the dark surface signals "tool, not toy," while the cool-toned accents cut through with surgical clarity. High contrast, technically confident, engineer-facing.');
+    lines.push('Dark-first SaaS with saturated cool accents. High contrast, engineer-facing — dark surface signals precision.');
   } else if (isDark&&isVibrant) {
-    lines.push('Dark-first product with bold color accents. The dark canvas exists to make the accent colors pop — every splash of color is earned and intentional. High contrast creates visual hierarchy without relying on layout tricks.');
+    lines.push('Dark-first product with bold color accents. Dark canvas makes accent colors pop — every color is earned.');
   } else if (isDark) {
-    lines.push('Dark-dominant design — deep surfaces, minimal color. Typography and space carry the weight. The absence of color is the statement: this design trusts its content and structure to communicate without decorative crutches.');
+    lines.push('Dark-dominant — deep surfaces, minimal color. Typography and space carry the weight.');
   } else if (isLight&&isMonochromatic&&hasDecorGeom) {
-    lines.push('Editorial, light-dominant design with restrained neutral palette and abstract geometric decoration. Clean and sophisticated — conveys trustworthiness through whitespace and type weight rather than color. Warm off-white surfaces ('+(pageBg||'#f5f5f0')+') prevent clinical coldness. The geometric elements add visual interest without competing with content — a deliberate choice to feel "designed" without being "decorative."');
+    lines.push('Editorial, light-dominant with restrained neutrals and geometric decoration. Warm off-white ('+(pageBg||'#f5f5f0')+') prevents clinical coldness.');
   } else if (isLight&&isMonochromatic) {
-    lines.push('Clean, light-dominant layout. Neutral palette, content-first, trust-building. The monochromatic restraint signals maturity — this design lets the product speak rather than the interface. Enterprise or developer audience who associate visual noise with unreliability.');
+    lines.push('Clean, light-dominant layout. Neutral palette, content-first. The restraint signals maturity.');
   } else if (isLight&&isCool&&isVibrant&&primaryColor) {
-    lines.push('Light base with a strong cool-toned primary action (`'+primaryColor+'`). Professional, precise, developer-friendly. The accent is used surgically — only at decision points. This restraint is a trust signal: when `'+primaryColor+'` appears, it carries earned authority because it hasn\'t been diluted elsewhere.');
+    lines.push('Light base, strong cool-toned action (`'+primaryColor+'`). Accent used surgically — only at decision points.');
   } else if (isLight&&isVibrant&&primaryColor) {
-    lines.push('Light base with expressive accent (`'+primaryColor+'`). Clean foundation, color reserved for interactive moments. Consumer-friendly energy without sacrificing credibility — the vibrancy says "approachable" while the light canvas says "organized."');
+    lines.push('Light base with expressive accent (`'+primaryColor+'`). Color reserved for interactive moments.');
   } else if (isLight&&isWarm) {
-    lines.push('Warm, light-dominant layout. Approachable, human, premium without being cold. The warm tones create an emotional connection that cool-toned SaaS designs deliberately avoid — this design wants to feel like a conversation, not a dashboard. '+(hasDecorGeom?'Abstract geometric shapes add depth without photography — decoration serves atmosphere, not information.':''));
+    lines.push('Warm, light-dominant layout. Approachable, premium. '+(hasDecorGeom?'Geometric shapes add depth without photography.':''));
   } else {
-    lines.push('Modern B2B product landing — confident layout, restrained color, strong typographic hierarchy. The design language prioritizes clarity over personality: every element earns its place through function.');
+    lines.push('Modern B2B product landing — restrained color, strong typographic hierarchy.');
   }
   lines.push('');
 
@@ -961,30 +961,30 @@ function generateRuleBasedDirection(data, style) {
   if (vpr.sectionColorPattern==='alternating') {
     const rhythmColors = (vpr.sectionRhythm || []).filter(s => s.bgHex).map(s => s.bgHex);
     const uniqueColors = [...new Set(rhythmColors)];
-    const colorDesc = uniqueColors.length > 0 ? ` Background colors cycle through: ${uniqueColors.join(' ↔ ')}.` : '';
-    lines.push('Sections alternate between distinct background colors — this isn\'t random alternation but a deliberate breath pattern.' + colorDesc + ' Light sections invite scanning and comparison; dark sections demand focus and create emotional weight. Each background shift resets the reader\'s attention. Maintain the exact background color for each section as specified in the Section Content Map below.'+(vpr.hasGradientSection?' One gradient section provides visual breathing space between the alternating rhythm — use once only.':''));
+    const colorDesc = uniqueColors.length > 0 ? ` Backgrounds: ${uniqueColors.join(' ↔ ')}.` : '';
+    lines.push('Sections alternate between distinct background colors.' + colorDesc + ' Maintain exact bg per section as in Section Content Map.'+(vpr.hasGradientSection?' One gradient section as breathing space.':''));
   } else if (isDark) {
-    lines.push('Consistently dark ('+bgRef+' base). The monochrome darkness is intentional — it creates a theater-like focus where content is the stage. Differentiate sections through subtle surface shifts (slightly lighter sub-surfaces at 8–12% opacity white overlay), thin `border-top` lines between sections. Never flip to white mid-page — the darkness is the brand.');
+    lines.push('Consistently dark ('+bgRef+' base). Differentiate sections through subtle surface shifts (8–12% lighter sub-surfaces), thin `border-top` lines. Never white mid-page.');
   } else if (vpr.sectionColorPattern==='progressive-dark' && isLight) {
-    lines.push('Opens light ('+bgRef+'), sections shift progressively darker — a narrative arc in color. The page literally darkens as the user scrolls deeper, building toward the conversion moment. Use '+bgRef+' for the hero and upper sections, reserve dark only for the closing conversion zone where contrast creates urgency.');
+    lines.push('Opens light ('+bgRef+'), progressively darker. Dark only for closing CTA/footer zone.');
   } else if (isLight) {
-    lines.push('Consistently light throughout ('+bgRef+' base). The uniform lightness is deliberate — it removes visual friction and lets content hierarchy do all the work. Sections distinguish through subtle background tints (pure white vs '+(pageBg||'#f5f5f0')+' warm off-white) rather than dramatic color shifts. Generous vertical padding (80–120px) between sections creates breathing room that signals premium confidence.');
+    lines.push('Consistently light ('+bgRef+' base). Sections distinguish via subtle bg tints (white vs '+(pageBg||'#f5f5f0')+') — never dark.');
   } else {
-    lines.push('Predominantly light ('+bgRef+' base). Sections differentiate through subtle background shifts — 3–5% darker variants that the eye registers subconsciously.'+(vpr.hasGradientSection?' One gradient section provides visual relief, breaking the neutral rhythm.':''));
+    lines.push('Predominantly light ('+bgRef+'). Sections differentiate through 3–5% darker variants.'+(vpr.hasGradientSection?' One gradient section.':''));
   }
   if (hasHardBgTransition && hardTransitionColors) {
-    lines.push(`**Hard color transition** detected: \`${hardTransitionColors.from}\` → \`${hardTransitionColors.to}\` with no gradient — a sharp, intentional edge between sections. This is a deliberate anti-blend statement: the sections are different worlds, and the hard edge makes that visceral. Reproduce as a hard \`background-color\` switch, not a gradient blend.`);
+    lines.push(`Hard transition: \`${hardTransitionColors.from}\` → \`${hardTransitionColors.to}\` — sharp edge, not gradient. Reproduce as hard \`background-color\` switch.`);
   }
 
-  // Merge spacing into section rhythm
+  // Spacing
   const sp = vpr.spacingSystem;
   if (sp && (sp.sectionPaddingY || sp.containerMaxWidth || sp.gridGap)) {
-    let spacingNarrative = '';
-    if (sp.sectionPaddingY) spacingNarrative += narrateSpacing(sp.sectionPaddingY, 'section-padding');
-    if (sp.containerMaxWidth && sp.containerMaxWidth !== 'none') spacingNarrative += ' ' + narrateSpacing(sp.containerMaxWidth, 'container-width');
-    if (sp.gridGap) spacingNarrative += ' ' + narrateSpacing(sp.gridGap, 'grid-gap');
-    if (sp.cardGap && sp.cardGap !== sp.gridGap) spacingNarrative += ' Card gap: `' + sp.cardGap + '`.';
-    lines.push(spacingNarrative.trim());
+    const parts = [];
+    if (sp.sectionPaddingY) parts.push('Section padding: `'+sp.sectionPaddingY+'`');
+    if (sp.containerMaxWidth && sp.containerMaxWidth !== 'none') parts.push('container: `'+sp.containerMaxWidth+'`');
+    if (sp.gridGap) parts.push('grid gap: `'+sp.gridGap+'`');
+    if (sp.cardGap && sp.cardGap !== sp.gridGap) parts.push('card gap: `'+sp.cardGap+'`');
+    lines.push(parts.join('. ')+'.');
   }
 
   // Merge page flow into section rhythm
@@ -1023,26 +1023,22 @@ function generateRuleBasedDirection(data, style) {
   }
   lines.push('');
 
-  // ── Image usage & visual treatment ──
-  lines.push('**Image usage & visual treatment**');
+  // ── Image usage ──
+  lines.push('**Image usage**');
   if (vpr.imageTreatment==='cinematic'||vpr.hasFullBleedImages) {
-    lines.push('Full-bleed cinematic photography as section atmosphere — wide, moody, environmental. Images carry emotional weight, not informational. They exist to make the user feel something before they read anything.'
-      +(vpr.hasGlassmorphism?' Glassmorphism cards (`backdrop-filter: blur`) float over photography — the blur creates a visual bridge between the photographic reality and the UI layer above it.':'')
-      +(vpr.hasOverlaidUIOnPhoto?' Product UI overlaid directly on photography — the real product in a real-world context, not floating in a void.':''));
+    lines.push('Full-bleed cinematic photography as section atmosphere.'
+      +(vpr.hasGlassmorphism?' Glassmorphism cards (`backdrop-filter:blur`) float over photography.':'')
+      +(vpr.hasOverlaidUIOnPhoto?' Product UI overlaid on photography.':''));
   } else if (vpr.imageTreatment==='screenshot') {
-    lines.push('Product screenshots as the primary visual — real UI in context, because the product IS the design. Rounded corners and soft shadow frame each screenshot as a polished artifact. Light screenshots on light sections, dark on dark — the screenshots must feel native to their surroundings.');
+    lines.push('Product screenshots as primary visual — rounded corners, soft shadow. Light on light, dark on dark.');
   } else if (vpr.hasLogoStrip||ui.hasLogoStrip) {
-    lines.push('Integration/partner logos are a key visual element — social proof through brand recognition. Scrolling strips or organized grids create density without clutter. Technical diagrams (data flow, API schemas) appear in feature sections because this audience trusts architecture over marketing copy. No decorative photography.');
+    lines.push('Logo strips + technical diagrams. No decorative photography.');
   } else {
-    lines.push('Minimal imagery — the design relies on typography, color, and space to communicate. Any visuals are functional: diagrams, UI mockups, icons. This restraint is intentional — it says "the content speaks for itself."');
+    lines.push('Minimal imagery — typography, color, and space do the work. Visuals are functional only.');
   }
-  if (ui.hasDecorativeGeometry) {
-    lines.push('Subtle decorative SVG elements present as background atmosphere — barely visible at opacity 0.05–0.10. These create a sense of "designed space" without competing with content. Do NOT add grid overlays, dot patterns, or crop marks. If the decoration draws attention, it\'s too much.');
-  }
-  if (vpr.hasNoiseTexture) {
-    lines.push('Noise/grain texture overlay on backgrounds — a subtle grainy filter at ~5–15% opacity across main surfaces. This creates a tactile, editorial quality that makes flat digital surfaces feel physical, like premium paper stock.');
-  }
-  if (vpr.splitLayoutCount>1) lines.push(vpr.splitLayoutCount+' split-column sections — alternating text/visual sides creates a zigzag reading pattern that maintains engagement through scroll rhythm.');
+  if (ui.hasDecorativeGeometry) lines.push('Subtle decorative SVGs at opacity 0.05–0.10. Do NOT add grids, dots, or crop marks.');
+  if (vpr.hasNoiseTexture) lines.push('Noise/grain texture at ~5–15% opacity on surfaces.');
+  if (vpr.splitLayoutCount>1) lines.push(vpr.splitLayoutCount+' split-column sections — alternate text/visual sides.');
   lines.push('');
 
   // ── Typography ──
@@ -1066,20 +1062,20 @@ function generateRuleBasedDirection(data, style) {
     const bodyType = body.type;
 
     if (dispType === 'display' && bodyType === 'mono') {
-      lines.push('Two-font system: "'+disp.name+'" (bold geometric display) for hero headlines and major titles at 48–72px; "'+body.name+'" (monospace) for body copy, labels, and code-adjacent content. The pairing creates intentional tension — brand authority through the display face, technical credibility through the mono. These roles must never cross.');
+      lines.push('"'+disp.name+'" for headlines 48–72px; "'+body.name+'" (mono) for body/labels. Never cross roles.');
     } else if (isSerif) {
-      lines.push('Serif display ("'+disp.name+'") for headings, clean sans ("'+body.name+'") for body. H1: clamp(52px,7vw,88px). The typeface contrast IS the design — the serif carries editorial weight and personality, the sans provides functional clarity. Never use the sans for headlines; the contrast disappears and the hierarchy collapses.');
+      lines.push('Serif "'+disp.name+'" for headings, sans "'+body.name+'" for body. H1: clamp(52px,7vw,88px). Never swap.');
     } else if (bodyType === 'mono') {
-      lines.push('Two-font system: "'+disp.name+'" for display headings; "'+body.name+'" (monospace) for body and UI. The mono body text is a positioning statement — it tells the audience "this is built by developers, for developers." Keep roles strict: display font for brand moments, mono for functional copy. Blurring the line weakens both.');
+      lines.push('"'+disp.name+'" for display headings; "'+body.name+'" (mono) for body/UI. Strict role separation.');
     } else {
-      lines.push('Two-font system: "'+disp.name+'" for headings (700–800 weight), "'+body.name+'" for body and UI (400). The weight contrast between these two registers creates the hierarchy — bold display type commands attention, light body type recedes into comfortable reading. Never blur these boundaries.');
+      lines.push('"'+disp.name+'" for headings (700–800), "'+body.name+'" for body (400). Never blur boundaries.');
     }
   } else if (isMono && uniqueFonts[0]) {
-    lines.push('Monospace ("'+uniqueFonts[0]+'") as the sole typeface — a technical, code-adjacent identity statement. The mono establishes the brand as engineering-first. Tracked uppercase for section labels creates visual variety within the single-face constraint. H1: clamp(40px,5vw,64px)/700, body: 16–18px/400.');
+    lines.push('Mono ("'+uniqueFonts[0]+'") sole typeface. Uppercase tracked labels. H1: clamp(40px,5vw,64px)/700, body: 16–18px/400.');
   } else if (uniqueFonts[0]) {
-    lines.push('Single typeface ("'+uniqueFonts[0]+'") — the design relies entirely on weight (300/400/600/800) and size to create hierarchy. This minimalism is a strength: consistent rhythm, no typeface-switching friction. H1: clamp(40px,5vw,72px)/700–800, body: 16–18px/400.');
+    lines.push('Single typeface ("'+uniqueFonts[0]+'") — hierarchy via weight (300/400/600/800) and size. H1: clamp(40px,5vw,72px)/700–800, body: 16–18px/400.');
   } else {
-    lines.push('System font stack — weight and size contrast only. The deliberate absence of a custom typeface keeps the focus on content and structure. H1: 56–72px/700, body: 16–18px/400.');
+    lines.push('System font — weight and size contrast only. H1: 56–72px/700, body: 16–18px/400.');
   }
 
   // Merge type scale into typography
@@ -1098,130 +1094,76 @@ function generateRuleBasedDirection(data, style) {
   // ── Color usage ──
   lines.push('**Color usage**');
   if (primaryColor&&isDark) {
-    lines.push('Dark surfaces ('+bgRef+') create the stage; color is the performer. '+narrateColorRole(primaryColor, 'primary-action', true)
-      +(secondaryColor&&secondaryColor!==primaryColor?' '+narrateColorRole(secondaryColor, 'accent', true):''));
+    lines.push('Dark surfaces ('+bgRef+'). `'+primaryColor+'` = primary action (CTAs, links, focus).'
+      +(secondaryColor&&secondaryColor!==primaryColor?' `'+secondaryColor+'` = secondary (badges, callouts, not interchangeable).':''));
   } else if (primaryColor&&isLight&&multiAccent) {
     const namedAccents = sc.accent.slice(0,4);
-    let colorDesc = narrateColorRole(primaryColor, 'primary-action', false);
-    if (secondaryColor && secondaryColor !== primaryColor) {
-      colorDesc += ' '+narrateColorRole(secondaryColor, 'accent', false);
-    }
+    let colorDesc = '`'+primaryColor+'` = primary action.';
+    if (secondaryColor && secondaryColor !== primaryColor) colorDesc += ' `'+secondaryColor+'` = secondary.';
     if (namedAccents.length > 0) {
       const others = namedAccents.filter(a=>a.value!==primaryColor&&a.value!==secondaryColor).slice(0,2);
-      if (others.length) colorDesc += ' Named accents: '+others.map(a=>'`'+a.value+'` ('+a.key+')').join(', ')+' — each assigned to a specific semantic role. These are not decorative — each color carries meaning.';
+      if (others.length) colorDesc += ' '+others.map(a=>'`'+a.value+'` ('+a.key+')').join(', ')+'.';
     }
-    lines.push('Light surfaces ('+bgRef+') where white/neutral dominates — color restraint is the strategy. '+colorDesc+' Backgrounds alternate between white and `'+(pageBg||'#f5f5f0')+'` eggshell for subtle section variation.');
+    lines.push('Light surfaces ('+bgRef+'). '+colorDesc+' Bg variation: white ↔ `'+(pageBg||'#f5f5f0')+'`.');
   } else if (primaryColor&&isLight) {
-    lines.push('Light surfaces ('+bgRef+') with a single action color. '+narrateColorRole(primaryColor, 'primary-action', false)+' The restraint is deliberate — one color means every appearance carries weight. Neutral palette everywhere else.');
+    lines.push('Light surfaces ('+bgRef+'). `'+primaryColor+'` = sole action color — CTAs, links, focus. Neutral everywhere else.');
   } else {
-    lines.push('Neutral palette where color is earned, not given. Accent appears only at interactive moments — CTAs, active states, highlights. This minimalism builds trust: the interface doesn\'t shout.');
+    lines.push('Neutral palette. Accent at interactive moments only.');
   }
   lines.push('');
 
-  // ── Shape, elevation & component relationships ──
-  lines.push('**Shape, elevation & component relationships**');
+  // ── Shape & elevation ──
+  lines.push('**Shape & elevation**');
   if (hasFullRound&&hasGlowEffect) {
-    lines.push('Pill-shaped interactive elements (`border-radius: 9999px`) with glow elevation — a soft-tech aesthetic where buttons and badges feel luminous rather than physical.'+(hasColoredShadows?' Shadow color matches the accent, creating a halo that reinforces the brand color at every interaction point.':'')+' The glow expands on hover — the element reaches toward the user.');
+    lines.push('Pills (`9999px`) for interactive elements with glow elevation.'+(hasColoredShadows?' Shadow color matches accent.':'')+' Glow expands on hover.');
   } else if (hasFullRound) {
-    lines.push('Two distinct shape registers: pills (`9999px`) for interactive elements (buttons, badges) and '+(radiusSample||'12px')+' radius for containers (cards, panels). This duality is intentional — pills signal "tap me," containers signal "read me." Never mix these registers.');
+    lines.push('Pills (`9999px`) for buttons/badges. Containers: `'+(radiusSample||'12px')+'` radius. Never mix.');
   } else if (hasSharpCorners&&!hasRoundedCorners) {
-    lines.push('Sharp geometry — `border-radius: '+(radiusSample||'4px')+'` across all elements. This creates an engineered, constructed feel where every edge is deliberate. The design says "precision-built."'+(hasLayeredShadows?' Layered shadows add depth to the sharp forms, creating a CAD-like dimensionality.':''));
+    lines.push('Sharp geometry — `border-radius: '+(radiusSample||'4px')+'`.'+(hasLayeredShadows?' Layered shadows for depth.':''));
   } else if (hasRoundedCorners) {
-    lines.push('Moderate rounding (`'+(radiusSample||'8–12px')+'`) — contemporary and balanced. Not so round as to feel playful, not so sharp as to feel harsh. This is the design\'s default kindness.'+(hasLayeredShadows?' Layered shadows create nuanced depth — don\'t simplify to a single layer; the subtlety is intentional.':''));
+    lines.push('`'+(radiusSample||'8–12px')+'` rounding.'+(hasLayeredShadows?' Layered shadows — don\'t simplify to single layer.':''));
   } else {
-    lines.push('Consistent `'+(radiusSample||'6–8px')+'` radius across all elements. Precision over decoration — every component shares the same geometric vocabulary.');
+    lines.push('`'+(radiusSample||'6–8px')+'` radius across all elements.');
   }
   if (hasBrutalistShadow) {
-    let brutDesc = 'Brutalist elevation: hard drop-shadows with zero blur (e.g. `4px 4px 0 color`) — this is a deliberate anti-polish statement. The hard shadows feel like rubber-stamped ink, rejecting the soft, diffused shadows of conventional SaaS design.';
+    let brutDesc = 'Brutalist: hard `4px 4px 0 color` shadows, zero blur.';
     if (brutalistHoverShadows?.length > 0) {
-      const samples = brutalistHoverShadows.slice(0, 2);
-      brutDesc += ' Hover states amplify the brutalist shadow as a defining interaction motif:';
-      samples.forEach(h => {
+      brutalistHoverShadows.slice(0,2).forEach(h => {
         brutDesc += ` \`${h.selector.replace(/\[data-astro[^\]]*\]/g,'').slice(0,30)}:hover\` → \`box-shadow: ${h['box-shadow']}\`.`;
       });
-      brutDesc += ' This is a signature pattern — reproduce exactly.';
     }
     lines.push(brutDesc);
   }
   if (vpr.hasGlassmorphism) {
-    lines.push('Glassmorphism panels (`background: rgba(255,255,255,0.03–0.08)`, `backdrop-filter:blur(12–20px)`, `border: 1px solid rgba(255,255,255,0.08–0.12)`) float above the base surface. The frosted effect is subtle, not milky — it creates a sense of layered reality where UI elements exist on a different plane than the background content.');
-  }
-
-  // Component relationship cross-reference
-  const bs = data.buttonStyles;
-  const badge = data.badgeStyles;
-  const inp = data.inputStyles;
-  const componentRadii = [];
-  if (bs?.primary?.borderRadius) componentRadii.push({comp:'buttons', r:bs.primary.borderRadius});
-  if (badge?.borderRadius) componentRadii.push({comp:'badges', r:badge.borderRadius});
-  if (inp?.borderRadius) componentRadii.push({comp:'inputs', r:inp.borderRadius});
-  if (componentRadii.length >= 2) {
-    const sameRadius = componentRadii.every(c => c.r === componentRadii[0].r);
-    const pillItems = componentRadii.filter(c => c.r?.includes('9999'));
-    const nonPillItems = componentRadii.filter(c => !c.r?.includes('9999'));
-    if (sameRadius) {
-      lines.push('All interactive components ('+componentRadii.map(c=>c.comp).join(', ')+') share `'+componentRadii[0].r+'` radius — a unified geometric family. When users see one, they recognize the others as siblings.');
-    } else if (pillItems.length > 0 && nonPillItems.length > 0) {
-      lines.push('Two shape families coexist: '+pillItems.map(c=>c.comp).join('/')+' use pill shape (`9999px`) while '+nonPillItems.map(c=>c.comp+' (`'+c.r+'`)').join(', ')+' use structural rounding. The pills break the rule intentionally — they need to pop.');
-    }
+    lines.push('Glassmorphism: `background: rgba(255,255,255,0.03–0.08)`, `backdrop-filter:blur(12–20px)`, `border: 1px solid rgba(255,255,255,0.08–0.12)`.');
   }
   lines.push('');
 
-  // ── Interaction choreography & motion intent ──
-  lines.push('**Interaction choreography & motion intent**');
-  const ap = vpr.animationPatterns || {};
-  let motion='';
+  // ── Animation (compact — details bound to components above) ──
+  lines.push('**Animation**');
+  const motionParts = [];
 
   if (vpr.hasScrollAnimation) {
-    if (ap.hasMaskReveal) {
-      motion='Content enters through scroll-triggered mask reveals — clip-path or overflow-hidden masks slide to unveil each section\'s content (400–600ms ease-out). This creates a cinematic unfolding: the page doesn\'t just appear, it performs. Each reveal is a small moment of delight.';
-    } else if (ap.hasStaggerReveal) {
-      motion='Staggered scroll reveals: child elements enter sequentially with 80–120ms delay between each, `opacity 0→1` + `translateY(20px)→0`, 400ms ease-out. The stagger creates a cascade effect — elements arrive like members of an ensemble, each building on the last. The rhythm makes complex layouts feel choreographed rather than dumped on screen.';
-    } else {
-      motion='Scroll-triggered reveals: `opacity 0→1`, `translateY(20px)→0`, 400ms ease-out via IntersectionObserver on all major content blocks. The 20px upward drift is subtle — elements don\'t fly in, they rise gently into place, like objects surfacing in calm water.';
-    }
-  } else if (hasGlowEffect&&isDark) {
-    motion='On hover, glows deepen and expand (200–300ms ease-out on `box-shadow`) — the element doesn\'t just highlight, it blooms. The glow is the interface breathing: it swells outward in response to attention, creating a bioluminescent feel on the dark canvas.';
-  } else {
-    motion='Subtle motion language: fade + `translateY` on scroll entry, '+(hasLayeredShadows?'shadow lifts':'opacity/color shift')+' on hover. 150–200ms ease-in-out keeps everything responsive without calling attention to the transitions themselves — the best interaction design is invisible.';
+    if ((vpr.animationPatterns||{}).hasMaskReveal) motionParts.push('**Scroll reveal (all sections):** `clip-path: inset(100% 0 0 0)→inset(0)`, `transition: 0.6s ease-out` on IntersectionObserver entry');
+    else if ((vpr.animationPatterns||{}).hasStaggerReveal) motionParts.push('**Scroll reveal (all sections):** children stagger `opacity:0→1` + `translateY(20px)→0`, 80ms delay each, 400ms ease-out via IntersectionObserver');
+    else motionParts.push('**Scroll reveal (all sections):** `opacity:0→1` + `translateY(20px)→0`, `transition: 0.4s ease-out` via IntersectionObserver');
   }
-
-  if (ap.hasTextReveal || ap.hasHeroAnimation) {
-    motion += ' Hero headline uses text reveal animation — characters or words appear sequentially. This isn\'t decorative: it controls the user\'s reading speed, ensuring the headline lands with its intended cadence.';
-  }
-  if (ap.hasArrowAnimation) {
-    motion += ' Arrow CTAs ("Learn more →"): the → arrow beckons forward with a `translateX(4px)` slide on hover (`transition: transform 200ms ease`). A tiny gesture that says "there\'s more" — the arrow literally points the way.';
-  }
-
-  if (hasGlitchAnimation) {
-    motion += ' **Glitch effect**: CSS `clip-rect` animations creating VHS/digital distortion — this isn\'t decorative noise, it reinforces the terminal/hacker aesthetic. Each `clip-path` flicker feels like a CRT monitor struggling, grounding the brand in cyberpunk DNA. Use `clip: rect()` or `clip-path` with rapid keyframe changes. Reproduce the glitch aesthetic, not just a generic shake.';
-  }
-  if (hasPulseAnimation) {
-    motion += ' Pulse/beacon animations: elements radiate outward with `scale(1→2)` + `opacity(0.4→0)` ring effect. These are attention signals — they say "something is alive here." Use for status indicators, live signals, or "look at this" markers. The expanding ring creates urgency without aggression.';
-  }
-  if (hasBlinkAnimation) {
-    motion += ' Blink/flicker animations: `opacity` toggles (1→0→1). This is terminal-style presence — a cursor blink, a status heartbeat. The flicker proves the system is running, creating an ambient sense of liveness.';
-  }
-
+  if ((vpr.animationPatterns||{}).hasTextReveal || (vpr.animationPatterns||{}).hasHeroAnimation) motionParts.push('**Hero text reveal:** words appear sequentially — staggered `animation-delay`, `opacity:0→1` + `translateY(10px)→0`');
+  if (hasGlitchAnimation) motionParts.push('**Glitch (hero/brand text):** `@keyframes glitch` with `clip:rect()` random values on `::before`/`::after`, 2–4s infinite');
+  if (hasPulseAnimation) motionParts.push('**Pulse (status dots):** `@keyframes pulse { 50% { scale:2; opacity:0 } }` 2s infinite');
+  if (hasBlinkAnimation) motionParts.push('**Blink (cursors/indicators):** `@keyframes blink { 50% { opacity:0 } }` 1.5s step-end infinite');
   if (ui.hasMarquee||ui.hasLogoStrip||hasTickerAnimation) {
-    let marqueeDesc = ' Horizontal ticker/marquee: `@keyframes { to { transform:translateX(-50%) } }` 30–40s linear infinite. The perpetual scroll creates ambient motion — like a stock ticker or news crawl, it signals that this platform is active and connected.';
-    if (vpr.blendModes?.includes('lighten')) {
-      marqueeDesc += ' The marquee uses `mix-blend-mode: lighten` against the dark background — logos/text appear as light overlays that blend into the surface, creating an ethereal, integrated feel rather than pasted-on branding.';
-    }
-    motion += marqueeDesc;
+    let m = '**Marquee:** `@keyframes marquee { to { transform:translateX(-50%) } }` 30s linear infinite';
+    if (vpr.blendModes?.includes('lighten')) m += ', `mix-blend-mode:lighten`';
+    motionParts.push(m);
   }
+  if ((vpr.animationPatterns||{}).hasSlider) motionParts.push('**Slider:** CSS scroll-snap, auto-play, pause on hover');
+  if (vpr.navStyle==='transparent-hero') motionParts.push('**Nav transition:** transparent→solid/frosted at 80px scroll, `transition: 0.3s ease`');
+  if (vpr.blendModes?.length>0 && !(ui.hasMarquee && vpr.blendModes.length===1 && vpr.blendModes[0]==='lighten')) motionParts.push('`mix-blend-mode: '+vpr.blendModes.join(', ')+'`');
+  if (vpr.hasParallaxHint) motionParts.push('Parallax: bg elements at different scroll speeds');
 
-  if (ap.hasSlider) {
-    motion += ' Content slider' + (ap.sliderType === 'swiper' ? ' (Swiper)' : '') + ': horizontal slide transition with snap points, auto-play with pause on hover. The auto-play creates passive engagement — content moves even when the user doesn\'t.';
-  }
-  if (vpr.navStyle==='transparent-hero') motion+=' Nav starts transparent, letting the hero breathe fully, then transitions to solid/frosted at ~80px scroll — the shift is gentle enough that users barely notice, but it grounds them as they begin reading.';
-  if (vpr.blendModes?.length>0 && !(ui.hasMarquee && vpr.blendModes.length===1 && vpr.blendModes[0]==='lighten')) {
-    motion+=' Uses `mix-blend-mode: '+vpr.blendModes.join(', ')+'` for layered visual effects — colors interact with their backgrounds rather than sitting flatly on top.';
-  }
-  if (vpr.hasFloatingCards) motion+=' Floating card elements with layered depth — recreate with subtle `translateZ` or shadow stacking to create a sense of cards hovering above the page plane.';
-  if (vpr.hasParallaxHint) motion+=' Parallax scrolling: background elements move at different speeds than foreground content, creating a subtle three-dimensionality that rewards slow scrolling.';
-
-  lines.push(motion);
+  if (motionParts.length > 0) lines.push(motionParts.join('\n'));
+  else lines.push('Subtle: `opacity` + `translateY` on scroll, `150–200ms ease-out` hover transitions.');
   lines.push('');
 
   return lines.join('\n');
@@ -1232,8 +1174,10 @@ function generateRuleBasedDirection(data, style) {
 // ═══════════════════════════════════════════════════════════════════════════
 function generateComponentGuidance(data, style) {
   const{isDark,hasFullRound,hasGlowEffect,hasLayeredShadows,hasColoredShadows,accents,vp,radii,
-    pageBg,semanticColors,vibrantColors,isCool} = style;
+    pageBg,semanticColors,vibrantColors,isCool,
+    hasGlitchAnimation,hasPulseAnimation,hasBlinkAnimation,hasTickerAnimation} = style;
   const vpr=vp||{}, ui=(vpr.uiPatterns)||{};
+  const ap = vpr.animationPatterns || {};
 
   const sc = semanticColors || {};
   const accent = sc.primary
@@ -1247,15 +1191,11 @@ function generateComponentGuidance(data, style) {
 
   // ── Navigation ──
   if (vpr.navStyle==='transparent-hero') {
-    if (isDark) {
-      lines.push('**Navigation:** The nav begins transparent, letting the hero breathe fully — no visual ceiling above the first impression. On scroll past ~80px, it transitions to a frosted dark glass: `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`. The shift is gentle enough that users barely notice, but it anchors them as they begin reading. Sticky, logo left, CTA right.');
-    } else {
-      lines.push('**Navigation:** The nav begins transparent, letting the hero breathe fully. On scroll past ~80px, it transitions to frosted glass: `rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`. This transition is a quiet sophistication — the nav materializes as the user commits to scrolling. Sticky, logo left, CTA right.');
-    }
+    lines.push('**Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to '+(isDark?'`rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`':'`rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`')+'. Transition: `background 0.3s ease, border-color 0.3s ease`. Logo left, CTA right.');
   } else if (vpr.navStyle==='frosted') {
-    lines.push('**Navigation:** Persistent frosted glass nav — `backdrop-filter:blur(12px)` with '+(isDark?'dark':'light')+' semi-transparent bg. The blur creates a visual layer that separates navigation from content while keeping the page visible beneath. Sticky, logo left, CTA right.');
+    lines.push('**Navigation:** Sticky. `backdrop-filter:blur(12px)`, '+(isDark?'dark':'light')+' semi-transparent bg. Logo left, CTA right.');
   } else {
-    lines.push('**Navigation:** Sticky, solid '+(isDark?'dark (`'+(pageBg||'#111')+'`)':'light (`'+(pageBg||'#fff')+'`)')+' background. `border-bottom:1px solid '+(isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)')+'`'+(isDark?'':' on scroll')+' — a hairline that defines territory without creating visual weight. Logo left, CTA right.');
+    lines.push('**Navigation:** Sticky, '+(isDark?'`'+(pageBg||'#111')+'`':'`'+(pageBg||'#fff')+'`')+' bg. `border-bottom:1px solid '+(isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)')+'`. Logo left, CTA right.');
   }
 
   // ── Primary Button ──
@@ -1274,9 +1214,9 @@ function generateComponentGuidance(data, style) {
     }
     const primaryHover = hoverStates.find(h => /btn.*(?:primary|cta|red|main|action)/i.test(h.selector) || /(?:primary|cta|red|main).*btn/i.test(h.selector));
     let hoverDesc = primaryHover
-      ? 'On hover, the button responds with ' + Object.entries(primaryHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ') + ' — a tactile acknowledgment of the user\'s intention.'
-      : isDark ? 'On hover, the button brightens subtly (`filter: brightness(1.08)`, 200ms ease-out) — not a flash, but a gentle acknowledgment. The interface breathes with the user.' : 'On hover, the button darkens slightly (`filter: brightness(0.92)`, 200ms ease-out) — a confident, controlled response that says "I\'m ready."';
-    lines.push(`**Primary button:** ${shape}. Fills with \`${p.backgroundColor||accent}\`, text \`${p.color}\`${p.height?', height `'+p.height+'`':''}. Padding \`${p.padding}\` gives the label room to breathe. Font \`${p.fontSize}/${p.fontWeight}\`${p.fontFamily?' "'+p.fontFamily+'"':''}${p.letterSpacing?', tracking `'+p.letterSpacing+'`':''}${p.textTransform?', `'+p.textTransform+'`':''}. ${hoverDesc}`);
+      ? 'Hover: ' + Object.entries(primaryHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ') + '.'
+      : isDark ? 'Hover: `filter: brightness(1.08)`, `transition: 200ms ease-out`.' : 'Hover: `filter: brightness(0.92)`, `transition: 200ms ease-out`.';
+    lines.push(`**Primary button:** ${shape}. \`${p.backgroundColor||accent}\` bg, text \`${p.color}\`${p.height?', height `'+p.height+'`':''}. Padding \`${p.padding}\`. Font \`${p.fontSize}/${p.fontWeight}\`${p.fontFamily?' "'+p.fontFamily+'"':''}${p.letterSpacing?', tracking `'+p.letterSpacing+'`':''}${p.textTransform?', `'+p.textTransform+'`':''}. ${hoverDesc}`);
   } else {
     let btnNarrative;
     if (hasFullRound&&accent&&hasGlowEffect) {
@@ -1305,19 +1245,19 @@ function generateComponentGuidance(data, style) {
     const ghostHoverDesc = ghostHover
       ? 'On hover: '+Object.entries(ghostHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ')+'.'
       : `On hover, a whisper of fill appears (${isDark?'`rgba(255,255,255,0.06)`':'`rgba(0,0,0,0.04)`'}) — the ghost becomes slightly more solid, hinting at its interactivity.`;
-    lines.push(`**Ghost button:** ${ghostShape}. Transparent bg, border \`${g.border||'1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')}\`, padding \`${g.padding||'12px 24px'}\`. The ghost is the primary button's quieter sibling — same shape, different volume. ${ghostHoverDesc}`);
+    lines.push(`**Ghost button:** ${ghostShape}. Transparent bg, border \`${g.border||'1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')}\`, padding \`${g.padding||'12px 24px'}\`. ${ghostHoverDesc}`);
   } else {
-    lines.push('**Ghost button:** '+(hasFullRound?'`9999px`':'`'+(radiusSample||'8px')+'`')+' radius, transparent bg, `1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')+'`. The ghost mirrors the primary button\'s shape but speaks in a whisper — outline only. On hover, a subtle fill ('+( isDark?'`rgba(255,255,255,0.06)`':'`rgba(0,0,0,0.04)`')+') makes the ghost slightly more present.');
+    lines.push('**Ghost button:** '+(hasFullRound?'`9999px`':'`'+(radiusSample||'8px')+'`')+' radius, transparent bg, `1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')+'`. Hover: `background: '+(isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)')+'`.');
   }
 
   // Cards
   let cardNarrative;
   if (vpr.hasGlassmorphism) {
-    cardNarrative = 'Two variants that respond to their environment: (1) On light sections — white with `rgba(0,0,0,0.08)` border, `'+(radiusSample||'12px')+'` radius, layered shadow. (2) On dark/photo sections — `rgba(20,20,20,0.55)` with `backdrop-filter:blur(16px)` and `rgba(255,255,255,0.08)` border. The glassmorphism creates a sense of floating — cards exist on a different plane than the background. Padding `24–32px`.';
+    cardNarrative = 'Two variants: (1) light sections — white, `rgba(0,0,0,0.08)` border, `'+(radiusSample||'12px')+'` radius, layered shadow. (2) dark sections — `rgba(20,20,20,0.55)`, `backdrop-filter:blur(16px)`, `rgba(255,255,255,0.08)` border. Padding `24–32px`. Hover: `translateY(-2px)`, shadow expand, `transition: 200ms ease-out`.';
   } else if (isDark) {
-    cardNarrative = 'Dark surface (8–12% lighter than page bg) — the cards emerge from the darkness through luminance, not borders. `rgba(255,255,255,0.06)` border provides definition at the edge. '+(hasLayeredShadows?'Layered shadow from tokens creates nuanced depth.':'Border carries the structural work since shadows recede against dark surfaces.')+' Padding `24–32px`. On hover, the card lifts subtly (`translateY(-2px)`) — drawn toward the cursor like a card being pulled from a deck.';
+    cardNarrative = 'Dark surface (8–12% lighter than page bg). `rgba(255,255,255,0.06)` border. '+(hasLayeredShadows?'Layered shadow from tokens.':'Border for definition.')+' Padding `24–32px`. Hover: `transform: translateY(-2px)`, `transition: 200ms ease-out`.';
   } else {
-    cardNarrative = 'White or `'+(pageBg||'#f8f8f8')+'` surface with `rgba(0,0,0,0.08)` border. '+(hasLayeredShadows?'Layered shadow creates nuanced, realistic depth':'`0 4px 24px rgba(0,0,0,0.06)` shadow — soft enough to suggest floating without creating a hard edge')+'. `'+(radiusSample||'12px')+'` radius. Padding `24–32px`. On hover, the card lifts (`translateY(-2px)`, shadow expands 20%, 200ms ease-out) — a gentle invitation to engage.';
+    cardNarrative = '`'+(pageBg||'#ffffff')+'` bg, `rgba(0,0,0,0.08)` border, '+(hasLayeredShadows?'layered shadow':'`0 4px 24px rgba(0,0,0,0.06)`')+'. `'+(radiusSample||'12px')+'` radius. Padding `24–32px`. Hover: `transform: translateY(-2px)`, shadow expand 20%, `transition: 200ms ease-out`.';
   }
   lines.push('**Cards:** '+cardNarrative);
 
@@ -1326,69 +1266,84 @@ function generateComponentGuidance(data, style) {
     const heroHasPhoto = vpr.hasFullBleedImages || vpr.imageTreatment==='cinematic';
     const heroHasDecorGeometry = ui.hasDecorativeGeometry;
 
+    // Hero animation binding
+    let heroAnim = '';
+    if (ap.hasTextReveal || ap.hasHeroAnimation) heroAnim += ' **Hero headline animation:** words/characters appear sequentially — use CSS `@keyframes` with staggered `animation-delay` per word, `opacity: 0→1` + `translateY(10px)→0`, 400ms ease-out.';
+    if (hasGlitchAnimation) heroAnim += ' **Glitch effect on headline:** apply `@keyframes glitch` using `clip: rect()` with rapid random clip regions on `::before`/`::after` pseudo-elements. 2–3s infinite.';
+
     if (heroHasPhoto && isDark) {
-      lines.push('**Hero:** Full-screen immersion (`min-height: 100dvh`, `background-size:cover`, `rgba(0,0,0,0.4)` overlay). The overlay tames the photography without killing it — text remains readable, atmosphere remains cinematic. White text. Headline at `clamp(48px,7vw,88px)` in display font. One primary CTA + one ghost, side by side — binary choice, clear hierarchy.');
+      lines.push('**Hero:** `min-height: 100dvh`, `background-size:cover`, `rgba(0,0,0,0.4)` overlay. White text. Headline: `clamp(48px,7vw,88px)` display font. Primary CTA + ghost side by side.'+heroAnim);
     } else if (heroHasDecorGeometry && !isDark) {
       const heroBgRef = pageBg ? '`'+pageBg+'`' : '`#ffffff`';
-      const actionRef = accent ? '`'+accent+'`' : 'accent color';
-      lines.push('**Hero:** Light background ('+heroBgRef+'), dark text on light — no overlay, no full-bleed photo. The hero trusts typography to make the impact. Headline at `clamp(48px,6vw,80px)/800` in display font. Primary CTA with '+actionRef+' + ghost, side by side. Generous padding (`80–120px` vertical) creates a stage for the headline.');
+      lines.push('**Hero:** '+heroBgRef+' bg, dark text. Headline: `clamp(48px,6vw,80px)/800` display font. Primary CTA + ghost side by side. Padding `80–120px` vertical.'+heroAnim);
     } else {
       const heroBgRef = pageBg ? '`'+pageBg+'`' : (isDark ? 'dark neutral' : '`#ffffff`');
-      const heroText = isDark ? 'light text (token foreground)' : 'dark text (token foreground)';
-      lines.push('**Hero:** Clean canvas (`min-height: 80–90dvh`, '+heroBgRef+' background). '+heroText+'. No overlay — the hero relies on typography scale and whitespace. Headline at `clamp(48px,6vw,80px)` in display font. One primary CTA + one ghost, side by side. No cards above the fold — the headline owns this space.');
+      const heroText = isDark ? 'light text' : 'dark text';
+      lines.push('**Hero:** `min-height: 80–90dvh`, '+heroBgRef+' bg. '+heroText+'. Headline: `clamp(48px,6vw,80px)` display font. Primary CTA + ghost side by side.'+heroAnim);
     }
   }
 
   // Inputs
-  lines.push('**Inputs:** `'+(isDark?'rgba(255,255,255,0.06)':'#f8f9fa')+'` background, `1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')+'` border, matching the component family radius. Focus: `outline 2px solid '+(accent||'currentColor')+' offset 2px` — the focus ring uses the accent color to maintain visual consistency with CTAs, linking "where I can type" with "where I can click."');
+  lines.push('**Inputs:** `'+(isDark?'rgba(255,255,255,0.06)':'#f8f9fa')+'` bg, `1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')+'` border, matching radius. Focus: `outline 2px solid '+(accent||'currentColor')+' offset 2px`.');
 
   // Badges
   const badgeData = data.badgeStyles;
   if (badgeData) {
-    lines.push(`**Badges:** \`${badgeData.borderRadius||'9999px'}\` radius, \`${badgeData.padding||'4px 10px'}\` padding, \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\` font. Background \`${badgeData.backgroundColor||'accent at 15% opacity'}\`, text \`${badgeData.color||'full-opacity accent'}\`. Badges are informational markers — they label, categorize, highlight. Their pill shape (if present) distinguishes them from structural containers.`);
+    lines.push(`**Badges:** \`${badgeData.borderRadius||'9999px'}\` radius, \`${badgeData.padding||'4px 10px'}\` padding, \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\` font. bg \`${badgeData.backgroundColor||'accent at 15% opacity'}\`, text \`${badgeData.color||'full-opacity accent'}\`.`);
   } else if (accents.length>1) {
-    lines.push('**Badges:** `9999px` radius, `4px 10px` padding, `12px/500` font. Accent bg at 15–20% opacity, full-opacity text. Each accent color maps to a distinct semantic category — badges are color-coded meaning.');
+    lines.push('**Badges:** `9999px`, `4px 10px`, `12px/500`. Accent bg 15% opacity, full-opacity text.');
   }
 
-  // Pattern components
-  if (ui.hasMarquee||ui.hasLogoStrip) lines.push('**Logo marquee:** `overflow:hidden` container, inner div at 200% width. `@keyframes marquee { to { transform:translateX(-50%) } }` 30s linear infinite. Logos at 50–60% opacity — the muted opacity prevents the marquee from competing with page content; it\'s ambient social proof, not a focal point.');
-  if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** `repeat('+ui.pricingColumnCount+',1fr)`, gap `24px`, `align-items:stretch`.'+(ui.pricingColumnCount===3?' Center card: accent border + elevated shadow + "Popular" badge — the visual hierarchy makes the recommended plan obvious without reading a single word.':''));
-  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark surface cards, `rgba(255,255,255,0.06)` border':'White/light cards')+', `'+(radiusSample||'12px')+'` radius, `24px` padding. Auto-play with pause on hover — the motion draws peripheral attention, the pause respects focused reading.');
-  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (`display:flex, gap:16px`). QR: `12px` radius, subtle border, "Scan to download" label. Two paths to the same destination — scan or click.');
-  if (ui.hasStepIndicator) lines.push('**Steps:** `32px` circles, `border-radius:50%`, number inside. Thin connecting line between steps. Active step = accent color. The visual progression mirrors the user\'s journey — each numbered circle is a milestone.');
-  if (ui.hasCounterSection) lines.push('**Stats:** `64–80px/800` numbers, `14–16px` muted labels. Count-up animation via IntersectionObserver + rAF — the numbers climb when they enter view, creating a moment of "proof in motion."');
-  if (ui.hasAccordion) lines.push('**Accordion:** `16–18px` semibold question, muted answer text. `max-height` transition for smooth open/close. Chevron rotates 180deg on open. `border-bottom` between items creates a clean, scannable list.');
-  if (ui.hasVideoSection) lines.push('**Video:** `autoplay muted loop`, `object-fit:cover`, `16–24px` radius. Play button overlay on hover — ambient video as atmosphere, with the option to engage.');
+  // Pattern components — compact with animation bindings
+  if (ui.hasMarquee||ui.hasLogoStrip||hasTickerAnimation) lines.push('**Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Logos at 50–60% opacity.');
+  if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** `repeat('+ui.pricingColumnCount+',1fr)`, gap `24px`, `align-items:stretch`.'+(ui.pricingColumnCount===3?' Center card: accent border, elevated shadow, "Popular" badge.':''));
+  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark cards, `rgba(255,255,255,0.06)` border':'White cards')+', `'+(radiusSample||'12px')+'` radius, `24px` padding. `animation: auto-slide` with pause on hover.');
+  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (`display:flex, gap:16px`).');
+  if (ui.hasStepIndicator) lines.push('**Steps:** `32px` circles, `border-radius:50%`, number inside. Connecting line. Active step = accent color.');
+  if (ui.hasCounterSection) lines.push('**Stats:** `64–80px/800` numbers, `14–16px` muted labels. **Animate:** count-up from 0 on scroll entry via IntersectionObserver + requestAnimationFrame.');
+  if (ui.hasAccordion) lines.push('**Accordion:** `16–18px/600` question, muted answer. `max-height` + `overflow:hidden` transition 300ms. Chevron `rotate(180deg)` on open.');
+  if (ui.hasVideoSection) lines.push('**Video:** `autoplay muted loop`, `object-fit:cover`, `16–24px` radius.');
 
-  // Decorative geometry
   if (ui.hasDecorativeGeometry) {
-    lines.push('**Decorative background:** Subtle SVG elements as section atmosphere — `position:absolute`, `z-index:-1`, `pointer-events:none`, opacity `0.05–0.12`. These create a sense of "designed space" without competing with content. Do NOT add grid lines, crop marks, dot patterns, or strong geometric overlays. The rule: if the decoration draws conscious attention, it\'s too much.');
+    lines.push('**Decorative bg:** SVG elements, `position:absolute`, `z-index:-1`, `pointer-events:none`, `opacity: 0.05–0.12`. Keep minimal.');
   }
 
-  // Icon system
   if (ui.hasIconSystem) {
     const iconD = ui.iconDetails || {};
     const iconStyle = ui.iconStyle || 'outlined';
     const sizeNote = iconD.size || '32–48px';
-    let styleNote = '';
-    if (iconStyle === 'outlined') styleNote = `Outlined SVG icons at \`${iconD.strokeWidth ? iconD.strokeWidth+'px' : '1.5–2px'}\` stroke, no fill. Color: ${iconD.color ? '`'+iconD.color+'`' : 'currentColor or muted tone'}. The outlined style keeps icons lightweight — they guide, not dominate.`;
-    else if (iconStyle === 'filled') styleNote = `Filled SVG icons. Color: ${iconD.color ? '`'+iconD.color+'`' : 'accent or muted neutral'}. Solid fills give icons visual weight, anchoring feature sections.`;
-    else if (iconStyle === 'illustrated') styleNote = 'Custom illustrated icons (img). Consistent illustration style — mixing styles breaks the visual language.';
-    else styleNote = `Mixed outlined/filled SVG icons, \`${iconD.strokeWidth ? iconD.strokeWidth+'px' : '1.5px'}\` stroke.`;
-
+    let styleNote = iconStyle === 'outlined' ? `Outlined, ${iconD.strokeWidth?iconD.strokeWidth+'px':'1.5px'} stroke, ${iconD.color?'`'+iconD.color+'`':'currentColor'}` : iconStyle === 'filled' ? `Filled, ${iconD.color?'`'+iconD.color+'`':'accent'}` : iconStyle;
     let containerNote = '';
     if (iconD.containerStyle && iconD.containerStyle !== 'none') {
-      containerNote = ` Each icon sits in a \`${iconD.containerSize||'48px'}\` ${iconD.containerStyle} container${iconD.containerBg ? ' with bg `'+iconD.containerBg+'`' : ''}${iconD.containerRadius ? ' and radius `'+iconD.containerRadius+'`' : ''} — the container gives the icon a home, creating consistent alignment across feature grids.`;
+      containerNote = ` in \`${iconD.containerSize||'48px'}\` ${iconD.containerStyle} container${iconD.containerBg?', bg `'+iconD.containerBg+'`':''}`;
     }
-
-    lines.push(`**Icon system:** \`${sizeNote}\` icons consistently paired with feature headings. ${styleNote}${containerNote} Gap to text: \`${iconD.gapToText||'12–16px'}\`.`);
+    lines.push(`**Icons:** \`${sizeNote}\`, ${styleNote}${containerNote}. Gap: \`${iconD.gapToText||'12–16px'}\`.`);
   }
 
-  // Arrow links
   if (ui.hasArrowLinks) {
-    const color = ui.arrowLinkColor ? `\`${ui.arrowLinkColor}\`` : 'accent color';
-    lines.push(`**Arrow link CTA:** Inline text with trailing arrow — "Learn more →". Color: ${color}, font-weight 500–600, no button border/background. The arrow beckons forward with a \`translateX(4px)\` slide on hover (transition: 150ms ease) — a tiny gesture that says "there's more." These are secondary actions within feature sections, distinct from the pill CTA buttons in hierarchy.`);
+    const color = ui.arrowLinkColor ? `\`${ui.arrowLinkColor}\`` : 'accent';
+    lines.push(`**Arrow links:** "Learn more →". Color: ${color}, weight 500. Hover: arrow \`transform: translateX(4px)\`, \`transition: 150ms ease\`.`);
   }
+
+  // ── Global animation behaviors (bound to ALL sections) ──
+  lines.push('');
+  lines.push('**GLOBAL ANIMATION RULES — apply to every section:**');
+
+  // Scroll reveal
+  if (vpr.hasScrollAnimation) {
+    if (ap.hasMaskReveal) {
+      lines.push('- **Scroll reveal (every section):** Use IntersectionObserver. On entry: `clip-path: inset(100% 0 0 0)` → `clip-path: inset(0)`, `transition: clip-path 600ms ease-out`. Apply to each section\'s heading + content block.');
+    } else if (ap.hasStaggerReveal) {
+      lines.push('- **Scroll reveal (every section):** Use IntersectionObserver. On entry: children stagger with `opacity: 0→1` + `transform: translateY(20px)→0`, each child delayed by `80ms`. CSS: `transition: opacity 400ms ease-out, transform 400ms ease-out`. Apply `.is-visible` class on intersection.');
+    } else {
+      lines.push('- **Scroll reveal (every section):** Use IntersectionObserver on ALL `<section>` elements. On entry: `opacity: 0→1` + `transform: translateY(20px)→0`. CSS: `transition: opacity 0.4s ease-out, transform 0.4s ease-out`. Start hidden: `opacity: 0; transform: translateY(20px)`. Add `.is-visible { opacity: 1; transform: translateY(0); }` on intersection.');
+    }
+  }
+
+  // Specific animations
+  if (hasPulseAnimation) lines.push('- **Pulse/beacon animation:** Apply to status indicators, live dots. CSS: `@keyframes pulse { 0% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(2); opacity: 0; } 100% { transform: scale(1); opacity: 0.4; } }` — `animation: pulse 2s ease-in-out infinite`.');
+  if (hasBlinkAnimation) lines.push('- **Blink animation:** Apply to cursor elements, status indicators. CSS: `@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }` — `animation: blink 1.5s step-end infinite`.');
+  if (hasGlitchAnimation) lines.push('- **Glitch animation:** Apply to hero headline or brand text via `::before`/`::after` pseudo-elements. CSS: `@keyframes glitch { 0% { clip: rect(random); } ... 100% { clip: rect(random); } }` — use `clip: rect()` with randomized values, 2–4s infinite. Create VHS/digital distortion effect.');
 
   return lines;
 }
@@ -1711,97 +1666,31 @@ function buildPagePrompt(data, aiDirection) {
     }
   }
 
-  // ── Interaction & Motion (replaces Motion Tokens + Hover States) ──
+  // ── Hover States (compact — animations are now in Component Language) ──
   if(focus==='all'||focus==='motion') {
-    const LIBRARY_PREFIXES_M = ['--tw-','--swiper-','--toastify-','--toast-','--sonner-'];
-    const motionVars=Object.entries(vars).filter(([k,v])=>
-      /transition|duration|easing|ease|delay/.test(k) && /\d+m?s/.test(v) &&
-      !LIBRARY_PREFIXES_M.some(p=>k.startsWith(p))
-    );
-    const transitions=(data.transitions||[]).filter(t=>
-      t && t!=='all' && t.length>3 && !t.includes('0s ease 0s') &&
-      !t.includes('--tw-') && !t.includes('--toastify')
-    );
-    const LIBRARY_ANIM_PATTERNS = [/^Toastify/i, /^aos-/i, /^gsap-/i, /^swiper/i, /^nprogress/i];
-    const animations=(data.animations||[]).filter(a=> {
-      if (!a) return false;
-      const name = typeof a === 'object' ? a.name : a;
-      if (!name || name.startsWith('__') || name.length === 0) return false;
-      return !LIBRARY_ANIM_PATTERNS.some(p=>p.test(name));
-    });
     const hoverStates = data.hoverStates || [];
-    const animationDetails = data.animationDetails || [];
     const blendModes = vpr.blendModes || [];
 
-    if(motionVars.length>0||transitions.length>0||animations.length>0||hoverStates.length>0) {
-      lines.push('### Interaction & Motion');
-      lines.push('Motion is communication — every transition, hover state, and animation below tells the user something about the interface\'s personality and responsiveness.');
-      lines.push('');
-
-      // Motion tokens
-      if(motionVars.length>0) {
-        lines.push('**Timing tokens:**');
-        motionVars.slice(0,4).forEach(([k,v])=>lines.push('- `'+k+'`: '+narrateTransition(v, k.replace(/^--/,'').replace(/-/g,' '))));
-        lines.push('');
-      }
-
-      // Transitions
-      if(transitions.length>0) {
-        lines.push('**Transition patterns:**');
-        transitions.slice(0,3).forEach(t=>lines.push('- '+narrateTransition(t, 'this element\'s state changes')));
-        lines.push('');
-      }
-
-      // Keyframe animations
-      if(animations.length>0) {
-        lines.push('**Keyframe animations:**');
-        animations.slice(0,6).forEach(a => {
-          if (typeof a === 'object' && a.name) {
-            let kfLine = `- \`${a.name}\``;
-            if (a.from) kfLine += `: from \`${a.from}\``;
-            if (a.to) kfLine += ` → to \`${a.to}\``;
-            lines.push(kfLine);
-          } else {
-            lines.push(`- Keyframe: \`${a}\``);
-          }
-        });
-        if(animationDetails.length>0) {
-          lines.push('Active on page:');
-          animationDetails.slice(0,4).forEach(a => lines.push(`  - \`${a}\``));
-        }
-        lines.push('');
-      }
-
-      // Hover states with choreography
-      if(hoverStates.length > 0) {
-        lines.push('**Hover choreography:**');
-        hoverStates.slice(0, 10).forEach(h => {
-          const { selector, ...props } = h;
-          const propStr = Object.entries(props).map(([k,v]) => `\`${k}: ${v}\``).join(', ');
-          lines.push(`- \`${selector}\` → ${propStr}`);
-        });
-        lines.push('');
-      }
-
-      // Blend modes
-      if(blendModes.length > 0) {
-        lines.push(`**Blend modes:** \`mix-blend-mode: ${blendModes.join(', ')}\` — colors interact with their backgrounds rather than sitting flatly on top.`);
-        lines.push('');
-      }
-
-      // Links from specsData
+    if(hoverStates.length > 0) {
+      lines.push('### Hover States');
+      hoverStates.slice(0, 8).forEach(h => {
+        const { selector, ...props } = h;
+        const propStr = Object.entries(props).map(([k,v]) => `\`${k}: ${v}\``).join(', ');
+        lines.push(`- \`${selector}\` → ${propStr}`);
+      });
+      if(blendModes.length > 0) lines.push(`- Blend modes: \`mix-blend-mode: ${blendModes.join(', ')}\``);
       if (specsData.links) {
         const lk = specsData.links;
-        lines.push(`**Link behavior:** Color \`${lk.color}\`, \`text-decoration: ${lk.textDecoration}\`${lk.textUnderlineOffset ? ', underline-offset `'+lk.textUnderlineOffset+'`' : ''}${lk.textDecorationColor ? ', decoration-color `'+lk.textDecorationColor+'`' : ''}. Links are quiet until hovered — then they reveal their interactive nature.`);
-        lines.push('');
+        lines.push(`- Links: \`color: ${lk.color}\`, \`text-decoration: ${lk.textDecoration}\`${lk.textUnderlineOffset ? ', offset `'+lk.textUnderlineOffset+'`' : ''}`);
       }
+      lines.push('');
     }
   }
 
   // ── Component Language (replaces Component Patterns) ──
   if(focus==='all'||focus==='components') {
-    lines.push('### Component Language');
-    lines.push('Components are a family — they share design DNA (radius, shadow, spacing) while serving distinct interaction roles. Each component below is specified from DOM measurements.');
+    lines.push('### Components & Animation');
+    lines.push('Each component includes its exact specs AND animation behavior. Implement these animations — they are essential to the design.');
     lines.push('');
     generateComponentGuidance(data, style).forEach(c=>lines.push(c));
 
@@ -1867,6 +1756,12 @@ function buildPagePrompt(data, aiDirection) {
       lines.push('### Section Content Map');
       lines.push('Build the page with these exact sections in order. Each section\'s background, layout, and content are measured from the live site:');
       lines.push('');
+      // Determine entrance animation type for sections
+      const sap = vpr.animationPatterns || {};
+      let entranceAnim = 'Entrance: `opacity: 0→1; transform: translateY(20px)→0; transition: 0.4s ease-out` on scroll into view (IntersectionObserver).';
+      if (sap.hasMaskReveal) entranceAnim = 'Entrance: `clip-path: inset(100% 0 0 0)→inset(0); transition: 0.6s ease-out` on scroll into view.';
+      else if (sap.hasStaggerReveal) entranceAnim = 'Entrance: children stagger in with `opacity: 0→1; translateY(20px)→0`, 80ms delay between each, 400ms ease-out. Trigger on scroll via IntersectionObserver.';
+
       scm.forEach((sec, i) => {
         let desc = `**Section ${i+1}: ${sec.type}**`;
         if (sec.heading) desc += ` — "${sec.heading}"`;
@@ -1874,18 +1769,23 @@ function buildPagePrompt(data, aiDirection) {
         if (sec.bgColor) lines.push(`  Background: ${sec.bgColor}`);
         if (sec.gradient) lines.push(`  Gradient: \`${sec.gradient}\``);
         lines.push(`  Layout: ${sec.layout}`);
+        // Animation binding per section
+        if (i === 0) {
+          lines.push('  Animation: hero loads immediately (no scroll trigger). '+(sap.hasTextReveal||sap.hasHeroAnimation?'Headline words appear sequentially with staggered `animation-delay`, `opacity: 0→1` + `translateY(10px)→0`.':''));
+        } else if (vpr.hasScrollAnimation) {
+          lines.push('  '+entranceAnim);
+        }
         if (sec.ctas) lines.push(`  CTAs: ${sec.ctas.map(c=>'"'+c+'"').join(', ')}`);
         if (sec.arrowLinks) lines.push(`  Arrow links: ${sec.arrowLinks.map(c=>'"'+c+'"').join(', ')}`);
-        if (sec.hasSlider) lines.push('  Has slider/carousel component');
-        if (sec.hasNumberedItems) lines.push('  Has numbered items (01, 02, 03 pattern)');
+        if (sec.hasSlider) lines.push('  Has slider/carousel: CSS scroll-snap, auto-play with pause on hover.');
+        if (sec.hasNumberedItems) lines.push('  Numbered items (01, 02, 03 pattern)');
         if (sec.headingColoredWords && sec.headingColoredWords.length > 0) {
           lines.push(`  Heading accent: ${sec.headingColoredWords.map(w => `"${w.text}" (${w.style})`).join(', ')}`);
         }
         if (sec.decorativeGradients && sec.decorativeGradients.length > 0) {
-          lines.push('  Decorative gradients:');
           sec.decorativeGradients.forEach(d => {
-            let dsc = `    - ${d.size} gradient stripe: \`${d.gradient}\``;
-            if (d.transform) dsc += `, transform: ${d.transform}`;
+            let dsc = `  Gradient stripe: \`${d.gradient}\``;
+            if (d.transform) dsc += `, \`transform: ${d.transform}\``;
             lines.push(dsc);
           });
         }
