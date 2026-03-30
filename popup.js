@@ -1182,7 +1182,8 @@ function generateComponentGuidance(data, style) {
     || accents[0];
 
   const interactiveRadii = radii.filter(r=>!r.includes('50%'));
-  const radiusSample = interactiveRadii.find(r=>parseInt(r)>=4&&parseInt(r)<=24) || interactiveRadii[0];
+  const radiusSample = interactiveRadii[0] || null; // Use actual site radius, no hardcoded fallback
+  const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
   const lines=[];
 
   // ── Navigation ──
@@ -1206,7 +1207,7 @@ function generateComponentGuidance(data, style) {
     } else if (p.borderRadius?.includes('9999')) {
       shape = 'pill-shaped (`9999px`) — the full rounding signals "this is the action" and separates it from rectangular content';
     } else {
-      shape = narrateRadius(p.borderRadius||radiusSample||'8px', 'button');
+      shape = narrateRadius(p.borderRadius||defaultRadius, 'button');
     }
     const primaryHover = hoverStates.find(h => /btn.*(?:primary|cta|red|main|action)/i.test(h.selector) || /(?:primary|cta|red|main).*btn/i.test(h.selector));
     let hoverDesc = primaryHover
@@ -1220,9 +1221,9 @@ function generateComponentGuidance(data, style) {
     } else if (hasFullRound&&accent) {
       btnNarrative = `Pill-shaped (\`9999px\`) with \`${accent}\` fill, padding \`12px 24px\`, weight 600. On hover, darkens to \`brightness(0.92)\` — a confident, controlled response.`;
     } else if (accent) {
-      btnNarrative = `${narrateRadius(radiusSample||'8px', 'button')}. \`${accent}\` fill, padding \`10px 20px\`, weight 600. Hover: \`brightness(0.92)\` — subtle, professional.`;
+      btnNarrative = `${narrateRadius(defaultRadius, 'button')}. \`${accent}\` fill, padding \`10px 20px\`, weight 600. Hover: \`brightness(0.92)\` — subtle, professional.`;
     } else {
-      btnNarrative = `${narrateRadius(radiusSample||'8px', 'button')}. Primary color from tokens, weight 600.`;
+      btnNarrative = `${narrateRadius(defaultRadius, 'button')}. Primary color from tokens, weight 600.`;
     }
     lines.push('**Primary button:** '+btnNarrative);
   }
@@ -1236,26 +1237,26 @@ function generateComponentGuidance(data, style) {
   // Ghost button
   if (bs.ghost) {
     const g = bs.ghost;
-    const ghostShape = g.clipPath ? `chamfered via clip-path` : narrateRadius(g.borderRadius||radiusSample||'8px', 'ghost button');
+    const ghostShape = g.clipPath ? `chamfered via clip-path` : narrateRadius(g.borderRadius||defaultRadius, 'ghost button');
     const ghostHover = hoverStates.find(h => /ghost|outline/i.test(h.selector));
     const ghostHoverDesc = ghostHover
       ? 'On hover: '+Object.entries(ghostHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ')+'.'
-      : `On hover, a whisper of fill appears (${isDark?'`rgba(255,255,255,0.06)`':'`rgba(0,0,0,0.04)`'}) — the ghost becomes slightly more solid, hinting at its interactivity.`;
+      : `On hover: \`background: ${isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'}\`.`;
     lines.push(`**Ghost button:** ${ghostShape}. Transparent bg, border \`${g.border||'1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')}\`, padding \`${g.padding||'12px 24px'}\`. ${ghostHoverDesc}`);
-  } else {
-    lines.push('**Ghost button:** '+(hasFullRound?'`9999px`':'`'+(radiusSample||'8px')+'`')+' radius, transparent bg, `1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')+'`. Hover: `background: '+(isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)')+'`.');
   }
 
-  // Cards
-  let cardNarrative;
-  if (vpr.hasGlassmorphism) {
-    cardNarrative = 'Two variants: (1) light sections — white, `rgba(0,0,0,0.08)` border, `'+(radiusSample||'12px')+'` radius, layered shadow. (2) dark sections — `rgba(20,20,20,0.55)`, `backdrop-filter:blur(16px)`, `rgba(255,255,255,0.08)` border. Padding `24–32px`. Hover: `translateY(-2px)`, shadow expand, `transition: 200ms ease-out`.';
-  } else if (isDark) {
-    cardNarrative = 'Dark surface (8–12% lighter than page bg). `rgba(255,255,255,0.06)` border. '+(hasLayeredShadows?'Layered shadow from tokens.':'Border for definition.')+' Padding `24–32px`. Hover: `transform: translateY(-2px)`, `transition: 200ms ease-out`.';
-  } else {
-    cardNarrative = '`'+(pageBg||'#ffffff')+'` bg, `rgba(0,0,0,0.08)` border, '+(hasLayeredShadows?'layered shadow':'`0 4px 24px rgba(0,0,0,0.06)`')+'. `'+(radiusSample||'12px')+'` radius. Padding `24–32px`. Hover: `transform: translateY(-2px)`, shadow expand 20%, `transition: 200ms ease-out`.';
+  // Cards — only if glassmorphism or layered shadows indicate card patterns exist
+  if (vpr.hasGlassmorphism || vpr.hasFloatingCards || hasLayeredShadows) {
+    let cardNarrative;
+    if (vpr.hasGlassmorphism) {
+      cardNarrative = '`backdrop-filter:blur(16px)`, semi-transparent bg, `'+defaultRadius+'` radius. Padding `24–32px`. Hover: `translateY(-2px)`, `transition: 200ms ease-out`.';
+    } else if (isDark) {
+      cardNarrative = 'Dark surface, `rgba(255,255,255,0.06)` border. '+(hasLayeredShadows?'Layered shadow from tokens.':'Border for definition.')+' `'+defaultRadius+'` radius. Padding `24–32px`.';
+    } else {
+      cardNarrative = '`'+(pageBg||'#ffffff')+'` bg, '+(hasLayeredShadows?'layered shadow from tokens':'subtle border')+'. `'+defaultRadius+'` radius. Padding `24–32px`.';
+    }
+    lines.push('**Cards:** '+cardNarrative);
   }
-  lines.push('**Cards:** '+cardNarrative);
 
   // Hero
   if (style.layout?.hasHero) {
@@ -1279,21 +1280,22 @@ function generateComponentGuidance(data, style) {
     }
   }
 
-  // Inputs
-  lines.push('**Inputs:** `'+(isDark?'rgba(255,255,255,0.06)':'#f8f9fa')+'` bg, `1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')+'` border, matching radius. Focus: `outline 2px solid '+(accent||'currentColor')+' offset 2px`.');
+  // Inputs — only output when actual input styles were extracted
+  const inputData = data.inputStyles;
+  if (inputData && Object.keys(inputData).length > 0) {
+    lines.push(`**Inputs:** \`${inputData.backgroundColor||'inherit'}\` bg, \`${inputData.border||'1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')}\`, \`${inputData.borderRadius||defaultRadius}\` radius. Focus: \`outline 2px solid ${accent||'currentColor'} offset 2px\`.`);
+  }
 
-  // Badges
+  // Badges — only if badge data was actually extracted from the DOM
   const badgeData = data.badgeStyles;
-  if (badgeData) {
-    lines.push(`**Badges:** \`${badgeData.borderRadius||'9999px'}\` radius, \`${badgeData.padding||'4px 10px'}\` padding, \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\` font. bg \`${badgeData.backgroundColor||'accent at 15% opacity'}\`, text \`${badgeData.color||'full-opacity accent'}\`.`);
-  } else if (accents.length>1) {
-    lines.push('**Badges:** `9999px`, `4px 10px`, `12px/500`. Accent bg 15% opacity, full-opacity text.');
+  if (badgeData && badgeData.borderRadius) {
+    lines.push(`**Badges:** \`${badgeData.borderRadius}\` radius, \`${badgeData.padding||'4px 10px'}\` padding, \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\` font. bg \`${badgeData.backgroundColor||'accent'}\`, text \`${badgeData.color||'inherit'}\`.`);
   }
 
   // Pattern components — compact with animation bindings
   if (ui.hasMarquee||ui.hasLogoStrip||hasTickerAnimation) lines.push('**Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Logos at 50–60% opacity.');
   if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** `repeat('+ui.pricingColumnCount+',1fr)`, gap `24px`, `align-items:stretch`.'+(ui.pricingColumnCount===3?' Center card: accent border, elevated shadow, "Popular" badge.':''));
-  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark cards, `rgba(255,255,255,0.06)` border':'White cards')+', `'+(radiusSample||'12px')+'` radius, `24px` padding. `animation: auto-slide` with pause on hover.');
+  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark cards, `rgba(255,255,255,0.06)` border':'White cards')+', `'+defaultRadius+'` radius, `24px` padding. `animation: auto-slide` with pause on hover.');
   if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (`display:flex, gap:16px`).');
   if (ui.hasStepIndicator) lines.push('**Steps:** `32px` circles, `border-radius:50%`, number inside. Connecting line. Active step = accent color.');
   if (ui.hasCounterSection) lines.push('**Stats:** `64–80px/800` numbers, `14–16px` muted labels. **Animate:** count-up from 0 on scroll entry via IntersectionObserver + requestAnimationFrame.');

@@ -227,8 +227,8 @@
             // Skip CSS Modules hashed names
             if (/^_.*_[a-z0-9]{4,}_\d+$/.test(name)) continue;
             if (name.startsWith('__')) continue;
-            // Skip Toastify, react-hot-toast, etc.
-            if (/^Toastify|^hot-toast|^sonner|^nprogress/i.test(name)) continue;
+            // Skip library/framework animation noise (toasts, video players, progress bars)
+            if (/^Toastify|^hot-toast|^sonner|^nprogress|^vjs-|^plyr-|^mux-|^video-|^swiper-/i.test(name)) continue;
             // Skip very long generated names (likely hashed)
             if (name.length > 40) continue;
             // Extract first and last keyframe content for from→to description
@@ -244,6 +244,14 @@
         }
       } catch(e) {}
     }
+
+    // Deduplicate keyframes by name
+    const seenKeyframes = new Set();
+    tokens.animations = tokens.animations.filter(a => {
+      if (seenKeyframes.has(a.name)) return false;
+      seenKeyframes.add(a.name);
+      return true;
+    });
 
     // ── 1b. Extract :hover rules from stylesheets ──
     for (const sheet of sheets) {
@@ -1126,6 +1134,12 @@
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
       else if (layout === 'multi-column-grid') type = 'feature-grid';
+      // Additional classification for generic "content" sections
+      else if (hasForm || sec.querySelector('input[type="email"], input[type="text"][placeholder*="mail"]')) type = 'newsletter';
+      else if (sec.querySelector('blockquote, [class*="testimonial"], [class*="quote"]')) type = 'testimonial';
+      else if (sec.querySelector('address, [class*="footer"], [class*="contact"]') && sec.querySelector('a[href*="mailto:"], a[href*="tel:"]')) type = 'footer-contact';
+      else if (ctaButtons.length >= 2) type = 'cta-section';
+      else if (headingText && imgCount === 0 && layout === 'stacked') type = 'text-block';
 
       // Rich visual descriptions — style, framing, composition, choreography
       const visualDescriptions = [];

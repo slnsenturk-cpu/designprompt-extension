@@ -4,6 +4,7 @@
   "version": "1.2.0",
   "description": "Extract design tokens from any website and generate ready-to-use prompts for AI code generation tools.",
   "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",

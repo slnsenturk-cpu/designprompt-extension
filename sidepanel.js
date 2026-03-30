@@ -1149,7 +1149,8 @@ function generateComponentGuidance(data, style) {
 
   // Real interactive radius — exclude 50% (circles)
   const interactiveRadii = radii.filter(r=>!r.includes('50%'));
-  const radiusSample = interactiveRadii.find(r=>parseInt(r)>=4&&parseInt(r)<=24) || interactiveRadii[0];
+  const radiusSample = interactiveRadii[0] || null; // Use actual site radius, no hardcoded fallback
+  const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
   const lines=[];
 
   let navBg;
@@ -1180,7 +1181,7 @@ function generateComponentGuidance(data, style) {
     } else if (p.borderRadius?.includes('9999')) {
       shape = 'pill-shaped (9999px)';
     } else {
-      shape = `\`${p.borderRadius||radiusSample||'8px'}\` radius`;
+      shape = `\`${p.borderRadius||defaultRadius}\` radius`;
     }
 
     // Find real hover values from hoverStates
@@ -1204,8 +1205,8 @@ function generateComponentGuidance(data, style) {
     btn = hasFullRound&&accent&&hasGlowEffect
       ? '9999px radius, `'+accent+'` bg, padding 12px 28px, weight 700. Hover: glow 0 0 20px '+accent+'66, brightness(1.05). 200ms ease-out.'
       : hasFullRound&&accent ? '9999px radius, `'+accent+'` bg, padding 12px 24px, weight 600. Hover: brightness(0.92).'
-      : accent ? (radiusSample||'8px')+' radius, `'+accent+'` bg, padding 10px 20px, weight 600. Hover: brightness(0.92).'
-      : (radiusSample||'8px')+' radius, primary color from tokens, weight 600.';
+      : accent ? defaultRadius+' radius, `'+accent+'` bg, padding 10px 20px, weight 600. Hover: brightness(0.92).'
+      : defaultRadius+' radius, primary color from tokens, weight 600.';
   }
   lines.push('**Primary button:** '+btn);
 
@@ -1221,21 +1222,22 @@ function generateComponentGuidance(data, style) {
 
   if (bs.ghost) {
     const g = bs.ghost;
-    const ghostShape = g.clipPath ? `chamfered via clip-path` : `\`${g.borderRadius||radiusSample||'8px'}\` radius`;
+    const ghostShape = g.clipPath ? `chamfered via clip-path` : `\`${g.borderRadius||defaultRadius}\` radius`;
     const ghostHover = hoverStates.find(h => /ghost|outline/i.test(h.selector));
     const ghostHoverDesc = ghostHover
       ? Object.entries(ghostHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ')
-      : `bg ${isDark?'`rgba(255,255,255,0.06)`':'`rgba(0,0,0,0.04)`'}`;
+      : `bg ${isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'}`;
     lines.push(`**Ghost button:** ${ghostShape}, transparent bg, border \`${g.border||'1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')}\`, padding \`${g.padding||'12px 24px'}\`. Hover: ${ghostHoverDesc}.`);
-  } else {
-    lines.push('**Ghost button:** '+(hasFullRound?'9999px':(radiusSample||'8px'))+' radius, transparent bg, 1px solid '+(isDark?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)')+'. Hover: bg '+(isDark?'`rgba(255,255,255,0.06)`':'`rgba(0,0,0,0.04)`')+'.');
   }
 
-  let card = vpr.hasGlassmorphism
-    ? 'Two variants: (1) light sections — white, rgba(0,0,0,0.08) border, '+(radiusSample||'12px')+' radius, layered shadow; (2) dark/photo — rgba(20,20,20,0.55), backdrop-filter:blur(16px), rgba(255,255,255,0.08) border. Padding 24–32px.'
-    : isDark ? 'Dark surface (8–12% lighter than page bg). rgba(255,255,255,0.06) border. '+(hasLayeredShadows?'Layered shadow from tokens.':'Border for definition.')+' Padding 24–32px.'
-    : 'White or `'+(pageBg||'#f8f8f8')+'`, rgba(0,0,0,0.08) border, '+(hasLayeredShadows?'layered shadow':'0 4px 24px rgba(0,0,0,0.06)')+'. '+(radiusSample||'12px')+' radius. Padding 24–32px.';
-  lines.push('**Cards:** '+card);
+  // Cards — only if glassmorphism or layered shadows indicate card patterns exist
+  if (vpr.hasGlassmorphism || vpr.hasFloatingCards || hasLayeredShadows) {
+    let card = vpr.hasGlassmorphism
+      ? 'backdrop-filter:blur(16px), semi-transparent bg, '+defaultRadius+' radius. Padding 24–32px.'
+      : isDark ? 'Dark surface, rgba(255,255,255,0.06) border. '+(hasLayeredShadows?'Layered shadow from tokens.':'Border for definition.')+' '+defaultRadius+' radius. Padding 24–32px.'
+      : '`'+(pageBg||'#ffffff')+'` bg, '+(hasLayeredShadows?'layered shadow from tokens':'subtle border')+'. '+defaultRadius+' radius. Padding 24–32px.';
+    lines.push('**Cards:** '+card);
+  }
 
   // Hero — derive background and text treatment from actual page data
   if (style.layout?.hasHero) {
@@ -1258,18 +1260,21 @@ function generateComponentGuidance(data, style) {
     }
   }
 
-  lines.push('**Inputs:** bg '+(isDark?'rgba(255,255,255,0.06)':'#f8f9fa')+', border 1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')+', matching radius. Focus: outline 2px solid '+(accent||'currentColor')+' offset 2px.');
+  // Inputs — only output when actual input styles were extracted
+  const inputData = data.inputStyles;
+  if (inputData && Object.keys(inputData).length > 0) {
+    lines.push(`**Inputs:** \`${inputData.backgroundColor||'inherit'}\` bg, \`${inputData.border||'1px solid '+(isDark?'rgba(255,255,255,0.12)':'#e0e0e0')}\`, \`${inputData.borderRadius||defaultRadius}\` radius. Focus: outline 2px solid ${accent||'currentColor'} offset 2px.`);
+  }
+  // Badges — only if badge data was actually extracted from the DOM
   const badgeData = data.badgeStyles;
-  if (badgeData) {
-    lines.push(`**Badges:** radius \`${badgeData.borderRadius||'9999px'}\`, padding \`${badgeData.padding||'4px 10px'}\`, font \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\`, bg \`${badgeData.backgroundColor||'accent at 15% opacity'}\`, text \`${badgeData.color||'full-opacity accent'}\`.`);
-  } else if (accents.length>1) {
-    lines.push('**Badges:** 9999px, 4px 10px, 12px/500. Accent bg at 15–20% opacity, full-opacity text. Each accent color = distinct semantic category.');
+  if (badgeData && badgeData.borderRadius) {
+    lines.push(`**Badges:** radius \`${badgeData.borderRadius}\`, padding \`${badgeData.padding||'4px 10px'}\`, font \`${badgeData.fontSize||'12px'}/${badgeData.fontWeight||'500'}\`, bg \`${badgeData.backgroundColor||'accent'}\`, text \`${badgeData.color||'inherit'}\`.`);
   }
 
   if (ui.hasMarquee||ui.hasLogoStrip) lines.push('**Logo marquee:** overflow-hidden, inner div 200% width. @keyframes marquee { to { transform:translateX(-50%) } } 30s linear infinite. Logos at 50–60% opacity.');
   if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** repeat('+ui.pricingColumnCount+',1fr), gap 24px, align-items:stretch.'+(ui.pricingColumnCount===3?' Center card: accent border, elevated shadow, "Popular" badge.':''));
-  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark surface cards, rgba(255,255,255,0.06) border':'White/light cards')+', '+(radiusSample||'12px')+' radius, 24px padding. Auto-play, pause on hover.');
-  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (display:flex, gap:16px). QR: 12px radius, subtle border, "Scan to download" label.');
+  if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark surface cards, rgba(255,255,255,0.06) border':'White/light cards')+', '+defaultRadius+' radius, 24px padding. Auto-play, pause on hover.');
+  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (display:flex, gap:16px).');
   if (ui.hasStepIndicator) lines.push('**Steps:** 32px circles, border-radius:50%, number inside. Thin connecting line. Active step = accent color.');
   if (ui.hasCounterSection) lines.push('**Stats:** 64–80px/800 numbers, 14–16px muted labels. Count-up animation via IntersectionObserver + rAF.');
   if (ui.hasAccordion) lines.push('**Accordion:** 16–18px semibold question, muted answer. max-height transition. Chevron rotates 180° on open. border-bottom between items.');
