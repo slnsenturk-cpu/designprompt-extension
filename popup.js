@@ -164,13 +164,11 @@ async function init() {
       state.lastPrompt = savedItem.prompt;
       showResult(savedItem.prompt, { url: savedItem.url || state.currentUrl }, savedItem.source, savedItem.provider, true);
       $('saveIndicator').style.display = 'none';
-      return;
     }
   }
 
-  if (!state.apiKeys[state.provider] && state.provider !== 'none') {
-    $('settingsPanel').style.display = 'flex';
-  }
+  // Always show settings panel on open
+  $('settingsPanel').style.display = 'flex';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -190,7 +188,7 @@ function renderProviderUI() {
   if (cfg.models.length > 0) {
     modelRow.style.display = 'flex';
     const activeModel = getActiveModel(state.provider);
-    modelRow.innerHTML = '<span class="field-label" style="font-size:10px;margin-right:6px">Model</span>'
+    modelRow.innerHTML = '<div style="width:100%"><span class="field-label">Model</span></div>'
       + cfg.models.map(m => {
         const isActive = m.id === activeModel;
         return `<button class="chip${isActive?' active':''}" data-model="${m.id}" title="${m.id}">${m.label}<span class="model-note">${m.note}</span></button>`;
@@ -268,7 +266,7 @@ async function renderHistory() {
   const list = $('historyList');
 
   if (items.length === 0) {
-    list.innerHTML = '<p class="empty-state">Henüz kayıtlı prompt yok.</p>';
+    list.innerHTML = '<p class="empty-state">No saved prompts yet.</p>';
     return;
   }
 
@@ -311,7 +309,7 @@ async function renderHistory() {
       el.style.opacity = '0';
       el.style.transform = 'translateX(8px)';
       el.style.transition = 'all 0.2s ease';
-      setTimeout(() => { el.remove(); if (!list.children.length) list.innerHTML = '<p class="empty-state">Henüz kayıtlı prompt yok.</p>'; }, 200);
+      setTimeout(() => { el.remove(); if (!list.children.length) list.innerHTML = '<p class="empty-state">No saved prompts yet.</p>'; }, 200);
     });
 
     list.appendChild(el);
@@ -398,11 +396,9 @@ function setupListeners() {
 function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
-  $('focusRow').style.display = mode === 'image' ? 'none' : 'flex';
-  $('imageFocusRow').style.display = mode === 'image' ? 'flex' : 'none';
-  $('contentRow').style.display = mode === 'page' ? 'flex' : 'none';
+  const focusRow = $('focusRow');
+  if (focusRow) focusRow.style.display = mode === 'image' ? 'none' : 'flex';
   updateAnalyzeBtn();
-  if (mode !== 'image') { $('imagePreviewSection').style.display='none'; state.capturedImageData=null; }
   resetView();
 }
 function setContentMode(m) {
@@ -630,11 +626,11 @@ Write exactly 7 short paragraphs (2–3 sentences each), bold label at start: **
       const d=await r.json(); text=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
     } else if (provider === 'claude') {
       const r = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:getActiveModel('claude'),max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:userPrompt}]})});
-      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'Claude: Geçersiz key.':r.status===429?'Claude: Rate limit.':`Claude: ${e.error?.message||r.status}`); }
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'Claude: Invalid key.':r.status===429?'Claude: Rate limit.':`Claude: ${e.error?.message||r.status}`); }
       const d=await r.json(); text=d.content?.[0]?.text||'';
     } else if (provider === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},body:JSON.stringify({model:getActiveModel('openai'),max_tokens:1500,temperature:0.4,messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}]})});
-      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'OpenAI: Geçersiz key.':r.status===429?'OpenAI: Rate limit.':`OpenAI: ${e.error?.message||r.status}`); }
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'OpenAI: Invalid key.':r.status===429?'OpenAI: Rate limit.':`OpenAI: ${e.error?.message||r.status}`); }
       const d=await r.json(); text=d.choices?.[0]?.message?.content||'';
     }
     return text.trim()||null;
@@ -2034,11 +2030,16 @@ function setOutputMode(mode) {
   if (!state.lastAnalyzedData) return;
   const data = state.lastAnalyzedData;
 
-  if (mode === 'system') {
-    const style = analyzeDesignStyle(data);
-    state.lastPrompt = buildDesignSystemPrompt(data, style);
-  } else {
-    state.lastPrompt = buildPagePrompt(data, null);
+  try {
+    if (mode === 'system') {
+      const style = analyzeDesignStyle(data);
+      state.lastPrompt = buildDesignSystemPrompt(data, style);
+    } else {
+      state.lastPrompt = buildPagePrompt(data, null);
+    }
+  } catch(err) {
+    console.warn('Output mode switch failed:', err.message);
+    // Fallback: keep existing prompt
   }
   $('promptOutput').textContent = state.lastPrompt;
 }
@@ -2467,7 +2468,7 @@ async function handleImagePicked(imageData) {
     showImagePreview(state.capturedImageData); updateAnalyzeBtn();
   } catch(err){showError('Could not capture image: '+err.message);}
 }
-function analyzeImageFromScreenshot(scr,rect){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{try{const dpr=window.devicePixelRatio||1,c=document.createElement('canvas');c.width=Math.min(Math.round(rect.width*dpr),300);c.height=Math.min(Math.round(rect.height*dpr),300);c.getContext('2d').drawImage(img,Math.round(rect.left*dpr),Math.round(rect.top*dpr),Math.round(rect.width*dpr),Math.round(rect.height*dpr),0,0,c.width,c.height);const id=c.getContext('2d').getImageData(0,0,c.width,c.height),cols=extractDominantColors(id,8),pal=cols.map(rgbArrayToHex);res({palette:pal,mood:inferMood(cols),contrast:analyzeContrast(cols),style:inferStyle(cols),croppedDataUrl:c.toDataURL('image/jpeg',0.85)});}catch(e){rej(e);}};img.onerror=()=>rej(new Error('Screenshot yüklenemedi'));img.src=scr;});}
+function analyzeImageFromScreenshot(scr,rect){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{try{const dpr=window.devicePixelRatio||1,c=document.createElement('canvas');c.width=Math.min(Math.round(rect.width*dpr),300);c.height=Math.min(Math.round(rect.height*dpr),300);c.getContext('2d').drawImage(img,Math.round(rect.left*dpr),Math.round(rect.top*dpr),Math.round(rect.width*dpr),Math.round(rect.height*dpr),0,0,c.width,c.height);const id=c.getContext('2d').getImageData(0,0,c.width,c.height),cols=extractDominantColors(id,8),pal=cols.map(rgbArrayToHex);res({palette:pal,mood:inferMood(cols),contrast:analyzeContrast(cols),style:inferStyle(cols),croppedDataUrl:c.toDataURL('image/jpeg',0.85)});}catch(e){rej(e);}};img.onerror=()=>rej(new Error('Failed to load screenshot'));img.src=scr;});}
 function extractDominantColors(id,count){const d=id.data,p=[];for(let i=0;i<d.length;i+=12){if(d[i+3]<128)continue;p.push([d[i],d[i+1],d[i+2]]);}return p.length?medianCut(p,Math.round(Math.log2(count))):[];}
 function medianCut(p,depth){if(depth===0||!p.length){const a=avgColor(p);return a?[a]:[]}let rN=255,rX=0,gN=255,gX=0,bN=255,bX=0;for(const[r,g,b]of p){rN=Math.min(rN,r);rX=Math.max(rX,r);gN=Math.min(gN,g);gX=Math.max(gX,g);bN=Math.min(bN,b);bX=Math.max(bX,b);}const ch=[rX-rN,gX-gN,bX-bN].indexOf(Math.max(rX-rN,gX-gN,bX-bN));p.sort((a,b)=>a[ch]-b[ch]);const m=Math.floor(p.length/2);return[...medianCut(p.slice(0,m),depth-1),...medianCut(p.slice(m),depth-1)];}
 function avgColor(p){if(!p.length)return null;const s=p.reduce((a,c)=>[a[0]+c[0],a[1]+c[1],a[2]+c[2]],[0,0,0]);return s.map(v=>Math.round(v/p.length));}

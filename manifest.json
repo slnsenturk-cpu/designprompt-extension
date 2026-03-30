@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "DesignPrompt — Vibe Inspector",
+  "name": "VibeDesign",
   "version": "1.1.0",
   "description": "Extract design tokens from any website and generate ready-to-use prompts for AI code generation tools.",
   "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel"],

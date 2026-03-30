@@ -18,8 +18,7 @@
   <!-- Header -->
   <header class="header">
     <div class="logo">
-      <span class="logo-mark">⬡</span>
-      <span class="logo-text">DesignPrompt</span>
+      <img src="icons/logo-light.png" alt="vibedesign" class="logo-img" />
     </div>
     <div class="header-right">
       <span class="version-badge">v23</span>
@@ -30,7 +29,7 @@
   </header>
 
   <!-- Settings Panel -->
-  <div class="settings-panel" id="settingsPanel" style="display:none">
+  <div class="settings-panel" id="settingsPanel">
     <div class="settings-title">AI Provider</div>
     <div class="provider-tabs" id="providerTabs">
       <button class="provider-tab active" data-provider="gemini">
@@ -81,17 +80,8 @@
       </div>
     </div>
 
-    <!-- Content source -->
-    <div class="focus-row" id="contentRow">
-      <span class="field-label">Content</span>
-      <div class="focus-chips">
-        <button class="chip active" data-content="site">Site Content</button>
-        <button class="chip" data-content="custom">My Content</button>
-      </div>
-      <textarea id="customContentInput" class="custom-content-input"
-        placeholder="Paste your headings, descriptions, and CTAs — one per line. These will replace the site's content in the prompt."
-        style="display:none"></textarea>
-    </div>
+    <!-- Content source (hidden textarea kept for JS compat) -->
+    <textarea id="customContentInput" class="custom-content-input" style="display:none"></textarea>
   </div>
 
   <!-- Action -->

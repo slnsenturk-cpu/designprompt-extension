@@ -137,8 +137,8 @@ async function init() {
   renderProviderUI();
   setupListeners();
 
-  // Show content row for default page mode
-  $('contentRow').style.display = 'flex';
+  // Always show settings panel on open
+  $('settingsPanel').style.display = 'flex';
 
   // Side panel: track tab switches to update context
   chrome.tabs.onActivated.addListener(async (activeInfo) => {
@@ -182,13 +182,11 @@ async function init() {
       state.lastPrompt = savedItem.prompt;
       showResult(savedItem.prompt, { url: savedItem.url || state.currentUrl }, savedItem.source, savedItem.provider, true);
       $('saveIndicator').style.display = 'none';
-      return;
     }
   }
 
-  if (!state.apiKeys[state.provider] && state.provider !== 'none') {
-    $('settingsPanel').style.display = 'flex';
-  }
+  // Always show settings panel on open
+  $('settingsPanel').style.display = 'flex';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -208,7 +206,7 @@ function renderProviderUI() {
   if (cfg.models.length > 0) {
     modelRow.style.display = 'flex';
     const activeModel = getActiveModel(state.provider);
-    modelRow.innerHTML = '<span class="field-label" style="font-size:10px;margin-right:6px">Model</span>'
+    modelRow.innerHTML = '<div style="width:100%"><span class="field-label">Model</span></div>'
       + cfg.models.map(m => {
         const isActive = m.id === activeModel;
         return `<button class="chip${isActive?' active':''}" data-model="${m.id}" title="${m.id}">${m.label}<span class="model-note">${m.note}</span></button>`;
@@ -286,7 +284,7 @@ async function renderHistory() {
   const list = $('historyList');
 
   if (items.length === 0) {
-    list.innerHTML = '<p class="empty-state">Henüz kayıtlı prompt yok.</p>';
+    list.innerHTML = '<p class="empty-state">No saved prompts yet.</p>';
     return;
   }
 
@@ -329,7 +327,7 @@ async function renderHistory() {
       el.style.opacity = '0';
       el.style.transform = 'translateX(8px)';
       el.style.transition = 'all 0.2s ease';
-      setTimeout(() => { el.remove(); if (!list.children.length) list.innerHTML = '<p class="empty-state">Henüz kayıtlı prompt yok.</p>'; }, 200);
+      setTimeout(() => { el.remove(); if (!list.children.length) list.innerHTML = '<p class="empty-state">No saved prompts yet.</p>'; }, 200);
     });
 
     list.appendChild(el);
@@ -598,11 +596,11 @@ Write exactly 7 short paragraphs (2–3 sentences each), bold label at start. Ne
       const d=await r.json(); text=d.candidates?.[0]?.content?.parts?.[0]?.text||'';
     } else if (provider === 'claude') {
       const r = await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:getActiveModel('claude'),max_tokens:1500,system:systemPrompt,messages:[{role:'user',content:userPrompt}]})});
-      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'Claude: Geçersiz key.':r.status===429?'Claude: Rate limit.':`Claude: ${e.error?.message||r.status}`); }
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'Claude: Invalid key.':r.status===429?'Claude: Rate limit.':`Claude: ${e.error?.message||r.status}`); }
       const d=await r.json(); text=d.content?.[0]?.text||'';
     } else if (provider === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},body:JSON.stringify({model:getActiveModel('openai'),max_tokens:1500,temperature:0.4,messages:[{role:'system',content:systemPrompt},{role:'user',content:userPrompt}]})});
-      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'OpenAI: Geçersiz key.':r.status===429?'OpenAI: Rate limit.':`OpenAI: ${e.error?.message||r.status}`); }
+      if (!r.ok) { const e=await r.json().catch(()=>({})); throw new Error(r.status===401?'OpenAI: Invalid key.':r.status===429?'OpenAI: Rate limit.':`OpenAI: ${e.error?.message||r.status}`); }
       const d=await r.json(); text=d.choices?.[0]?.message?.content||'';
     }
     return text.trim()||null;
@@ -1744,6 +1742,55 @@ function buildPagePrompt(data, aiDirection) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DESIGN SPECS DATA — structured object for narrative distribution
+// ═══════════════════════════════════════════════════════════════════════════
+function getDesignSpecsData(data, style) {
+  const bs = data.buttonStyles || {};
+  const tp = data.typographyPatterns || {};
+  const badge = data.badgeStyles;
+  const vpr = data.visualProfile || {};
+  const spacing = vpr.spacingSystem || {};
+  const ui = (vpr.uiPatterns) || {};
+  const iconD = ui.iconDetails || {};
+
+  return {
+    typography: {
+      h1: tp.h1 || null, h2: tp.h2 || null, h3: tp.h3 || null,
+      body: tp.body || null, label: tp.label || null
+    },
+    spacing: {
+      sectionPaddingY: spacing.sectionPaddingY || null,
+      sectionPaddingX: spacing.sectionPaddingX || null,
+      containerMaxWidth: spacing.containerMaxWidth || null,
+      gridGap: spacing.gridGap || null,
+      cardGap: spacing.cardGap || null
+    },
+    icons: ui.hasIconSystem ? {
+      size: iconD.size || null, style: ui.iconStyle || 'outlined',
+      strokeWidth: iconD.strokeWidth || null, color: iconD.color || null,
+      containerStyle: iconD.containerStyle || 'none',
+      containerSize: iconD.containerSize || null,
+      containerBg: iconD.containerBg || null,
+      containerRadius: iconD.containerRadius || null,
+      gapToText: iconD.gapToText || null,
+      count: ui.iconSystemCount || 0
+    } : null,
+    badges: badge ? {
+      backgroundColor: badge.backgroundColor, color: badge.color,
+      borderRadius: badge.borderRadius, padding: badge.padding,
+      fontSize: badge.fontSize, fontWeight: badge.fontWeight,
+      border: badge.border
+    } : null,
+    inputs: data.inputStyles || null,
+    gradients: data.gradients || [],
+    imageStyles: data.imageStyles || null,
+    links: data.linkStyles || null,
+    footer: data.footerStyles || null,
+    fontWeights: data.fontWeights || []
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DESIGN SPECIFICATIONS — prescriptive CSS values for vibe coding tools
 // ═══════════════════════════════════════════════════════════════════════════
 function generateDesignSpecs(data, style) {
@@ -1917,12 +1964,15 @@ function setOutputMode(mode) {
   if (!state.lastAnalyzedData) return;
   const data = state.lastAnalyzedData;
 
-  if (mode === 'system') {
-    const style = analyzeDesignStyle(data);
-    state.lastPrompt = buildDesignSystemPrompt(data, style);
-  } else {
-    // Rebuild full prompt
-    state.lastPrompt = buildPagePrompt(data, null);
+  try {
+    if (mode === 'system') {
+      const style = analyzeDesignStyle(data);
+      state.lastPrompt = buildDesignSystemPrompt(data, style);
+    } else {
+      state.lastPrompt = buildPagePrompt(data, null);
+    }
+  } catch(err) {
+    console.warn('Output mode switch failed:', err.message);
   }
   $('promptOutput').textContent = state.lastPrompt;
 }
@@ -1930,116 +1980,113 @@ function setOutputMode(mode) {
 function buildDesignSystemPrompt(data, style) {
   const site = safeHostname(data.url), vars = data.cssVars || {};
   const platform = state.platform;
-  const colors = data.colors || [], accents = data.accentColors || [];
-  const vpr = data.visualProfile || {}, ui = (vpr.uiPatterns) || {};
+  const specsData = getDesignSpecsData(data, style);
   const lines = [];
 
-  lines.push('# Design System Reference');
+  const { isDark,isLight,hasFullRound,hasGlowEffect,hasLayeredShadows,hasBrutalistShadow,
+    vibrantColors,fonts:styleFonts,vp,accents,radii,pageBg,semanticColors } = style;
+  const vpr = vp||{}, ui = (vpr.uiPatterns)||{};
+  const sc = semanticColors || {};
+  const primaryColor = sc.primary || vibrantColors[0] || accents[0];
+  const interactiveRadii = radii.filter(r=>!r.includes('50%'));
+  const radiusSample = interactiveRadii.find(r=>parseInt(r)>=4&&parseInt(r)<=24) || interactiveRadii[0];
+
+  lines.push('# Design System');
   lines.push(`Extracted from: ${site}`);
   lines.push('');
-  lines.push('This is a reusable design system extracted from the main page. Apply these tokens, component patterns, and visual rules to ANY sub-page (pricing, docs, about, etc.).');
-  lines.push('');
-  lines.push('Rules:');
-  lines.push('- Use the EXACT hex colors, px values, font names, and spacing values below.');
-  lines.push('- If the sub-page needs components not listed here (tables, forms, tabs, etc.), create them in the same visual language — same border-radius, same font stack, same color tokens, same spacing rhythm.');
-  lines.push('- Maintain the same section padding, container max-width, and grid gap across all pages.');
-  lines.push('- Navigation and footer should be identical on every page.');
+  lines.push('This design system defines the visual DNA of the product. Use it to build ANY page — pricing, docs, about, settings, onboarding — in the same visual language. Sub-pages will contain components not present on the main page (tables, tabs, modals, steppers, etc.). Derive them from the rules below.');
   lines.push('');
   lines.push(getPlatformHeader());
   lines.push('');
 
-  // Direction (visual identity only — no section-specific content)
-  lines.push('## Visual Identity');
-  lines.push(generateRuleBasedDirection(data, style));
+  lines.push('## Design DNA');
+  lines.push('When you encounter a component that doesn\'t exist in this system, derive it from these core principles:');
   lines.push('');
 
-  // All token sections (reuse from buildPagePrompt)
-  const focus = 'all';
-
-  // Color Tokens
-  lines.push('## Color Tokens');
-  const namedVars = Object.entries(vars).filter(([k,v]) =>
-    /^#[0-9a-f]{3,8}$/i.test(v.trim()) &&
-    !k.startsWith('--tw-') && !k.startsWith('--swiper-') &&
-    !k.startsWith('--framer-') && !k.startsWith('--wf-')
-  );
-  if (namedVars.length > 0) namedVars.slice(0, 14).forEach(([k, v]) => lines.push('- `' + k + '`: ' + v));
-
-  const sc = style.semanticColors || {};
-  const primaryColor = sc.primary || style.vibrantColors[0];
-  if (primaryColor) lines.push('- primary-action: `' + primaryColor + '`');
-  if (style.pageBg) lines.push('- background: `' + style.pageBg + '`');
-  lines.push('');
-
-  // Typography Tokens
+  const bgRef = pageBg ? '`'+pageBg+'`' : (isDark ? 'dark neutral' : 'light neutral');
+  lines.push('**Surface:** Page ground is '+bgRef+'. '+(isDark
+    ? 'All surfaces are dark. Elevated elements are 8–12% lighter than their parent. Use `rgba(255,255,255,0.06)` borders for definition. Never introduce white backgrounds.'
+    : 'Primary surface is white or '+bgRef+'. Elevated elements (cards, modals, dropdowns) use white with subtle border `rgba(0,0,0,0.08)`. Keep the light, open feel.'));
+  lines.push('**Shape:** Interactive radius = `'+(hasFullRound?'9999px':'`'+(radiusSample||'8px')+'`')+'`. Container radius = `'+(radiusSample||'8px')+'`. New components inherit these radii.');
+  if (hasBrutalistShadow) lines.push('**Elevation:** Brutalist — hard `4px 4px 0` shadows, zero blur.');
+  else if (hasGlowEffect) lines.push('**Elevation:** Glow-based — zero-offset diffused shadows.');
+  else if (hasLayeredShadows) lines.push('**Elevation:** Layered shadows. Never simplify to single layer.');
+  else lines.push('**Elevation:** '+(isDark?'Border-defined (`rgba(255,255,255,0.06–0.12)`).':'Soft shadow (`0 4px 24px rgba(0,0,0,0.06–0.10)`).'));
+  if (primaryColor) lines.push('**Color derivation:** Primary action = `'+primaryColor+'`. Destructive: `#ef4444`. Success: `#22c55e`. Warning: `#f59e0b`.');
   const SYSTEM_FONTS = new Set(['ui-sans-serif','ui-serif','ui-monospace','system-ui','-apple-system','blinkmacsystemfont','helvetica neue','arial','sans-serif','serif','monospace']);
   const fonts = [...new Set((data.fonts || []).filter(f => f && !SYSTEM_FONTS.has(f.toLowerCase())).map(f => f.trim()))];
+  if (fonts.length >= 2) lines.push('**Type:** Headings "'+fonts[0]+'" (600–800), body "'+fonts[1]+'" (400–500). Never add a third typeface.');
+  else if (fonts[0]) lines.push('**Type:** "'+fonts[0]+'". Hierarchy through weight only.');
+  lines.push('**Interaction:** Hover '+(isDark?'`brightness(1.08)`':'`brightness(0.95)`')+' 150–200ms ease-out. Focus `outline 2px solid '+(primaryColor||'currentColor')+' offset 2px`. Active `scale(0.98)`.');
+  const spacing = vpr.spacingSystem || {};
+  if (spacing.sectionPaddingY || spacing.gridGap) lines.push('**Spacing:** Section `'+(spacing.sectionPaddingY||'80px')+' 0`. Grid gap `'+(spacing.gridGap||'24px')+'`. Container `'+(spacing.containerMaxWidth||'1200px')+'`.');
+  lines.push('');
+
+  lines.push('## Color Tokens');
+  const namedVars = Object.entries(vars).filter(([k,v]) => /^#[0-9a-f]{3,8}$/i.test(v.trim()) && !k.startsWith('--tw-') && !k.startsWith('--swiper-') && !k.startsWith('--framer-') && !k.startsWith('--wf-'));
+  if (namedVars.length > 0) namedVars.slice(0, 14).forEach(([k, v]) => lines.push('- `' + k + '`: `' + v + '`'));
+  if (sc.primary) lines.push('- primary-action: `' + sc.primary + '`');
+  if (style.pageBg) lines.push('- background: `' + style.pageBg + '`');
+  lines.push('- destructive: `#ef4444`'); lines.push('- success: `#22c55e`'); lines.push('- warning: `#f59e0b`');
+  lines.push('- muted-text: '+(isDark?'`rgba(255,255,255,0.5)`':'`rgba(0,0,0,0.4)`'));
+  lines.push('- border: '+(isDark?'`rgba(255,255,255,0.08)`':'`rgba(0,0,0,0.08)`'));
+  lines.push('');
+
   if (fonts.length > 0) {
     lines.push('## Typography Tokens');
-    if (fonts.length >= 2) {
-      lines.push('- Display/heading: "' + fonts[0] + '"');
-      lines.push('- Body/UI: "' + fonts[1] + '"');
-    } else {
-      lines.push('- Font: "' + fonts[0] + '"');
-    }
+    if (fonts.length >= 2) { lines.push('- Display: "' + fonts[0] + '"'); lines.push('- Body: "' + fonts[1] + '"'); }
+    else lines.push('- Font: "' + fonts[0] + '"');
     const tp = data.typographyPatterns;
-    if (tp?.h1) lines.push('- H1: ' + tp.h1.fontSize + '/' + tp.h1.fontWeight);
-    if (tp?.body) lines.push('- Body: ' + tp.body.fontSize + '/' + tp.body.fontWeight);
+    if (tp?.h1) lines.push('- H1: `' + tp.h1.fontSize + '/' + tp.h1.fontWeight + '`');
+    if (tp?.h2) lines.push('- H2: `' + tp.h2.fontSize + '/' + tp.h2.fontWeight + '`');
+    if (tp?.body) lines.push('- Body: `' + tp.body.fontSize + '/' + tp.body.fontWeight + '`');
+    if (specsData.fontWeights.length > 1) lines.push('- Weights: ' + specsData.fontWeights.join(', '));
     lines.push('');
   }
 
-  // Shadow Tokens
   const shadows = (data.shadows || []).filter(s => s && s !== 'none');
-  if (shadows.length > 0) {
-    lines.push('## Shadow Tokens');
-    shadows.slice(0, 4).forEach((s, i) => lines.push('- shadow-' + ['sm', 'md', 'lg', 'xl'][i] + ': `' + s + '`'));
+  if (shadows.length > 0) { lines.push('## Shadow Tokens'); shadows.slice(0,4).forEach((s,i) => lines.push('- shadow-'+['sm','md','lg','xl'][i]+': `'+s+'`')); lines.push(''); }
+
+  const allRadii = (data.borderRadii || []).filter(r => r && r !== '0px');
+  if (allRadii.length > 0) { lines.push('## Shape Tokens'); [...new Set(allRadii)].sort((a,b)=>parseInt(a)-parseInt(b)).slice(0,6).forEach(r => lines.push('- `'+r+'`')); lines.push(''); }
+
+  if (spacing.sectionPaddingY || spacing.containerMaxWidth || spacing.gridGap) {
+    lines.push('## Spacing Tokens');
+    if (spacing.sectionPaddingY) lines.push('- Section: `'+spacing.sectionPaddingY+' 0`');
+    if (spacing.containerMaxWidth && spacing.containerMaxWidth !== 'none') lines.push('- Container: `'+spacing.containerMaxWidth+'`');
+    if (spacing.gridGap) lines.push('- Grid gap: `'+spacing.gridGap+'`');
     lines.push('');
   }
 
-  // Shape Tokens
-  const radii = (data.borderRadii || []).filter(r => r && r !== '0px');
-  if (radii.length > 0) {
-    lines.push('## Shape Tokens');
-    [...new Set(radii)].sort((a, b) => parseInt(a) - parseInt(b)).slice(0, 6).forEach(r => lines.push('- ' + r));
-    lines.push('');
-  }
-
-  // Motion Tokens
-  const transitions = (data.transitions || []).filter(t => t && t !== 'all' && !t.includes('--tw-'));
-  if (transitions.length > 0) {
-    lines.push('## Motion Tokens');
-    transitions.slice(0, 3).forEach(t => lines.push('- transition: `' + t + '`'));
-    lines.push('');
-  }
-
-  // Component Patterns
   lines.push('## Component Patterns');
   generateComponentGuidance(data, style).forEach(c => lines.push(c));
   lines.push('');
 
-  // Design Specifications
-  const specs = generateDesignSpecs(data, style);
-  if (specs) {
-    lines.push(specs);
-    lines.push('');
-  }
+  lines.push('## Deriving New Components');
+  lines.push('**Tables:** Header '+(isDark?'`rgba(255,255,255,0.04)`':'`#f9fafb`')+' bg, `14px/500` headers, `14px/400` cells. Row hover: '+(isDark?'`rgba(255,255,255,0.03)`':'`rgba(0,0,0,0.02)`')+'.');
+  lines.push('**Tabs:** '+(hasFullRound?'Pill — active `'+(primaryColor||'accent')+'` bg, white text, `9999px`.':'Underline — active `2px solid '+(primaryColor||'accent')+'` bottom.')+' `14px/500`.');
+  lines.push('**Modals:** '+(isDark?'Dark surface, `rgba(255,255,255,0.08)` border':'White bg, `rgba(0,0,0,0.08)` border')+'. Card radius. Overlay `rgba(0,0,0,'+(isDark?'0.6':'0.4')+')`.');
+  lines.push('**Toggles:** Track `44×24px`. Active `'+(primaryColor||'accent')+'`. Inactive '+(isDark?'`rgba(255,255,255,0.12)`':'`#d1d5db`')+'.');
+  lines.push('**Toast:** Card surface + left border `3px solid` (primary/success/error).');
+  lines.push('**Progress:** Track `4–8px` height, `9999px` radius. Fill `'+(primaryColor||'accent')+'`.');
+  lines.push('**Tooltips:** `'+(isDark?'rgba(255,255,255,0.12) bg':'#1a1a1a bg')+'`, `6px` radius, `8px 12px` padding.');
+  lines.push('**Form elements:** Inherit input styles. Checked state `'+(primaryColor||'accent')+'`.');
+  lines.push('');
 
-  // Hover States
-  const hoverStates = data.hoverStates || [];
-  if (hoverStates.length > 0) {
-    lines.push('## Hover States');
-    hoverStates.slice(0, 10).forEach(h => {
-      const props = Object.entries(h).filter(([k]) => k !== 'selector').map(([k, v]) => `${k}: ${v}`).join(', ');
-      lines.push('- `' + h.selector.replace(/\[data-astro[^\]]*\]/g, '').slice(0, 40) + '`: ' + props);
-    });
-    lines.push('');
+  lines.push('## Shared Across All Pages');
+  lines.push('Navigation and footer identical on every page.');
+  if (specsData.footer) {
+    const ft = specsData.footer; const parts = [];
+    if (ft.backgroundColor) parts.push('bg `'+ft.backgroundColor+'`');
+    if (ft.color) parts.push('text `'+ft.color+'`');
+    if (ft.padding) parts.push('padding `'+ft.padding+'`');
+    lines.push('Footer: '+parts.join(', ')+'.');
   }
+  lines.push('');
 
-  // Font import
-  const googleFonts = fonts.filter(f => !['system-ui', 'sans-serif', 'serif', 'monospace'].includes(f.toLowerCase()));
+  const googleFonts = fonts.filter(f => !['system-ui','sans-serif','serif','monospace'].includes(f.toLowerCase()));
   if (googleFonts.length > 0) {
     const fontQuery = googleFonts.map(f => f.replace(/\s+/g, '+') + ':wght@400;500;600;700;800').join('&family=');
-    lines.push('Add to global CSS:');
     lines.push(`@import url('https://fonts.googleapis.com/css2?family=${fontQuery}&display=swap');`);
   }
 
@@ -2297,7 +2344,7 @@ async function handleImagePicked(imageData) {
     showImagePreview(state.capturedImageData); updateAnalyzeBtn();
   } catch(err){showError('Could not capture image: '+err.message);}
 }
-function analyzeImageFromScreenshot(scr,rect){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{try{const dpr=window.devicePixelRatio||1,c=document.createElement('canvas');c.width=Math.min(Math.round(rect.width*dpr),300);c.height=Math.min(Math.round(rect.height*dpr),300);c.getContext('2d').drawImage(img,Math.round(rect.left*dpr),Math.round(rect.top*dpr),Math.round(rect.width*dpr),Math.round(rect.height*dpr),0,0,c.width,c.height);const id=c.getContext('2d').getImageData(0,0,c.width,c.height),cols=extractDominantColors(id,8),pal=cols.map(rgbArrayToHex);res({palette:pal,mood:inferMood(cols),contrast:analyzeContrast(cols),style:inferStyle(cols),croppedDataUrl:c.toDataURL('image/jpeg',0.85)});}catch(e){rej(e);}};img.onerror=()=>rej(new Error('Screenshot yüklenemedi'));img.src=scr;});}
+function analyzeImageFromScreenshot(scr,rect){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>{try{const dpr=window.devicePixelRatio||1,c=document.createElement('canvas');c.width=Math.min(Math.round(rect.width*dpr),300);c.height=Math.min(Math.round(rect.height*dpr),300);c.getContext('2d').drawImage(img,Math.round(rect.left*dpr),Math.round(rect.top*dpr),Math.round(rect.width*dpr),Math.round(rect.height*dpr),0,0,c.width,c.height);const id=c.getContext('2d').getImageData(0,0,c.width,c.height),cols=extractDominantColors(id,8),pal=cols.map(rgbArrayToHex);res({palette:pal,mood:inferMood(cols),contrast:analyzeContrast(cols),style:inferStyle(cols),croppedDataUrl:c.toDataURL('image/jpeg',0.85)});}catch(e){rej(e);}};img.onerror=()=>rej(new Error('Failed to load screenshot'));img.src=scr;});}
 function extractDominantColors(id,count){const d=id.data,p=[];for(let i=0;i<d.length;i+=12){if(d[i+3]<128)continue;p.push([d[i],d[i+1],d[i+2]]);}return p.length?medianCut(p,Math.round(Math.log2(count))):[];}
 function medianCut(p,depth){if(depth===0||!p.length){const a=avgColor(p);return a?[a]:[]}let rN=255,rX=0,gN=255,gX=0,bN=255,bX=0;for(const[r,g,b]of p){rN=Math.min(rN,r);rX=Math.max(rX,r);gN=Math.min(gN,g);gX=Math.max(gX,g);bN=Math.min(bN,b);bX=Math.max(bX,b);}const ch=[rX-rN,gX-gN,bX-bN].indexOf(Math.max(rX-rN,gX-gN,bX-bN));p.sort((a,b)=>a[ch]-b[ch]);const m=Math.floor(p.length/2);return[...medianCut(p.slice(0,m),depth-1),...medianCut(p.slice(m),depth-1)];}
 function avgColor(p){if(!p.length)return null;const s=p.reduce((a,c)=>[a[0]+c[0],a[1]+c[1],a[2]+c[2]],[0,0,0]);return s.map(v=>Math.round(v/p.length));}

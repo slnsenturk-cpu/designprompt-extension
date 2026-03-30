@@ -717,6 +717,225 @@
     return parts.length > 0 ? parts.join(', ') : null;
   }
 
+  // Helper: infer what a visual element represents from surrounding context
+  function inferVisualContext(el, sectionHeading) {
+    // Gather all nearby text signals
+    const signals = [];
+
+    // 1. Element's own alt, aria-label, title
+    const alt = (el.getAttribute('alt') || '').trim();
+    const ariaLabel = (el.getAttribute('aria-label') || '').trim();
+    const title = (el.getAttribute('title') || '').trim();
+    if (alt) signals.push(alt);
+    if (ariaLabel) signals.push(ariaLabel);
+    if (title) signals.push(title);
+
+    // 2. Parent container's aria-label or data attributes
+    const parent = el.closest('[aria-label],[data-label],[data-title],[data-description]');
+    if (parent) {
+      const pl = parent.getAttribute('aria-label') || parent.getAttribute('data-label') || parent.getAttribute('data-title') || '';
+      if (pl.trim()) signals.push(pl.trim());
+    }
+
+    // 3. Nearby text labels within the same container (siblings/close children)
+    const container = el.closest('div[class],figure,section') || el.parentElement;
+    if (container) {
+      // Find text labels near the visual (figcaption, small text, stat numbers)
+      const nearbyTexts = [];
+      container.querySelectorAll('figcaption, [class*="label"], [class*="caption"], [class*="stat"], [class*="metric"], span, p, h3, h4, dt, dd').forEach(t => {
+        const text = (t.innerText || '').trim();
+        if (text.length > 1 && text.length < 60 && !t.contains(el)) nearbyTexts.push(text);
+      });
+      if (nearbyTexts.length > 0) signals.push(...nearbyTexts.slice(0, 5));
+    }
+
+    // 4. Section heading as context
+    if (sectionHeading) signals.push(sectionHeading);
+
+    const allText = signals.join(' ').toLowerCase();
+
+    // Pattern matching to infer visual type — ORDER MATTERS: specific first, generic last
+    if (/globe|world|map|region|geographic|location/i.test(allText))
+      return 'interactive globe/world map visualization showing geographic distribution of infrastructure nodes';
+    if (/uptime|latency.*global|region.*global|edge.*location|globally/i.test(allText))
+      return 'interactive globe/world map with infrastructure metrics — recreate as a dot-pattern world map with region markers and stat labels';
+    if (/architecture|flow|pipeline|stack|framework|sdk|webrtc|agent.*server|media.*server/i.test(allText))
+      return '3D isometric architecture/infrastructure diagram showing system components and data flow connections';
+    if (/orb|sphere|voice|audio|wave|sound|frequency|visuali[sz]/i.test(allText))
+      return 'animated 3D orb/sphere visualization representing voice/audio processing — color-shifting, organic motion';
+    if (/security|compliance|gdpr|soc|hipaa|encrypt/i.test(allText))
+      return 'security/compliance certification badges and metrics';
+    if (/network|infrastructure|cloud|edge|node|cluster|scale/i.test(allText))
+      return 'network/infrastructure topology visualization';
+    if (/chart|graph|metric|analytic|dashboard/i.test(allText))
+      return 'data visualization / metrics dashboard';
+    if (/code|editor|terminal|console|snippet|syntax/i.test(allText))
+      return 'code editor interface with syntax highlighting';
+    if (/phone|mobile|device|app|chat|conversation|message/i.test(allText))
+      return 'mobile device mockup showing app/chat interface';
+    if (/pricing|plan|tier|month|year|free|pro/i.test(allText) && !/infrastructure|enterprise.*grade/i.test(allText))
+      return 'pricing comparison cards/table';
+    if (/testimonial|quote|review|customer.*said|tweet/i.test(allText))
+      return 'customer testimonial/quote card';
+    if (/logo|partner|company|brand|trust/i.test(allText))
+      return 'company logo grid or scrolling marquee';
+    if (/step|process|workflow|how.*work/i.test(allText))
+      return 'step-by-step process illustration showing workflow stages';
+
+    // If nearby text has stat-like numbers, it's likely a data display
+    if (/\d+[%+]|\d+ms|\d+k|\d+\.\d+%/i.test(allText))
+      return 'metrics/statistics visualization with data indicators: ' + signals.filter(s => /\d/.test(s)).slice(0, 3).join(', ');
+
+    // Fallback: return nearby text as context hint
+    if (signals.length > 0 && signals[0].length > 3)
+      return 'visual related to: "' + signals.slice(0, 2).join('" / "') + '"';
+
+    return null;
+  }
+
+  // Helper: detect code blocks within a section
+  function extractCodeBlocks(sec) {
+    const codeBlocks = [];
+    // Only select actual code elements — <pre>, <code>, or explicit code-block classes
+    sec.querySelectorAll('pre:has(code), pre[class*="code"], pre[class*="language"], code[class*="language"], [class*="code-block"], [class*="highlight"][class*="code"], [class*="prism"], [class*="shiki"], [class*="hljs"]').forEach(pre => {
+      const r = pre.getBoundingClientRect();
+      if (r.width < 200 || r.height < 50) return;
+      const cs = window.getComputedStyle(pre);
+      const text = (pre.innerText || '').trim();
+
+      // Validate it's actually code — must have code-like patterns
+      const isMonoFont = /mono|code|consolas|courier|menlo|fira/i.test(cs.fontFamily);
+      const hasCodePatterns = /[{}();=]|import |const |function |class |def |from |=>|->/.test(text);
+      const hasCodeChild = !!pre.querySelector('code, [class*="token"], [class*="line"]');
+      if (!isMonoFont && !hasCodePatterns && !hasCodeChild) return;
+
+      // Skip if it looks like a testimonial/tweet (natural language, no code syntax)
+      if (!hasCodePatterns && !hasCodeChild && text.length > 20) {
+        const wordCount = text.split(/\s+/).length;
+        const avgWordLen = text.replace(/\s+/g, '').length / wordCount;
+        // Natural language has avg word length 4-6, code has longer tokens
+        if (avgWordLen < 7 && wordCount > 5) return;
+      }
+
+      const lang = pre.getAttribute('data-language') || pre.querySelector('[class*="language-"]')?.className.match(/language-(\w+)/)?.[1] || '';
+      const lineCount = text.split('\n').length;
+      let desc = `[code-block] ${Math.round(r.width)}×${Math.round(r.height)}`;
+      if (lang) desc += `, language: ${lang}`;
+      desc += `, ${lineCount} lines`;
+      desc += `. Style: bg \`${rgbToHex(cs.backgroundColor) || cs.backgroundColor}\`, font \`${cs.fontSize}\`, radius \`${cs.borderRadius}\``;
+      if (cs.border && cs.borderWidth !== '0px') desc += `, border \`${cs.border.slice(0, 40)}\``;
+      // First meaningful line as context
+      const firstLine = text.split('\n').find(l => l.trim().length > 5);
+      if (firstLine) desc += `. Content starts: "${firstLine.trim().slice(0, 50)}"`;
+      codeBlocks.push(desc);
+    });
+    return codeBlocks;
+  }
+
+  // Helper: detect tab UI components
+  function extractTabUI(sec) {
+    const tabSets = [];
+    sec.querySelectorAll('[role="tablist"], [class*="tab-list"], [class*="tabs"]').forEach(tabList => {
+      const tabs = Array.from(tabList.querySelectorAll('[role="tab"], [class*="tab-item"], [class*="tab-trigger"], button, a'))
+        .map(t => (t.innerText || '').trim())
+        .filter(t => t.length > 0 && t.length < 30);
+      if (tabs.length >= 2) {
+        const cs = window.getComputedStyle(tabList);
+        const activeTab = tabList.querySelector('[aria-selected="true"], [class*="active"], [data-state="active"]');
+        const activeCs = activeTab ? window.getComputedStyle(activeTab) : null;
+        let desc = `[tab-ui] ${tabs.length} tabs: "${tabs.join('", "')}"`;
+        if (activeCs) {
+          const activeBg = !isTransparent(activeCs.backgroundColor) ? `, active-bg: \`${rgbToHex(activeCs.backgroundColor)}\`` : '';
+          const activeBorder = activeCs.borderBottom && activeCs.borderBottomWidth !== '0px' ? `, active-indicator: \`${activeCs.borderBottom.slice(0, 40)}\`` : '';
+          desc += activeBg + activeBorder;
+        }
+        tabSets.push(desc);
+      }
+    });
+    // Also detect tab-like structures without role="tablist"
+    if (tabSets.length === 0) {
+      sec.querySelectorAll('[class*="tab"], [class*="switcher"], [class*="toggle-group"], [class*="selector"]').forEach(group => {
+        const btns = Array.from(group.querySelectorAll('button, a, [role="tab"]')).map(b => (b.innerText || '').replace(/\n/g,' ').trim()).filter(t => t.length > 0 && t.length < 30);
+        if (btns.length >= 2 && btns.length <= 8) {
+          tabSets.push(`[tab-ui] ${btns.length} tabs: "${btns.join('", "')}"`);
+        }
+      });
+    }
+    // Detect horizontal button groups that look like tabs (adjacent buttons in a row)
+    // BUT exclude CTA button pairs (e.g. "Start building" + "Contact sales")
+    if (tabSets.length === 0) {
+      sec.querySelectorAll('nav, div, ul').forEach(group => {
+        const r = group.getBoundingClientRect();
+        if (r.height > 60 || r.width < 200) return;
+        const items = Array.from(group.children).filter(c => {
+          const cr = c.getBoundingClientRect();
+          return cr.width > 30 && cr.height > 20 && cr.height < 50 && (c.tagName === 'BUTTON' || c.tagName === 'A' || c.tagName === 'LI');
+        });
+        if (items.length >= 2 && items.length <= 8) {
+          const tops = items.map(i => Math.round(i.getBoundingClientRect().top));
+          const allSameRow = tops.every(t => Math.abs(t - tops[0]) < 10);
+          if (allSameRow) {
+            const labels = items.map(i => (i.innerText || '').replace(/\n/g,' ').trim()).filter(t => t.length > 0 && t.length < 30);
+            if (labels.length >= 2) {
+              // Skip if these look like CTA buttons (action-oriented text)
+              const ctaPattern = /start|get started|sign up|contact|try|begin|join|subscribe|buy|book|learn more|view|explore/i;
+              const ctaCount = labels.filter(l => ctaPattern.test(l)).length;
+              if (ctaCount >= labels.length * 0.5) return; // Most labels are CTAs, not tabs
+
+              const activeItem = items.find(i => {
+                const cs = window.getComputedStyle(i);
+                return !isTransparent(cs.backgroundColor) || cs.borderBottomColor !== cs.borderTopColor;
+              });
+              let desc = `[tab-ui] ${labels.length} tabs: "${labels.join('", "')}"`;
+              if (activeItem) {
+                const acs = window.getComputedStyle(activeItem);
+                if (!isTransparent(acs.backgroundColor)) desc += `, active-bg: \`${rgbToHex(acs.backgroundColor)}\``;
+              }
+              tabSets.push(desc);
+            }
+          }
+        }
+      });
+    }
+    return tabSets;
+  }
+
+  // Helper: detect 3D perspective containers
+  function detect3DContainers(sec) {
+    const containers = [];
+    sec.querySelectorAll('div, figure, [class*="mockup"], [class*="device"], [class*="perspective"]').forEach(el => {
+      const cs = window.getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      if (r.width < 150 || r.height < 150) return;
+      const transform = cs.transform;
+      const perspective = cs.perspective;
+      const hasPerspective = (perspective && perspective !== 'none') ||
+        (transform && transform !== 'none' && (transform.includes('matrix3d') || /rotate[XY]\(/i.test(cs.transform)));
+      if (!hasPerspective) return;
+
+      const secRect = sec.getBoundingClientRect();
+      const relX = (r.left - secRect.left) / secRect.width;
+      const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
+
+      let desc = `[3d-perspective] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}`;
+      if (perspective && perspective !== 'none') desc += `, perspective: \`${perspective}\``;
+      if (transform && transform !== 'none') desc += `, transform: \`${transform.slice(0, 60)}\``;
+      const containerStyle = describeContainerStyle(cs);
+      if (containerStyle) desc += `. Style: ${containerStyle}`;
+
+      // What's inside? Count children types
+      const innerImgs = el.querySelectorAll('img').length;
+      const innerSvgs = el.querySelectorAll('svg').length;
+      const innerText = (el.innerText || '').trim().slice(0, 60);
+      if (innerImgs > 2) desc += `. Contains ${innerImgs} layered images — stacked/fanned card effect.`;
+      else if (innerSvgs > 3) desc += `. Contains ${innerSvgs} SVG elements — layered icon/diagram composition.`;
+      else if (innerText.length > 10) desc += `. Content: "${innerText.slice(0, 40)}".`;
+
+      containers.push(desc);
+    });
+    return containers;
+  }
+
   function extractSectionContentMap() {
     // Try semantic <section> first, then fall back to structural detection
     let sectionEls = Array.from(document.querySelectorAll('section, main > section, [class*="section"]'));
@@ -834,10 +1053,45 @@
       }
 
       // CTA elements — wider selector to catch styled <a> tags and buttons
-      const ctaButtons = Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], a[class*="start"], button[class*="btn"], button[class*="button"], button[class*="cta"], [role="button"]'))
-        .map(b => (b.innerText || '').trim().slice(0, 25))
-        .filter(t => t.length > 1)
-        .slice(0, 3);
+      // CTA text cleaner — remove newlines, collapse whitespace, deduplicate
+      const cleanCtaText = (el) => {
+        // First try: get text only from visible children (skip display:none responsive clones)
+        let t = '';
+        try {
+          const visibleNodes = Array.from(el.querySelectorAll('*')).filter(n => {
+            const cs = window.getComputedStyle(n);
+            return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+          });
+          // Get text from the deepest visible text-containing element
+          const textEl = visibleNodes.find(n => n.children.length === 0 && (n.textContent || '').trim().length > 1);
+          if (textEl) t = (textEl.textContent || '').trim();
+        } catch(e) {}
+        // Fallback to innerText
+        if (!t) t = (el.innerText || '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+        // Still duplicated? Try splitting at repeat boundary
+        if (t.length > 10) {
+          for (let len = Math.ceil(t.length / 3); len <= Math.floor(t.length / 2) + 1; len++) {
+            const candidate = t.slice(0, len).trim();
+            if (candidate.length < 3) continue;
+            const rest = t.slice(len).trim();
+            // Check if rest starts with the same text (possibly truncated)
+            if (rest.length > 0 && candidate.startsWith(rest.slice(0, Math.min(rest.length, candidate.length)))) {
+              t = candidate;
+              break;
+            }
+            if (rest.length > 0 && rest.startsWith(candidate.slice(0, Math.min(candidate.length, rest.length)))) {
+              t = candidate;
+              break;
+            }
+          }
+        }
+        return t.slice(0, 30);
+      };
+      const ctaButtons = [...new Set(
+        Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], a[class*="start"], button[class*="btn"], button[class*="button"], button[class*="cta"], [role="button"]'))
+          .map(cleanCtaText)
+          .filter(t => t.length > 1)
+      )].slice(0, 3);
       // Fallback: detect styled <a> tags that look like buttons (bg + padding)
       if (ctaButtons.length === 0) {
         const styledLinks = Array.from(sec.querySelectorAll('a[href]')).filter(a => {
@@ -847,10 +1101,8 @@
           const hasPad = parseInt(acs.paddingLeft) >= 12 && parseInt(acs.paddingTop) >= 6;
           return (hasBg || hasBorder) && hasPad;
         });
-        styledLinks.slice(0, 3).forEach(a => {
-          const t = (a.innerText || '').trim().slice(0, 25);
-          if (t.length > 1) ctaButtons.push(t);
-        });
+        const fallbackTexts = [...new Set(styledLinks.slice(0, 5).map(cleanCtaText).filter(t => t.length > 1))];
+        fallbackTexts.slice(0, 3).forEach(t => ctaButtons.push(t));
       }
       const arrowLinks = Array.from(sec.querySelectorAll('a'))
         .filter(a => /→|→|arrow/i.test(a.innerText + (a.className || '')))
@@ -860,17 +1112,16 @@
       // Classify section type — hero MUST take priority
       let type = 'content';
       const isFirstSection = map.length === 0;
-      // Hero: has H1, OR is the first section with CTAs, OR first section with large heading
-      if (hasH1 && (hasForm || ctaButtons.length > 0)) type = 'hero';
-      else if (isFirstSection && hasH1) type = 'hero'; // first section with H1 is always hero
-      else if (isFirstSection && ctaButtons.length > 0 && headingText) type = 'hero'; // first section with CTAs + heading
+      const hasAnyHeading = !!sec.querySelector('h1, h2, h3');
+      // Hero: FIRST section is ALWAYS hero if it has any heading or CTA or visual
+      if (isFirstSection && (hasH1 || hasAnyHeading || ctaButtons.length > 0 || hasVideo || hasCanvas)) type = 'hero';
+      else if (hasH1 && (hasForm || ctaButtons.length > 0)) type = 'hero';
       else if (smallImgCount >= 4) type = 'logo-strip';
       else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
       else if (hasNumberedItems) type = 'numbered-steps';
       else if (hasSwiper) type = 'slider/carousel';
       else if (hasAccordion) type = 'faq/accordion';
-      else if (hasVideo && !isFirstSection) type = 'video-showcase'; // video only if NOT hero
-      else if (hasVideo && isFirstSection && headingText) type = 'hero'; // video in first section with heading = hero
+      else if (hasVideo && !isFirstSection) type = 'video-showcase';
       else if (hasStats) type = 'stats/metrics';
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
@@ -922,9 +1173,14 @@
           const relX = (r.left - secRect.left) / secRect.width;
           const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
 
-          // Build rich description
+          // Build rich description with context inference
           let desc = `[${contentType}] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}`;
           if (alt) desc += `, "${alt}"`;
+          else {
+            // No alt text — try to infer from context
+            const imgContext = inferVisualContext(img, headingText);
+            if (imgContext && contentType === 'ui-mockup') desc = `[${imgContext.includes('dashboard') ? 'dashboard-ui' : contentType}] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement} — ${imgContext}`;
+          }
           desc += `, perspective: ${perspective}`;
           if (framing.length > 0) desc += `, frame: {${framing.join(', ')}}`;
 
@@ -1009,14 +1265,17 @@
           const isFullSection = cr.width > secRect.width * 0.7 && cr.height > secRect.height * 0.4;
           const placement = isFullSection ? 'full-section-background' : `contained ${Math.round(cr.width)}×${Math.round(cr.height)}`;
           let canvasDesc = `[canvas-animation] ${placement}`;
-          // Capture container styling (glow, border, shadow, gradient)
+          // Infer what this canvas shows from context
+          const canvasContext = inferVisualContext(c, headingText);
+          if (canvasContext) canvasDesc += ` — ${canvasContext}`;
+          // Capture container styling
           const container = c.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
           if (container) {
             const ccs = window.getComputedStyle(container);
             const containerStyle = describeContainerStyle(ccs);
             if (containerStyle) canvasDesc += `. Container: ${containerStyle}`;
           }
-          canvasDesc += '. Recreate as animated CSS gradient, SVG animation, or radial glow effect with similar visual weight.';
+          canvasDesc += '. Recreate as animated CSS gradient, SVG animation, or radial glow effect matching this description.';
           visualDescriptions.push(canvasDesc);
         }
       }
@@ -1038,7 +1297,12 @@
         if (vr.width > 100 && vr.height > 50) {
           const isBg = (v.autoplay || v.hasAttribute('autoplay')) && (v.muted || v.hasAttribute('muted')) && (v.loop || v.hasAttribute('loop'));
           const poster = v.poster ? `, poster image available` : '';
-          let videoDesc = `[${isBg ? 'video-background' : 'video-player'}] ${Math.round(vr.width)}×${Math.round(vr.height)}${isBg ? ', autoplay muted loop — ambient background video' : ' — interactive video player'}${poster}`;
+          let videoDesc = `[${isBg ? 'video-background' : 'video-player'}] ${Math.round(vr.width)}×${Math.round(vr.height)}`;
+          // Infer what this video shows from context
+          const videoContext = inferVisualContext(v, headingText);
+          if (videoContext) videoDesc += ` — ${videoContext}`;
+          else videoDesc += isBg ? ' — ambient background visual' : ' — interactive video player';
+          videoDesc += poster;
           // Capture container styling
           const container = v.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
           if (container) {
@@ -1076,8 +1340,10 @@
           const relX = (r.left - secRect.left) / secRect.width;
           const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
           let desc = `[styled-visual] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}`;
+          const vdContext = inferVisualContext(vd, headingText);
+          if (vdContext) desc += ` — ${vdContext}`;
           const style = describeContainerStyle(ecs);
-          if (style) desc += `: ${style}`;
+          if (style) desc += `. Style: ${style}`;
           if (ecs.animation && ecs.animation !== 'none') desc += '. Animated — recreate with CSS keyframe animation.';
           else desc += '. Recreate as a CSS gradient/glow visual element.';
           // Check if already described by another visual type (avoid duplicates)
@@ -1107,6 +1373,23 @@
         if (secBgHex || secGradient) break;
         bgEl = bgEl.parentElement;
       }
+
+      // ── Code blocks, tab UI, and 3D containers ──
+      const codeBlocks = extractCodeBlocks(sec);
+      codeBlocks.forEach(cb => visualDescriptions.push(cb));
+
+      const tabSets = extractTabUI(sec);
+      tabSets.forEach(ts => visualDescriptions.push(ts));
+
+      const perspective3D = detect3DContainers(sec);
+      perspective3D.forEach(p => {
+        // Avoid duplicates with existing visual descriptions
+        const isDup = visualDescriptions.some(vd => {
+          const sizeMatch = p.match(/(\d+×\d+)/);
+          return sizeMatch && vd.includes(sizeMatch[1]);
+        });
+        if (!isDup) visualDescriptions.push(p);
+      });
 
       const entry = {
         type,
