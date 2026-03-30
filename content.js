@@ -179,9 +179,13 @@
     const first = rawFamily.split(',')[0].replace(/['"]/g, '').trim();
     if (!first || first.length < 2 || first.length > 60) return null;
     if (JUNK_FONT_PATTERNS.some(p => p.test(first))) return null;
-    // System font stacks — return null so we skip them entirely
-    // (they're not real brand font decisions)
     if (SYSTEM_FONT_STACKS.has(first.toLowerCase())) return null;
+    // Filter out CSS variable names used as font-family (e.g. "displayFont", "monoFont", "bodyFont")
+    if (/^(display|body|heading|mono|code|text|ui|brand|title|hero|nav|label|sans|serif)Font$/i.test(first)) return null;
+    // Filter out Next.js/framework generated font class names (e.g. "__Inter_a34f5b", "__className_hash")
+    if (/^__/.test(first) || /^[a-f0-9]{6,}$/i.test(first)) return null;
+    // Filter out single-word generic names that aren't real font names
+    if (/^(display|body|heading|text|primary|secondary|accent)$/i.test(first)) return null;
     return first;
   }
 
@@ -439,14 +443,32 @@
   function extractButtonStyles() {
     const result = { primary: null, ghost: null, secondary: null, navCta: null };
     const btns = document.querySelectorAll(
-      'button, a[class*="btn"], a[class*="button"], [role="button"], input[type="submit"]'
+      'button, a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], [role="button"], input[type="submit"], a[href][class]'
     );
+    // Dedupe and filter to reasonable set
+    const seen = new Set();
+    const uniqueBtns = [];
+    for (const btn of btns) {
+      if (seen.has(btn)) continue;
+      seen.add(btn);
+      uniqueBtns.push(btn);
+      if (uniqueBtns.length >= 25) break;
+    }
     const candidates = [];
-    for (const btn of Array.from(btns).slice(0, 15)) {
+    for (const btn of uniqueBtns) {
       try {
         const rect = btn.getBoundingClientRect();
         if (rect.width < 40 || rect.height < 20 || rect.width > 600) continue;
+        // Skip plain text links — only keep elements that look like buttons
         const cs = window.getComputedStyle(btn);
+        if (btn.tagName === 'A' && !btn.matches('button, [role="button"]')) {
+          const hasBg = !isTransparent(cs.backgroundColor);
+          const hasBorder = cs.borderWidth !== '0px' && cs.borderStyle !== 'none';
+          const hasPadding = parseInt(cs.paddingLeft) >= 8 && parseInt(cs.paddingTop) >= 4;
+          const hasRadius = cs.borderRadius !== '0px';
+          // An <a> tag must have at least bg OR (border+padding) to be considered a button
+          if (!hasBg && !(hasBorder && hasPadding) && !(hasPadding && hasRadius)) continue;
+        }
         const bg = cs.backgroundColor;
         const bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
         const colorHex = rgbToHex(cs.color);
@@ -496,18 +518,27 @@
     // Score-based classification
     candidates.forEach(c => {
       let score = 0;
-      // High saturation bg = likely primary
+      // Has a visible background color = likely a filled button
+      if (c.backgroundColor) score += 2;
+      // High saturation bg = very likely primary
       if (c.bgSat > 30) score += 3;
+      // Even low-saturation colored bg counts (e.g. dark blue #0000ee)
+      if (c.backgroundColor && c.bgSat > 10 && c.bgLum < 0.8) score += 1;
       // Class name hints
-      if (/primary|cta|main|action/i.test(c.cls)) score += 5;
-      if (/red|blue|accent|brand/i.test(c.cls) && !/outline|ghost/i.test(c.cls)) score += 4;
+      if (/primary|cta|main|action|hero/i.test(c.cls)) score += 5;
+      if (/red|blue|accent|brand|start|signup|register|get[-_]?started/i.test(c.cls) && !/outline|ghost/i.test(c.cls)) score += 4;
       // Bold weight = more prominent
       if (c.fontWeight && parseInt(c.fontWeight) >= 700) score += 1;
-      // Wider buttons = more prominent
+      // Bigger buttons = more prominent (hero CTAs are usually larger)
       if (c.width > 140) score += 1;
+      if (parseInt(c.height) > 44) score += 1;
+      // Text hints — CTA text patterns
+      if (/get started|start|sign up|try|begin|join|subscribe/i.test(c.text)) score += 3;
       // Ghost indicators
-      if (/ghost|outline|secondary|subtle/i.test(c.cls)) score -= 5;
+      if (/ghost|outline|secondary|subtle|text/i.test(c.cls)) score -= 5;
       if (!c.backgroundColor && c.border) score -= 3;
+      // Nav buttons score lower than hero buttons
+      if (c.isNavCta) score -= 1;
       c._score = score;
     });
 
@@ -642,6 +673,50 @@
   }
 
   // ─── Section content map ──────────────────────────────────────────────────
+  // Helper: describe a container's visual style (glow, shadow, border, gradient, radius)
+  function describeContainerStyle(cs) {
+    if (!cs) return null;
+    const parts = [];
+    // Border with color
+    if (cs.borderWidth !== '0px' && cs.borderStyle !== 'none') {
+      const borderColor = rgbToHex(cs.borderColor) || cs.borderColor;
+      parts.push(`border: ${cs.borderWidth} ${cs.borderStyle} ${borderColor}`);
+    }
+    // Border radius
+    if (cs.borderRadius && cs.borderRadius !== '0px') {
+      parts.push(`radius: ${cs.borderRadius}`);
+    }
+    // Box shadow (glow detection)
+    if (cs.boxShadow && cs.boxShadow !== 'none') {
+      const shadow = cs.boxShadow;
+      const isGlow = /\b0px\s+0px\s+\d+px/.test(shadow) || /\b0 0 \d+px/.test(shadow);
+      if (isGlow) {
+        // Extract glow color
+        const colorMatch = shadow.match(/rgba?\([^)]+\)|#[0-9a-f]{3,8}|oklch\([^)]+\)/i);
+        parts.push(`glow: ${colorMatch ? colorMatch[0] : shadow.slice(0, 60)}`);
+      } else {
+        parts.push(`shadow: ${shadow.slice(0, 80)}`);
+      }
+    }
+    // Background gradient
+    if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
+      parts.push(`gradient: ${cs.backgroundImage.slice(0, 100)}`);
+    }
+    // Background color
+    if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) {
+      parts.push(`bg: ${rgbToHex(cs.backgroundColor)}`);
+    }
+    // Backdrop filter
+    if (cs.backdropFilter && cs.backdropFilter !== 'none') {
+      parts.push(`backdrop: ${cs.backdropFilter}`);
+    }
+    // Overflow (for clipping effects)
+    if (cs.overflow === 'hidden') {
+      parts.push('overflow: hidden');
+    }
+    return parts.length > 0 ? parts.join(', ') : null;
+  }
+
   function extractSectionContentMap() {
     // Try semantic <section> first, then fall back to structural detection
     let sectionEls = Array.from(document.querySelectorAll('section, main > section, [class*="section"]'));
@@ -758,25 +833,44 @@
         }
       }
 
-      // CTA elements
-      const ctaButtons = Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], button[class*="btn"], button[class*="button"]'))
+      // CTA elements — wider selector to catch styled <a> tags and buttons
+      const ctaButtons = Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], a[class*="start"], button[class*="btn"], button[class*="button"], button[class*="cta"], [role="button"]'))
         .map(b => (b.innerText || '').trim().slice(0, 25))
         .filter(t => t.length > 1)
         .slice(0, 3);
+      // Fallback: detect styled <a> tags that look like buttons (bg + padding)
+      if (ctaButtons.length === 0) {
+        const styledLinks = Array.from(sec.querySelectorAll('a[href]')).filter(a => {
+          const acs = window.getComputedStyle(a);
+          const hasBg = !isTransparent(acs.backgroundColor);
+          const hasBorder = acs.borderWidth !== '0px' && acs.borderStyle !== 'none';
+          const hasPad = parseInt(acs.paddingLeft) >= 12 && parseInt(acs.paddingTop) >= 6;
+          return (hasBg || hasBorder) && hasPad;
+        });
+        styledLinks.slice(0, 3).forEach(a => {
+          const t = (a.innerText || '').trim().slice(0, 25);
+          if (t.length > 1) ctaButtons.push(t);
+        });
+      }
       const arrowLinks = Array.from(sec.querySelectorAll('a'))
         .filter(a => /→|→|arrow/i.test(a.innerText + (a.className || '')))
         .map(a => (a.innerText || '').trim().slice(0, 30))
         .slice(0, 2);
 
-      // Classify section type
+      // Classify section type — hero MUST take priority
       let type = 'content';
+      const isFirstSection = map.length === 0;
+      // Hero: has H1, OR is the first section with CTAs, OR first section with large heading
       if (hasH1 && (hasForm || ctaButtons.length > 0)) type = 'hero';
+      else if (isFirstSection && hasH1) type = 'hero'; // first section with H1 is always hero
+      else if (isFirstSection && ctaButtons.length > 0 && headingText) type = 'hero'; // first section with CTAs + heading
       else if (smallImgCount >= 4) type = 'logo-strip';
       else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
       else if (hasNumberedItems) type = 'numbered-steps';
       else if (hasSwiper) type = 'slider/carousel';
       else if (hasAccordion) type = 'faq/accordion';
-      else if (hasVideo) type = 'video-showcase';
+      else if (hasVideo && !isFirstSection) type = 'video-showcase'; // video only if NOT hero
+      else if (hasVideo && isFirstSection && headingText) type = 'hero'; // video in first section with heading = hero
       else if (hasStats) type = 'stats/metrics';
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
@@ -806,22 +900,16 @@
           else if (/diagram|flow|process|architecture/.test(altLow + srcLow)) contentType = 'flow-diagram';
           else if (/form|input|config|setting/.test(altLow + srcLow)) contentType = 'form-ui';
 
-          // Container / frame analysis
-          const container = img.closest('div[class],figure,[class*="card"],[class*="frame"],[class*="mock"]');
+          // Container / frame analysis — full visual style capture
+          const container = img.closest('div[class],figure,[class*="card"],[class*="frame"],[class*="mock"],[class*="visual"],[class*="hero"]');
           const containerCs = container ? window.getComputedStyle(container) : null;
+          const containerStyle = describeContainerStyle(containerCs);
           let framing = [];
-          if (containerCs) {
-            const hasBorder = containerCs.borderWidth !== '0px' && containerCs.borderStyle !== 'none';
-            const hasBg = containerCs.backgroundColor && !isTransparent(containerCs.backgroundColor);
-            const hasPad = parseInt(containerCs.padding) > 6;
-            const hasRadius = parseInt(containerCs.borderRadius) > 0;
-            if (hasBorder) framing.push(`border: ${containerCs.border.slice(0,40)}`);
-            if (hasBg) framing.push(`container-bg: ${rgbToHex(containerCs.backgroundColor)}`);
-            if (hasPad) framing.push(`padding: ${containerCs.padding}`);
-            if (hasRadius) framing.push(`radius: ${containerCs.borderRadius}`);
-          }
+          if (containerStyle) framing.push(containerStyle);
           const imgRadius = cs.borderRadius !== '0px' ? cs.borderRadius : null;
           if (imgRadius) framing.push(`img-radius: ${imgRadius}`);
+          // Image's own shadow/glow
+          if (cs.boxShadow && cs.boxShadow !== 'none') framing.push(`img-shadow: ${cs.boxShadow.slice(0,80)}`);
 
           // Perspective / transform
           const transform = cs.transform;
@@ -902,11 +990,17 @@
         let desc = `[svg] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}: ${svgDesc}`;
         if (hasAnim) desc += ' (animated)';
         if (svgColors.size > 0) desc += `. Colors: ${[...svgColors].slice(0, 3).join(', ')}`;
+        // Container styling for SVG
+        const svgContainer = svg.closest('div[class],figure,[class*="card"],[class*="visual"]');
+        if (svgContainer) {
+          const svgContainerStyle = describeContainerStyle(window.getComputedStyle(svgContainer));
+          if (svgContainerStyle) desc += `. Container: ${svgContainerStyle}`;
+        }
 
         visualDescriptions.push(desc);
       }
 
-      // ── Canvas detection with size/placement context ──
+      // ── Canvas detection with size/placement and container styling ──
       const canvases = sec.querySelectorAll('canvas');
       for (const c of Array.from(canvases).slice(0, 2)) {
         const cr = c.getBoundingClientRect();
@@ -914,7 +1008,16 @@
           const secRect = sec.getBoundingClientRect();
           const isFullSection = cr.width > secRect.width * 0.7 && cr.height > secRect.height * 0.4;
           const placement = isFullSection ? 'full-section-background' : `contained ${Math.round(cr.width)}×${Math.round(cr.height)}`;
-          visualDescriptions.push(`[canvas-animation] ${placement} — animated WebGL/canvas element (particles, 3D scene, or data visualization). Recreate as an animated SVG or CSS animation with similar visual weight.`);
+          let canvasDesc = `[canvas-animation] ${placement}`;
+          // Capture container styling (glow, border, shadow, gradient)
+          const container = c.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
+          if (container) {
+            const ccs = window.getComputedStyle(container);
+            const containerStyle = describeContainerStyle(ccs);
+            if (containerStyle) canvasDesc += `. Container: ${containerStyle}`;
+          }
+          canvasDesc += '. Recreate as animated CSS gradient, SVG animation, or radial glow effect with similar visual weight.';
+          visualDescriptions.push(canvasDesc);
         }
       }
       if (hasCanvas && canvases.length === 0) visualDescriptions.push('[canvas-animation] WebGL/canvas element');
@@ -928,19 +1031,63 @@
         }
       }
 
-      // ── Video detection with background vs player distinction ──
+      // ── Video detection with background vs player distinction + container styling ──
       const videos = sec.querySelectorAll('video');
       for (const v of Array.from(videos).slice(0, 2)) {
         const vr = v.getBoundingClientRect();
         if (vr.width > 100 && vr.height > 50) {
           const isBg = (v.autoplay || v.hasAttribute('autoplay')) && (v.muted || v.hasAttribute('muted')) && (v.loop || v.hasAttribute('loop'));
           const poster = v.poster ? `, poster image available` : '';
-          visualDescriptions.push(`[${isBg ? 'video-background' : 'video-player'}] ${Math.round(vr.width)}×${Math.round(vr.height)}${isBg ? ', autoplay muted loop — ambient background video' : ' — interactive video player'}${poster}`);
+          let videoDesc = `[${isBg ? 'video-background' : 'video-player'}] ${Math.round(vr.width)}×${Math.round(vr.height)}${isBg ? ', autoplay muted loop — ambient background video' : ' — interactive video player'}${poster}`;
+          // Capture container styling
+          const container = v.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
+          if (container) {
+            const ccs = window.getComputedStyle(container);
+            const containerStyle = describeContainerStyle(ccs);
+            if (containerStyle) videoDesc += `. Container: ${containerStyle}`;
+          }
+          visualDescriptions.push(videoDesc);
         }
       }
       if (hasVideo && videos.length === 0) visualDescriptions.push('[video] embedded video element');
 
       if (hasForm) visualDescriptions.push('[form] email/text input with CTA button');
+
+      // ── Large styled visual elements (gradient panels, glow boxes, decorative visuals) ──
+      if (visualDescriptions.length === 0 || (type === 'hero' && visualDescriptions.length < 2)) {
+        const visualDivs = Array.from(sec.querySelectorAll('div, figure')).filter(el => {
+          const r = el.getBoundingClientRect();
+          if (r.width < 200 || r.height < 150) return false;
+          const ecs = window.getComputedStyle(el);
+          const hasBgImage = ecs.backgroundImage && ecs.backgroundImage !== 'none' && (ecs.backgroundImage.includes('gradient') || ecs.backgroundImage.includes('url('));
+          const hasGlow = ecs.boxShadow && ecs.boxShadow !== 'none' && /\b0px\s+0px\s+\d+px/.test(ecs.boxShadow);
+          const hasAnimation = ecs.animation && ecs.animation !== 'none';
+          const hasBackdrop = ecs.backdropFilter && ecs.backdropFilter !== 'none';
+          // Must have at least 2 visual properties to be considered a "visual element" (not just a layout container)
+          const visualScore = (hasBgImage ? 1 : 0) + (hasGlow ? 1 : 0) + (hasAnimation ? 1 : 0) + (hasBackdrop ? 1 : 0);
+          // Also check if it has very few text children (visual, not content)
+          const textLen = (el.innerText || '').trim().length;
+          return visualScore >= 1 && textLen < 50;
+        });
+        for (const vd of visualDivs.slice(0, 2)) {
+          const r = vd.getBoundingClientRect();
+          const ecs = window.getComputedStyle(vd);
+          const secRect = sec.getBoundingClientRect();
+          const relX = (r.left - secRect.left) / secRect.width;
+          const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
+          let desc = `[styled-visual] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}`;
+          const style = describeContainerStyle(ecs);
+          if (style) desc += `: ${style}`;
+          if (ecs.animation && ecs.animation !== 'none') desc += '. Animated — recreate with CSS keyframe animation.';
+          else desc += '. Recreate as a CSS gradient/glow visual element.';
+          // Check if already described by another visual type (avoid duplicates)
+          const isDuplicate = visualDescriptions.some(vdesc => {
+            const sizeMatch = vdesc.includes(`${Math.round(r.width)}×${Math.round(r.height)}`);
+            return sizeMatch;
+          });
+          if (!isDuplicate) visualDescriptions.push(desc);
+        }
+      }
 
       // ── Per-section background color & gradient ──
       // Walk up parent chain to find actual visible background
