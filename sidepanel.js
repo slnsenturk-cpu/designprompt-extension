@@ -1301,11 +1301,12 @@ function generateComponentGuidance(data, style) {
   if (ui.hasMarquee||ui.hasLogoStrip) lines.push('**Logo marquee:** overflow-hidden, inner div 200% width. @keyframes marquee { to { transform:translateX(-50%) } } 30s linear infinite. Logos at 50–60% opacity.');
   if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** repeat('+ui.pricingColumnCount+',1fr), gap 24px, align-items:stretch.'+(ui.pricingColumnCount===3?' Center card: accent border, elevated shadow, "Popular" badge.':''));
   if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark surface cards, rgba(255,255,255,0.06) border':'White/light cards')+', '+defaultRadius+' radius, 24px padding. Auto-play, pause on hover.');
-  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (display:flex, gap:16px).');
+  if (ui.hasDualCTA&&ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (display:flex, gap:16px).');
+  else if (ui.hasDualCTA) lines.push('**Dual CTA:** Two action buttons side by side (display:flex, gap:16px).');
   if (ui.hasStepIndicator) lines.push('**Steps:** 32px circles, border-radius:50%, number inside. Thin connecting line. Active step = accent color.');
   if (ui.hasCounterSection) lines.push('**Stats:** 64–80px/800 numbers, 14–16px muted labels. Count-up animation via IntersectionObserver + rAF.');
   if (ui.hasAccordion) lines.push('**Accordion:** 16–18px semibold question, muted answer. max-height transition. Chevron rotates 180° on open. border-bottom between items.');
-  if (ui.hasVideoSection) lines.push('**Video:** autoplay muted loop, object-fit:cover, 16–24px radius. Play button overlay on hover.');
+  if (ui.hasVideoSection) lines.push('**Video:** autoplay muted loop, object-fit:cover, '+defaultRadius+' radius.');
 
   // New: decorative geometry
   if (ui.hasDecorativeGeometry) {

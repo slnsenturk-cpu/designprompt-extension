@@ -1327,11 +1327,12 @@ function generateComponentGuidance(data, style) {
   if (ui.hasMarquee||ui.hasLogoStrip||hasTickerAnimation) lines.push('**Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Logos at 50–60% opacity.');
   if (ui.hasPricingGrid&&ui.pricingColumnCount>0) lines.push('**Pricing grid:** `repeat('+ui.pricingColumnCount+',1fr)`, gap `24px`, `align-items:stretch`.'+(ui.pricingColumnCount===3?' Center card: accent border, elevated shadow, "Popular" badge.':''));
   if (ui.hasTestimonialCarousel) lines.push('**Testimonial carousel:** CSS scroll-snap or Swiper. '+(isDark?'Dark cards, `rgba(255,255,255,0.06)` border':'White cards')+', `'+defaultRadius+'` radius, `24px` padding. `animation: auto-slide` with pause on hover.');
-  if (ui.hasDualCTA||ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (`display:flex, gap:16px`).');
+  if (ui.hasDualCTA&&ui.hasQRCode) lines.push('**Dual CTA:** QR + button side by side (`display:flex, gap:16px`).');
+  else if (ui.hasDualCTA) lines.push('**Dual CTA:** Two action buttons side by side (`display:flex, gap:16px`).');
   if (ui.hasStepIndicator) lines.push('**Steps:** `32px` circles, `border-radius:50%`, number inside. Connecting line. Active step = accent color.');
   if (ui.hasCounterSection) lines.push('**Stats:** `64–80px/800` numbers, `14–16px` muted labels. **Animate:** count-up from 0 on scroll entry via IntersectionObserver + requestAnimationFrame.');
   if (ui.hasAccordion) lines.push('**Accordion:** `16–18px/600` question, muted answer. `max-height` + `overflow:hidden` transition 300ms. Chevron `rotate(180deg)` on open.');
-  if (ui.hasVideoSection) lines.push('**Video:** `autoplay muted loop`, `object-fit:cover`, `16–24px` radius.');
+  if (ui.hasVideoSection) lines.push('**Video:** `autoplay muted loop`, `object-fit:cover`, `'+defaultRadius+'` radius.');
 
   if (ui.hasDecorativeGeometry) {
     lines.push('**Decorative bg:** SVG elements, `position:absolute`, `z-index:-1`, `pointer-events:none`, `opacity: 0.05–0.12`. Keep minimal.');
