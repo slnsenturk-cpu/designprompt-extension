@@ -1797,6 +1797,7 @@
       const entry = {
         type,
         heading: headingText,
+        className: (sec.className || '').slice(0, 60),
         layout,
         bgColor: secBgHex,
         gradient: secGradient,
@@ -1807,6 +1808,7 @@
         hasNumberedItems,
         headingColoredWords: headingColoredWords.length > 0 ? headingColoredWords : null,
         decorativeGradients: sectionDecorations.length > 0 ? sectionDecorations : null,
+        entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
       };
 
       map.push(entry);

@@ -1815,10 +1815,13 @@ function buildPagePrompt(data, aiDirection) {
       scm.forEach((sec, i) => {
         // Override section type with case grid if detected
         let secType = sec.type;
-        // Override to case-grid if: grid pattern detected AND this section contains grid entries
-        if (data.caseGridPattern && (secType === 'content' || secType === 'feature-grid')) {
-          // Match by heading keywords OR if the section has many entries (case grid is usually the largest section)
-          if ((sec.heading && /case|work|project|portfolio|featured/i.test(sec.heading)) || data.caseGridPattern.entryCount > 6) {
+        // Override to case-grid if: grid pattern detected AND this section has entries
+        if (data.caseGridPattern && i > 0 && secType !== 'hero' && secType !== 'video-showcase') {
+          const secClass = (sec.className || '').toLowerCase();
+          const sectionEntries = sec.entryCount || 0;
+          if ((sec.heading && /case|work|project|portfolio|featured|collaboration/i.test(sec.heading)) ||
+              /casegrid|case-grid|portfolio|projects|work-grid/i.test(secClass) ||
+              sectionEntries > 4) {
             secType = 'case-grid';
           }
         }
@@ -1847,6 +1850,12 @@ function buildPagePrompt(data, aiDirection) {
               lines.push(`  [spritesheet illustration] Scroll-driven animated illustration. Changes with scroll position.`);
             } else if (ill.type === 'illustration-image') {
               lines.push(`  [illustration] Image-based illustration (${ill.details?.src || 'hero visual'}).`);
+            } else if (ill.type === 'webgl-illustration') {
+              lines.push(`  [animated illustration] WebGL/canvas-rendered illustration from hidden source image (${ill.details?.src || 'hero visual'}). Likely animated characters or scene that changes with scroll. Recreate as a centered editorial illustration — hand-drawn black-on-white character art style.`);
+            } else if (ill.type === 'hidden-svg-illustration') {
+              lines.push(`  [illustration] Complex SVG illustration (${ill.details?.pathCount} paths) rendered via JS/WebGL. Recreate as editorial line-art illustration.`);
+            } else if (ill.type === 'canvas-illustration') {
+              lines.push(`  [animated illustration] Canvas-based animated visual (${ill.details?.width||'?'}×${ill.details?.height||'?'}px). Likely interactive or scroll-driven.`);
             }
           }
         } else if (vpr.hasScrollAnimation) {
@@ -1880,8 +1889,15 @@ function buildPagePrompt(data, aiDirection) {
           });
         }
         if (sec.visualDescriptions && sec.visualDescriptions.length > 0) {
-          lines.push('  Visuals:');
-          sec.visualDescriptions.forEach(v => lines.push(`    - ${v}`));
+          // If illustration was detected in hero, filter out generic video-background descriptions
+          let visuals = sec.visualDescriptions;
+          if (i === 0 && data.illustrationStyle && data.illustrationStyle.type !== 'none') {
+            visuals = visuals.filter(v => !/\[video-background\]/.test(v));
+          }
+          if (visuals.length > 0) {
+            lines.push('  Visuals:');
+            visuals.forEach(v => lines.push(`    - ${v}`));
+          }
         }
         lines.push('');
       });
