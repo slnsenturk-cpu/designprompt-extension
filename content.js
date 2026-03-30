@@ -259,8 +259,8 @@
         for (const rule of Array.from(sheet.cssRules || [])) {
           if (rule.selectorText?.includes(':hover')) {
             const sel = rule.selectorText;
-            // Skip framework noise and pseudo-elements
-            if (/^_|^__|Toastify|nprogress|react-|chakra-/i.test(sel)) continue;
+            // Skip framework noise, video players, and pseudo-elements
+            if (/^_|^__|Toastify|nprogress|react-|chakra-|\.vjs-|video-js|\.plyr|\.mux-/i.test(sel)) continue;
             if (sel.length > 100) continue;
             const props = {};
             for (const prop of ['background','background-color','color','transform','box-shadow','border-color','opacity','filter','text-decoration','letter-spacing','scale']) {
@@ -444,7 +444,242 @@
     // ── 6. Deep visual analysis ──
     tokens.visualProfile = extractVisualProfile();
 
+    // ── 7. Advanced pattern detection ──
+    tokens.rotatingText = detectRotatingText();
+    tokens.illustrationStyle = detectIllustrations();
+    tokens.curvedPanels = detectCurvedPanels();
+    tokens.countdownElements = detectCountdownElements();
+    tokens.caseGridPattern = detectCaseGridPattern();
+    tokens.navPattern = detectNavPattern();
+
     return tokens;
+  }
+
+  // ─── Rotating / cycling text detection ───────────────────────────────────
+  function detectRotatingText() {
+    const results = [];
+    // Look for elements whose text content changes (multiple children hidden/shown)
+    const candidates = document.querySelectorAll(
+      'h1, h2, [class*="rotating"], [class*="Rotating"], [class*="cycle"], [class*="Cycle"], ' +
+      '[class*="word-switch"], [class*="text-rotate"], [class*="headline"]'
+    );
+    for (const el of candidates) {
+      const children = Array.from(el.children);
+      // Multiple same-level children where some are hidden = rotating text
+      if (children.length >= 2) {
+        const texts = children.map(c => c.textContent?.trim()).filter(t => t && t.length > 0 && t.length < 60);
+        const visibleCount = children.filter(c => {
+          const cs = getComputedStyle(c);
+          return cs.display !== 'none' && cs.visibility !== 'hidden' && parseFloat(cs.opacity) > 0.1;
+        }).length;
+        // If many children but only 1-2 visible = rotating text
+        if (texts.length >= 2 && visibleCount <= 2 && visibleCount < texts.length) {
+          results.push({ element: el.tagName, words: texts, class: el.className?.slice(0, 50) });
+        }
+      }
+      // Also check for CSS animation on text containers
+      const cs = getComputedStyle(el);
+      if (cs.animationName && cs.animationName !== 'none') {
+        const parent = el.parentElement;
+        const siblings = parent ? Array.from(parent.children).filter(c => c.tagName === el.tagName) : [];
+        if (siblings.length >= 2) {
+          const words = siblings.map(s => s.textContent?.trim()).filter(t => t && t.length < 60);
+          if (words.length >= 2) results.push({ element: el.tagName, words, animated: true });
+        }
+      }
+    }
+    // Check for parent containers with overflow:hidden that clip rotating children
+    const overflowContainers = document.querySelectorAll('[class*="hero"] [style*="overflow"], [class*="Hero"] [style*="overflow"]');
+    for (const cont of overflowContainers) {
+      const headings = cont.querySelectorAll('h1, h2, span');
+      if (headings.length >= 2) {
+        const words = Array.from(headings).map(h => h.textContent?.trim()).filter(t => t && t.length < 60);
+        if (words.length >= 2 && new Set(words).size >= 2) {
+          results.push({ element: 'container', words, class: cont.className?.slice(0, 50) });
+        }
+      }
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── Illustration detection (SVG line-art vs photos) ─────────────────────
+  function detectIllustrations() {
+    const hero = document.querySelector('[class*="hero"], [class*="Hero"], main > section:first-child');
+    if (!hero) return null;
+    const result = { type: 'none', details: null };
+    // Check for SVG illustrations
+    const svgs = hero.querySelectorAll('svg');
+    const imgs = hero.querySelectorAll('img');
+    // Large SVGs with many paths = line-art illustration
+    for (const svg of svgs) {
+      const paths = svg.querySelectorAll('path, line, circle, rect, polygon');
+      const r = svg.getBoundingClientRect();
+      if (paths.length > 10 && r.width > 100 && r.height > 100) {
+        const fills = new Set();
+        for (const p of Array.from(paths).slice(0, 20)) {
+          fills.add(getComputedStyle(p).fill);
+        }
+        const isMonochrome = fills.size <= 3;
+        result.type = isMonochrome ? 'monochrome-line-art' : 'colored-illustration';
+        result.details = { pathCount: paths.length, width: Math.round(r.width), height: Math.round(r.height), colors: [...fills].slice(0, 4) };
+        return result;
+      }
+    }
+    // Check for PNG/SVG illustration images (not photos — usually have transparent bg or are very large)
+    for (const img of imgs) {
+      const r = img.getBoundingClientRect();
+      const src = (img.src || '').toLowerCase();
+      if (r.width > 200 && r.height > 200) {
+        if (/illustration|drawing|sketch|hero.*\.(svg|png)/i.test(src) || /illustration|drawing|sketch/i.test(img.alt || '')) {
+          result.type = 'illustration-image';
+          result.details = { src: src.split('/').pop()?.slice(0, 50), width: Math.round(r.width), height: Math.round(r.height) };
+          return result;
+        }
+      }
+    }
+    // Check for spritesheet-based illustrations (background-image with large dimensions)
+    const bgEls = hero.querySelectorAll('[class*="illustration"], [class*="Illustration"], [class*="visual"], [class*="image"], [class*="sprite"]');
+    for (const el of bgEls) {
+      const cs = getComputedStyle(el);
+      if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+        const r = el.getBoundingClientRect();
+        if (r.width > 200 && r.height > 200) {
+          result.type = 'spritesheet-illustration';
+          result.details = { class: el.className?.slice(0, 40), width: Math.round(r.width), height: Math.round(r.height) };
+          return result;
+        }
+      }
+    }
+    return result.type !== 'none' ? result : null;
+  }
+
+  // ─── Curved / arc decorative panels detection ────────────────────────────
+  function detectCurvedPanels() {
+    const panels = [];
+    const allEls = document.querySelectorAll('div, aside, nav, section');
+    for (const el of allEls) {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      // Fixed/sticky positioned element on edge of viewport with dark bg
+      if ((cs.position === 'fixed' || cs.position === 'sticky' || cs.position === 'absolute') &&
+          r.width > 20 && r.width < 200 && r.height > window.innerHeight * 0.5) {
+        const bg = cs.backgroundColor;
+        const isOnEdge = r.right >= window.innerWidth - 5 || r.left <= 5;
+        if (isOnEdge && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+          const side = r.left <= 5 ? 'left' : 'right';
+          panels.push({
+            side,
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+            bg,
+            borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+            class: el.className?.slice(0, 50),
+            hasMenu: !!el.querySelector('[class*="menu"], [class*="burger"], [class*="hamburger"], button'),
+            clipPath: cs.clipPath !== 'none' ? cs.clipPath?.slice(0, 60) : null,
+            overflow: cs.overflow,
+          });
+        }
+      }
+    }
+    return panels.length > 0 ? panels : null;
+  }
+
+  // ─── Countdown / live-text elements detection ────────────────────────────
+  function detectCountdownElements() {
+    const results = [];
+    const textEls = document.querySelectorAll('span, p, div, time');
+    for (const el of textEls) {
+      const text = el.textContent?.trim();
+      if (!text || text.length > 60 || text.length < 3) continue;
+      // Countdown patterns: "X days until", "X hours left", timer formats
+      if (/\d+\s*(days?|hours?|minutes?|seconds?)\s*(until|left|remaining|to go)/i.test(text) ||
+          /\d{1,2}:\d{2}(:\d{2})?/.test(text) ||
+          /countdown|timer/i.test(el.className || '')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          results.push({
+            text,
+            class: el.className?.slice(0, 40),
+            position: r.x > window.innerWidth * 0.6 ? 'right' : r.x < window.innerWidth * 0.4 ? 'left' : 'center',
+          });
+        }
+      }
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── Case grid / portfolio grid pattern detection ────────────────────────
+  function detectCaseGridPattern() {
+    // Look for grid of project/case entries with thumbnails + titles + tags
+    const grids = document.querySelectorAll(
+      '[class*="CaseGrid"], [class*="case-grid"], [class*="portfolio"], [class*="Portfolio"], ' +
+      '[class*="projects"], [class*="Projects"], [class*="work-grid"], [class*="WorkGrid"]'
+    );
+    for (const grid of grids) {
+      const entries = grid.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"], [class*="project"]');
+      if (entries.length < 2) continue;
+      // Detect grid layout
+      const gridCs = getComputedStyle(grid);
+      const cols = gridCs.gridTemplateColumns;
+      const colCount = cols ? cols.split(/\s+/).filter(c => c !== '').length : null;
+      // Analyze first entry structure
+      const first = entries[0];
+      const thumb = first.querySelector('img, video, [class*="thumb"], [class*="image"], [class*="media"]');
+      const title = first.querySelector('h2, h3, [class*="title"], [class*="name"]');
+      const tags = Array.from(first.querySelectorAll('[class*="tag"], [class*="Tag"], [class*="category"], [class*="Category"]'));
+      const hasHoverVideo = !!first.querySelector('video') || first.querySelector('[class*="video"]') !== null;
+      return {
+        entryCount: entries.length,
+        columns: colCount,
+        gridDisplay: gridCs.display,
+        gap: gridCs.gap || gridCs.gridGap,
+        entryStructure: {
+          hasThumbnail: !!thumb,
+          hasTitle: !!title,
+          hasTags: tags.length > 0,
+          tagLabels: tags.map(t => t.textContent?.trim()).filter(Boolean).slice(0, 5),
+          hasHoverVideo,
+          thumbnailRadius: thumb ? getComputedStyle(thumb).borderRadius : null,
+        },
+      };
+    }
+    return null;
+  }
+
+  // ─── Navigation pattern detection ────────────────────────────────────────
+  function detectNavPattern() {
+    const result = {
+      type: 'standard', // standard | hamburger-only | hidden | sidebar-menu
+      hasHamburger: false,
+      hasVisibleLinks: false,
+      hasCurvedContainer: false,
+      hasCountdown: false,
+      logoText: null,
+      visibleLinks: [],
+    };
+    // Check for hamburger/burger elements
+    const burger = document.querySelector('[class*="burger"], [class*="Burger"], [class*="hamburger"], [class*="menu-toggle"], [class*="MenuToggle"]');
+    result.hasHamburger = !!burger;
+    // Check for visible nav links
+    const navLinks = document.querySelectorAll('nav a, header a, [class*="nav"] a');
+    const visibleLinks = Array.from(navLinks).filter(a => {
+      const r = a.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && a.textContent?.trim().length < 30;
+    });
+    result.hasVisibleLinks = visibleLinks.length > 2;
+    result.visibleLinks = visibleLinks.map(a => a.textContent?.trim()).slice(0, 6);
+    // Logo
+    const logo = document.querySelector('[class*="logo"], [class*="Logo"], header a:first-child');
+    if (logo) {
+      result.logoText = logo.textContent?.trim()?.slice(0, 40) || logo.querySelector('img')?.alt?.slice(0, 40);
+    }
+    // Determine type
+    if (result.hasHamburger && !result.hasVisibleLinks) {
+      result.type = 'hamburger-only';
+    } else if (result.hasHamburger && result.hasVisibleLinks) {
+      result.type = 'standard-with-hamburger';
+    }
+    return result;
   }
 
   // ─── Button style extraction ──────────────────────────────────────────────

@@ -569,6 +569,12 @@ Blend modes: ${(vp.blendModes||[]).join(', ')||'none'}
 Split sections: ${vp.splitLayoutCount||0}
 UI patterns: marquee=${ui.hasMarquee}, logoStrip=${ui.hasLogoStrip}, pricing=${ui.hasPricingGrid}(${ui.pricingColumnCount}col), carousel=${ui.hasTestimonialCarousel}, video=${ui.hasVideoSection}, darkFooter=${ui.hasDarkFooter}, decorativeGeometry=${ui.hasDecorativeGeometry}, iconSystem=${ui.hasIconSystem}(${ui.iconStyle||'none'},${ui.iconSystemCount||0}icons), arrowLinks=${ui.hasArrowLinks}(color:${ui.arrowLinkColor||'unknown'})
 Page structure: ${(ui.pageStructure||[]).join(' → ')}
+Nav pattern: ${extractedData.navPattern ? `type=${extractedData.navPattern.type}, logo="${extractedData.navPattern.logoText||'none'}", hamburger=${extractedData.navPattern.hasHamburger}, visibleLinks=[${(extractedData.navPattern.visibleLinks||[]).join(', ')}]` : 'standard'}
+Rotating text: ${extractedData.rotatingText ? extractedData.rotatingText.map(r => `[${r.element}] cycles: ${r.words.join(' → ')}`).join('; ') : 'none'}
+Illustration style: ${extractedData.illustrationStyle ? `${extractedData.illustrationStyle.type}${extractedData.illustrationStyle.details ? ` (${extractedData.illustrationStyle.details.width||'?'}×${extractedData.illustrationStyle.details.height||'?'}px)` : ''}` : 'none'}
+Curved panels: ${extractedData.curvedPanels ? extractedData.curvedPanels.map(p => `${p.side} edge, ${p.width}px, bg ${p.bg}, hasMenu=${p.hasMenu}`).join('; ') : 'none'}
+Countdown/live text: ${extractedData.countdownElements ? extractedData.countdownElements.map(c => `"${c.text}" (${c.position})`).join('; ') : 'none'}
+Case grid: ${extractedData.caseGridPattern ? `${extractedData.caseGridPattern.entryCount} entries, ${extractedData.caseGridPattern.columns||'?'}col, tags=[${(extractedData.caseGridPattern.entryStructure?.tagLabels||[]).join(', ')}], hoverVideo=${extractedData.caseGridPattern.entryStructure?.hasHoverVideo||false}` : 'none'}
 ${buttonDataStr}${typoDataStr}${spacingDataStr}${iconDataStr}
 
 IMPORTANT — follow these rules exactly:
@@ -583,6 +589,10 @@ IMPORTANT — follow these rules exactly:
 9. ARROW LINKS: If arrowLinks=true — describe "Learn more →" text CTA with ${ui.arrowLinkColor||'accent'} color as distinct secondary action pattern.
 10. BUTTONS: ${bs.primary ? `Primary button has padding ${bs.primary.padding}, radius ${bs.primary.borderRadius}, font ${bs.primary.fontSize}/${bs.primary.fontWeight}. Reference these EXACT values.` : 'No button data extracted — describe button style based on overall design character.'}
 11. SPACING: ${spacing.sectionPaddingY ? `Section padding is ${spacing.sectionPaddingY} vertical. Grid gap is ${spacing.gridGap||'unknown'}.` : 'No spacing data — estimate based on design density.'} Reference exact values.
+12. ROTATING TEXT: If rotating text is detected, describe the word-cycling animation in the hero (fade/slide, ~3s interval) as a key interaction pattern. Mention the fixed label text + the cycling words.
+13. ILLUSTRATIONS: If illustration style is detected (monochrome-line-art, colored-illustration, etc.), describe it accurately as illustration — NOT as photography. Line-art = editorial sketch style, NOT photographs.
+14. NAV PATTERN: If nav type is hamburger-only, describe the hidden nav with hamburger icon — do NOT describe visible nav links like "Work, Services, Contact". If curved panels detected, describe them as a signature design element.
+15. CASE GRID: If a case/portfolio grid is detected, describe the grid layout (columns, thumbnails, hover video, category tags). This is the primary content area — not generic "content sections".
 
 CRITICAL: The measurements above are extracted from the actual DOM. When you reference button padding, typography sizes, section spacing, or icon dimensions — use these EXACT extracted values, not estimates. The vibe coding tool will use your numbers literally.
 
@@ -646,7 +656,11 @@ function analyzeDesignStyle(data) {
 
   const sats=allColors.map(hexSat), avgSat=sats.length?sats.reduce((a,b)=>a+b,0)/sats.length:0;
   const vibrantColors=allColors.filter(h=>hexSat(h)>80);
-  const isVibrant=vibrantColors.length>0, isMonochromatic=avgSat<25;
+  // Monochromatic: if 80%+ of colors have sat < 15, the site is fundamentally monochromatic
+  // even if 1-2 accent colors exist (e.g. a single pink CTA on an otherwise B&W site)
+  const lowSatCount = allColors.filter(h => hexSat(h) < 15).length;
+  const isVibrant=vibrantColors.length>0;
+  const isMonochromatic = avgSat < 25 || (allColors.length > 3 && lowSatCount / allColors.length >= 0.8);
   const warmColors=allColors.filter(h=>{const r=parseInt(h.slice(1,3),16),b=parseInt(h.slice(5,7),16);return r-b>40;});
   const coolColors=allColors.filter(h=>{const r=parseInt(h.slice(1,3),16),b=parseInt(h.slice(5,7),16);return b-r>40;});
   const isCool=coolColors.length>warmColors.length, isWarm=warmColors.length>coolColors.length;
@@ -1153,20 +1167,33 @@ function generateComponentGuidance(data, style) {
   const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
   const lines=[];
 
-  let navBg;
-  if (vpr.navStyle==='transparent-hero') {
-    if (isDark) {
-      navBg = 'transparent on load → `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)` at 80px scroll';
-    } else {
-      navBg = 'transparent on load → `rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)` at 80px scroll';
-    }
+  // ── Navigation — use detected nav pattern when available ──
+  const navP = data.navPattern;
+  if (navP && navP.type === 'hamburger-only') {
+    let navDesc = '**Navigation:** Hidden by default. Hamburger menu icon opens full-screen overlay.';
+    if (navP.logoText) navDesc += ` Logo: "${navP.logoText}" fixed top-left.`;
+    lines.push(navDesc);
+  } else if (vpr.navStyle==='transparent-hero') {
+    lines.push('**Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to '+(isDark?'`rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`':'`rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`')+'. Logo left, CTA right.');
   } else if (vpr.navStyle==='frosted') {
-    navBg = isDark ? '`backdrop-filter:blur(12px)`, dark semi-transparent bg throughout' : '`backdrop-filter:blur(12px)`, light semi-transparent bg throughout';
+    lines.push('**Navigation:** Sticky. `backdrop-filter:blur(12px)`, '+(isDark?'dark':'light')+' semi-transparent bg. Logo left, CTA right.');
   } else {
-    navBg = isDark ? 'dark solid (`'+(pageBg||'#111')+'`), `border-bottom:1px solid rgba(255,255,255,0.08)`' : 'light solid (`'+(pageBg||'#fff')+'`), `border-bottom:1px solid rgba(0,0,0,0.06)` on scroll';
+    lines.push('**Navigation:** Sticky, '+(isDark?'`'+(pageBg||'#111')+'`':'`'+(pageBg||'#fff')+'`')+' bg. `border-bottom:1px solid '+(isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)')+'`. Logo left, CTA right.');
   }
-  lines.push('**Navigation:** Sticky, '+navBg+'. Logo left, CTA right.');
 
+  // ── Curved decorative panel ──
+  if (data.curvedPanels && data.curvedPanels.length > 0) {
+    const cp = data.curvedPanels[0];
+    lines.push(`**Curved panel:** Fixed ${cp.side} edge, \`${cp.width}px\` wide, \`${cp.bg}\` background.${cp.hasMenu ? ' Contains hamburger menu icon.' : ''} Signature decorative element.`);
+  }
+
+  // ── Countdown / live text ──
+  if (data.countdownElements && data.countdownElements.length > 0) {
+    const cd = data.countdownElements[0];
+    lines.push(`**Live text:** "${cd.text}" — positioned ${cd.position}. Playful real-time element.`);
+  }
+
+  // ── Primary Button ──
   // Use extracted button data if available
   const bs = data.buttonStyles || {};
   const hoverStates = data.hoverStates || [];
@@ -1694,28 +1721,75 @@ function buildPagePrompt(data, aiDirection) {
     const scm = data.sectionContentMap || [];
     if (scm.length > 0) {
       lines.push('### Section Content Map');
-      lines.push('Build the page with these exact sections in order:');
+      lines.push('Build the page with these exact sections in order. Each section\'s background, layout, and content are measured from the live site:');
       lines.push('');
+      // Determine entrance animation type for sections
+      const sap = vpr.animationPatterns || {};
+      let entranceAnim = 'Entrance: `opacity: 0→1; transform: translateY(20px)→0; transition: 0.4s ease-out` on scroll into view (IntersectionObserver).';
+      if (sap.hasMaskReveal) entranceAnim = 'Entrance: `clip-path: inset(100% 0 0 0)→inset(0); transition: 0.6s ease-out` on scroll into view.';
+      else if (sap.hasStaggerReveal) entranceAnim = 'Entrance: children stagger in with `opacity: 0→1; translateY(20px)→0`, 80ms delay between each, 400ms ease-out. Trigger on scroll via IntersectionObserver.';
+
       scm.forEach((sec, i) => {
-        let desc = `**Section ${i+1}: ${sec.type}**`;
+        // Override section type with case grid if detected
+        let secType = sec.type;
+        if (data.caseGridPattern && secType === 'content' && sec.heading && /case|work|project|portfolio/i.test(sec.heading)) {
+          secType = 'case-grid';
+        }
+        let desc = `**Section ${i+1}: ${secType}**`;
         if (sec.heading) desc += ` — "${sec.heading}"`;
         lines.push(desc);
         if (sec.bgColor) lines.push(`  Background: ${sec.bgColor}`);
         if (sec.gradient) lines.push(`  Gradient: \`${sec.gradient}\``);
         lines.push(`  Layout: ${sec.layout}`);
+        // Animation binding per section
+        if (i === 0) {
+          lines.push('  Animation: hero loads immediately (no scroll trigger). '+(sap.hasTextReveal||sap.hasHeroAnimation?'Headline words appear sequentially with staggered `animation-delay`, `opacity: 0→1` + `translateY(10px)→0`.':''));
+          // Add rotating text info to hero
+          if (data.rotatingText && data.rotatingText.length > 0) {
+            const rt = data.rotatingText[0];
+            lines.push(`  [rotating-text] H1 cycles through: ${rt.words.map(w=>'"'+w+'"').join(' → ')} with fade animation, ~3s interval.`);
+          }
+          // Add illustration style to hero
+          if (data.illustrationStyle) {
+            const ill = data.illustrationStyle;
+            if (ill.type === 'monochrome-line-art') {
+              lines.push(`  [line-art illustration] Black-on-white hand-drawn illustration (${ill.details?.pathCount || '?'} SVG paths, ${ill.details?.width||'?'}×${ill.details?.height||'?'}px). Editorial, sketch-like character art.`);
+            } else if (ill.type === 'colored-illustration') {
+              lines.push(`  [colored illustration] Multi-color illustrated visual (${ill.details?.width||'?'}×${ill.details?.height||'?'}px).`);
+            } else if (ill.type === 'spritesheet-illustration') {
+              lines.push(`  [spritesheet illustration] Scroll-driven animated illustration. Changes with scroll position.`);
+            } else if (ill.type === 'illustration-image') {
+              lines.push(`  [illustration] Image-based illustration (${ill.details?.src || 'hero visual'}).`);
+            }
+          }
+        } else if (vpr.hasScrollAnimation) {
+          lines.push('  '+entranceAnim);
+        }
         if (sec.ctas) lines.push(`  CTAs: ${sec.ctas.map(c=>'"'+c+'"').join(', ')}`);
         if (sec.arrowLinks) lines.push(`  Arrow links: ${sec.arrowLinks.map(c=>'"'+c+'"').join(', ')}`);
-        if (sec.hasSlider) lines.push('  Has slider/carousel component');
-        if (sec.hasNumberedItems) lines.push('  Has numbered items (01, 02, 03 pattern)');
+        if (sec.hasSlider) lines.push('  Has slider/carousel: CSS scroll-snap, auto-play with pause on hover.');
+        if (sec.hasNumberedItems) lines.push('  Numbered items (01, 02, 03 pattern)');
+        // Case grid details
+        if (secType === 'case-grid' && data.caseGridPattern) {
+          const cg = data.caseGridPattern;
+          lines.push(`  Grid: ${cg.columns||'3'}-column, ${cg.entryCount} entries, gap \`${cg.gap||'24px'}\`.`);
+          if (cg.entryStructure) {
+            let entryDesc = '  Each entry:';
+            if (cg.entryStructure.hasThumbnail) entryDesc += ` thumbnail image (radius \`${cg.entryStructure.thumbnailRadius||'0px'}\`)`;
+            if (cg.entryStructure.hasTitle) entryDesc += ' + project title';
+            if (cg.entryStructure.hasTags) entryDesc += ` + category tags: ${cg.entryStructure.tagLabels.map(t=>'"'+t+'"').join(', ')}`;
+            if (cg.entryStructure.hasHoverVideo) entryDesc += '. Hover: video preview fades in over thumbnail.';
+            lines.push(entryDesc);
+          }
+        }
         if (sec.headingColoredWords && sec.headingColoredWords.length > 0) {
           lines.push(`  Heading accent: ${sec.headingColoredWords.map(w => `"${w.text}" (${w.style})`).join(', ')}`);
         }
         if (sec.decorativeGradients && sec.decorativeGradients.length > 0) {
-          lines.push('  Decorative gradients:');
           sec.decorativeGradients.forEach(d => {
-            let desc = `    - ${d.size} gradient stripe: \`${d.gradient}\``;
-            if (d.transform) desc += `, transform: ${d.transform}`;
-            lines.push(desc);
+            let dsc = `  Gradient stripe: \`${d.gradient}\``;
+            if (d.transform) dsc += `, \`transform: ${d.transform}\``;
+            lines.push(dsc);
           });
         }
         if (sec.visualDescriptions && sec.visualDescriptions.length > 0) {
