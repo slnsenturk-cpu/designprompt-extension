@@ -418,7 +418,17 @@ function setContentMode(m) {
   }
 }
 
-function setFocus(f) { state.focus=f; document.querySelectorAll('[data-focus]').forEach(c=>c.classList.toggle('active',c.dataset.focus===f)); }
+function setFocus(f) {
+  state.focus=f;
+  document.querySelectorAll('[data-focus]').forEach(c=>c.classList.toggle('active',c.dataset.focus===f));
+  // Auto-regenerate prompt with new focus if we have data
+  if (state.lastAnalyzedData) {
+    const prompt = buildPagePrompt(state.lastAnalyzedData, null);
+    state.lastPrompt = prompt;
+    const output = $('promptOutput');
+    if (output) output.textContent = prompt;
+  }
+}
 
 function updateAnalyzeBtn() {
   // Page-only mode
