@@ -189,8 +189,41 @@
     return first;
   }
 
+  // ─── Scroll-reveal trigger — scroll page to activate IntersectionObserver content ─
+  async function triggerScrollReveals() {
+    const savedX = window.scrollX;
+    const savedY = window.scrollY;
+    const viewH = window.innerHeight;
+    const docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+
+    // Skip if page is not scrollable
+    if (docH <= viewH + 50) return;
+
+    // Scroll down in 70% viewport steps — triggers IntersectionObserver callbacks
+    const step = Math.floor(viewH * 0.7);
+    const maxScroll = Math.min(docH, viewH * 15); // Cap at ~12,000px for 2s budget
+
+    for (let y = 0; y < maxScroll; y += step) {
+      window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+      await new Promise(r => setTimeout(r, 16)); // One frame for IO callbacks
+    }
+
+    // Scroll to absolute bottom
+    window.scrollTo({ top: docH, left: 0, behavior: 'instant' });
+    await new Promise(r => setTimeout(r, 300)); // Wait for animations to settle
+
+    // Scroll back to top
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    await new Promise(r => setTimeout(r, 200)); // Wait for top animations
+
+    // Restore original position
+    window.scrollTo({ top: savedY, left: savedX, behavior: 'instant' });
+  }
+
   // ─── Page extraction ───────────────────────────────────────────────────────
-  function extractPageTokens() {
+  async function extractPageTokens() {
+    // Trigger scroll-reveal animations before extracting
+    await triggerScrollReveals();
     const tokens = {
       url: window.location.href,
       title: document.title,
@@ -2917,8 +2950,19 @@
   function detectPageType() {
     const url = window.location.href;
     if (url.includes('dashboard') || url.includes('/app/')) return 'dashboard/app';
-    if (document.querySelector('[class*="hero"],[class*="banner"]')) return 'landing page';
-    if (document.querySelector('article,[class*="post"],[class*="blog"]')) return 'blog/article';
+    // Class-based hero detection
+    if (document.querySelector('[class*="hero"],[class*="banner"],[class*="Hero"],[class*="Banner"]')) return 'landing page';
+    // Structural hero: first section with h1 + CTA = landing page
+    const firstSec = document.querySelector('section:first-of-type, main > div:first-child, main > section:first-child');
+    if (firstSec) {
+      const hasH1 = !!firstSec.querySelector('h1');
+      const hasCTA = !!firstSec.querySelector('a[class*="btn"], a[class*="button"], a[class*="cta"], button[class*="btn"], button[class*="cta"], [role="button"]');
+      if (hasH1 && hasCTA) return 'landing page';
+    }
+    // Stricter blog check: requires article + blog URL or blog-specific class
+    const hasArticle = !!document.querySelector('article');
+    const hasBlogSignal = /\/(blog|post|article|news)\//i.test(url) || !!document.querySelector('[class*="post-content"],[class*="blog-content"],[class*="article-body"]');
+    if (hasArticle && hasBlogSignal) return 'blog/article';
     if (document.querySelector('[class*="pricing"]')) return 'pricing page';
     if (document.querySelector('[class*="login"],[class*="signin"]')) return 'auth page';
     if (url.includes('behance') || url.includes('dribbble')) return 'design portfolio';
@@ -3542,7 +3586,13 @@
 
   // ─── Message listener ──────────────────────────────────────────────────────
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'EXTRACT_PAGE') sendResponse({ success: true, data: extractPageTokens() });
+    if (msg.type === 'EXTRACT_PAGE') {
+      extractPageTokens().then(data => {
+        sendResponse({ success: true, data });
+      }).catch(err => {
+        sendResponse({ success: false, error: err.message || 'Extraction failed' });
+      });
+    }
     if (msg.type === 'ACTIVATE_PICKER') { if (!pickerActive) activatePicker(); sendResponse({ success: true }); }
     if (msg.type === 'DEACTIVATE_PICKER') { deactivatePicker(); sendResponse({ success: true }); }
     if (msg.type === 'ACTIVATE_IMAGE_PICKER') { if (!imagePickerActive) activateImagePicker(); sendResponse({ success: true }); }
