@@ -83,7 +83,7 @@ async function savePrompt(url, prompt, source, platform) {
   const stored = await chrome.storage.local.get(HISTORY_KEY);
   let history = stored[HISTORY_KEY] || {};
 
-  // Upsert: same domain → overwrite (domain başına 1 prompt)
+  // Upsert: same domain → overwrite (1 prompt per domain)
   history[domain] = {
     domain,
     url,
@@ -473,7 +473,7 @@ function showPickerLaunchScreen(mode) {
       <span style="font-size:28px;opacity:0.6">${icon}</span>
       <span style="font-family:var(--font-mono);font-size:13px;color:var(--text);font-weight:500">${label}</span>
       <span style="font-size:11px;color:var(--text-3);text-align:center;line-height:1.6">${sub}</span>
-      <span style="font-size:10px;color:var(--text-3);font-family:var(--font-mono)">ESC ile iptal</span>
+      <span style="font-size:10px;color:var(--text-3);font-family:var(--font-mono)">ESC to cancel</span>
     </div>
   `;
 }

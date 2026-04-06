@@ -1,73 +1,85 @@
-# DesignPrompt — Vibe Inspector
+# VibeDesign
 
-Herhangi bir sitede beğendiğin tasarım detayını otomatik olarak vibe coding promptuna çeviren Chrome Extension.
+A Chrome extension that extracts visual design tokens from any website and generates AI-ready design prompts for vibe coding tools.
 
----
-
-## Kurulum
-
-1. Bu klasörü bir yere kaydet (zip'i aç)
-2. Chrome'da `chrome://extensions` adresine git
-3. Sağ üstten **"Developer mode"** açık değilse aç
-4. **"Load unpacked"** butonuna tıkla
-5. Bu klasörü seç
-6. Extension araç çubuğuna sabitle
+**[Install from Chrome Web Store](https://chromewebstore.google.com/detail/vibedesign/peajencpkpgmidiooahoibfbhbjboobl)**
 
 ---
 
-## Kullanım
+## How to Use
 
-### 1. API Key Ekle
-Extension'ı ilk açtığında API key paneli otomatik açılır.
-- [console.anthropic.com](https://console.anthropic.com) adresinden `sk-ant-...` ile başlayan key'ini al
-- Panele yapıştır, **Kaydet**'e bas
-- Key sadece tarayıcında `chrome.storage.local`'da tutulur, hiçbir yere gönderilmez
+### 1. Analyze a Page
+- Navigate to any website
+- Click the VibeDesign icon in the Chrome toolbar, or open the side panel
+- Select your **target platform** (v0.dev, Bolt, Lovable, Figma Make, or General)
+- Select a **focus** (All, Colors, Typography, Shadow, Motion, Layout, or Components)
+- Click **Analyze Page**
 
-### 2. Tüm Sayfa Analizi
-- Analiz etmek istediğin siteye git
-- Extension'ı aç
-- **"Tüm Sayfa"** sekmesi seçili olsun
-- **Hedef platform** seç (v0.dev, Bolt, Lovable veya Genel)
-- **Odak noktası** seç (Tümü, Renkler, Tipografi...)
-- **"Sayfayı Analiz Et"** butonuna bas
+### 2. Use the Prompt
+- Click **Copy** to copy to clipboard
+- Or use the **v0.dev / Bolt / Lovable** shortcut buttons — they copy and open the platform in a new tab
 
-### 3. Tekil Element Seçimi
-- **"Element Seç"** sekmesine geç
-- **"Element Seç"** butonuna bas — imleç crosshair'e döner
-- Sayfada istediğin elemente hover et (mavi outline görünür)
-- Elementin üstüne tıkla
-- `ESC` ile iptal edebilirsin
-
-### 4. Prompt'u Kullan
-- **"Kopyala"** ile panoya al
-- Ya da **v0.dev / Bolt / Lovable** kısayol butonlarına bas
-  - Bu butonlar hem kopyalar hem de ilgili siteyi yeni sekmede açar
+### 3. Optional: AI-Enhanced Direction
+- Click the ⚙ settings icon
+- Enter your API key (Gemini, Claude, or OpenAI)
+- Keys are stored locally in `chrome.storage.local` and never transmitted to us
+- Works perfectly without an API key — the built-in rule engine covers all design patterns
 
 ---
 
-## Desteklenen Platformlar
+## Supported Platforms
 - **v0.dev** — React + Tailwind + shadcn/ui
 - **Bolt.new** — Full-stack Vite + React
-- **Lovable.dev** — React + Supabase
-- **Genel** — Herhangi bir AI code tool
+- **Lovable** — React + Supabase
+- **Figma Make** — Component-level design
+- **General** — Any AI code tool
 
 ---
 
-## Teknik Notlar
-- Content script sadece butona basıldığında inject edilir
-- Cross-origin iframe içerikleri taranamaz (tarayıcı güvenlik kısıtı)
-- Bazı SPAlar dinamik stil yükler; analiz butonu sayfa tam yüklendikten sonra basılmalı
-- Extension Manifest V3 kullanır
+## What Gets Extracted
+- Colors, CSS variables, gradients
+- Typography: fonts, weights, sizes, line heights
+- Shadows, border radii, shape language
+- Transitions and animations
+- Hover states
+- Section layout and content map
+- Component patterns: buttons, inputs, nav, cards
 
 ---
 
-## Olası Sorunlar
+## Privacy
+- Zero data collection, zero tracking, zero analytics
+- API keys stored locally, never sent to our servers
+- All processing happens in your browser
+- Select "None" as AI provider for zero network requests
 
-**"Sayfa verisi alınamadı" hatası**
-→ Sayfayı yenile ve tekrar dene. Bazı `chrome://` sayfalarında çalışmaz.
+See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 
-**API key hatası**
-→ ⚙ ikonuna bas, key'i kontrol et.
+---
 
-**Boş veya zayıf prompt**
-→ Sayfa CSS custom property kullanmıyor olabilir. "Odak noktası" değiştirerek tekrar dene.
+## Technical Notes
+- Manifest V3 Chrome Extension
+- Content script is injected only when you click Analyze Page
+- Cross-origin iframe content cannot be scanned (browser security constraint)
+- For SPAs with dynamic styles, wait for the page to fully load before analyzing
+- Scroll-reveal sites (Framer, Webflow, AOS) are supported — the extension auto-scrolls to trigger animations before extracting
+
+---
+
+## Troubleshooting
+
+**"Could not retrieve page data"**
+→ Refresh the page and try again. Does not work on `chrome://` pages.
+
+**API key error**
+→ Click ⚙, verify your key and selected provider.
+
+**Empty or weak prompt**
+→ The page may not use CSS custom properties. Try changing the Focus chip.
+
+---
+
+## Links
+- [Chrome Web Store](https://chromewebstore.google.com/detail/vibedesign/peajencpkpgmidiooahoibfbhbjboobl)
+- [Privacy Policy](./PRIVACY.md)
+- [Issues & Feedback](https://github.com/slnsenturk-cpu/designprompt-extension/issues)

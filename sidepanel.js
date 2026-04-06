@@ -83,7 +83,7 @@ async function savePrompt(url, prompt, source, platform) {
   const stored = await chrome.storage.local.get(HISTORY_KEY);
   let history = stored[HISTORY_KEY] || {};
 
-  // Upsert: same domain → overwrite (domain başına 1 prompt)
+  // Upsert: same domain → overwrite (1 prompt per domain)
   history[domain] = {
     domain,
     url,

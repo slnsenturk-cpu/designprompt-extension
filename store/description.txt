@@ -1,0 +1,39 @@
+===== SHORT DESCRIPTION (max 132 chars) =====
+Analyze any website and generate detailed design prompts for AI tools like v0, Lovable, Bolt, and Figma Make. No API key required.
+
+===== DETAILED DESCRIPTION =====
+
+VibeDesign
+
+See a website you love? Extract its exact design DNA and turn it into a prompt that AI coding tools can reproduce faithfully.
+
+WHAT IT DOES
+
+Analyzes any website's visual design: colors, typography, shadows, spacing, animations, components
+Generates narrative design briefs optimized for v0.dev, Bolt, Lovable, and general AI tools
+Captures the design intent, not just CSS values — prompts explain WHY each choice works
+Smart visual context inference: detects hero sections, scroll-reveal content, masonry grids, custom cursors, rotating text, and more
+
+AI-ENHANCED (Optional)
+Connect your own API key (Gemini, Claude, or OpenAI) for AI-powered design direction with 7-paragraph narrative briefs. Works perfectly without AI too — the built-in rule engine covers all design patterns.
+
+DESIGN SYSTEM EXPORT
+Generate a reusable design system reference with derivation rules. Build pricing pages, docs, settings — any sub-page that stays true to the original design language.
+
+PRIVACY-FIRST
+Zero data collection, zero tracking, zero analytics
+API keys stored locally, never transmitted to us
+All processing happens in your browser
+Select "None" as AI provider for zero network requests
+
+HOW TO USE
+1. Navigate to any website
+2. Click the VibeDesign icon or open the side panel
+3. Choose your focus (All, Colors, Type, Shadow, Motion, Layout, Components)
+4. Click "Analyze Page" — your prompt is ready to paste into v0.dev, Bolt, or Lovable
+
+===== CATEGORY =====
+Developer Tools
+
+===== TAGS (up to 5) =====
+design tokens, vibe coding, prompt engineering, UI extraction, design system
