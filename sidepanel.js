@@ -1161,7 +1161,8 @@ function generateRuleBasedDirection(data, style) {
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPONENT GUIDANCE
 // ═══════════════════════════════════════════════════════════════════════════
-function generateComponentGuidance(data, style) {
+function generateComponentGuidance(data, style, specsData) {
+  specsData = specsData || {};
   const{isDark,hasFullRound,hasGlowEffect,hasLayeredShadows,hasColoredShadows,accents,vp,radii,
     pageBg,semanticColors,vibrantColors,isCool} = style;
   const vpr=vp||{}, ui=(vpr.uiPatterns)||{};
@@ -1179,18 +1180,33 @@ function generateComponentGuidance(data, style) {
   const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
   const lines=[];
 
+  // ── Primary Button ──
+  // Use extracted button data if available
+  const bs = data.buttonStyles || {};
+  const hoverStates = data.hoverStates || [];
+  const claimedSelectors = new Set();
+
+  // Pre-match nav link hover state
+  const navLinkHover = hoverStates.find(h =>
+    /nav[_-]?link|navbar[_-]?link|header[_-]?link|nav[_-]?item|menu[_-]?item|nav[_-]?a\b/i.test(h.selector)
+  );
+  if (navLinkHover) claimedSelectors.add(navLinkHover.selector);
+  const navHoverSuffix = navLinkHover
+    ? ' Nav link hover: ' + Object.entries(navLinkHover).filter(([k])=>k!=='selector').map(([k,v])=>'`'+k+': '+v+'`').join(', ') + '.'
+    : '';
+
   // ── Navigation — use detected nav pattern when available ──
   const navP = data.navPattern;
   if (navP && navP.type === 'hamburger-only') {
     let navDesc = '**Navigation:** Hidden by default. Hamburger menu icon opens full-screen overlay.';
     if (navP.logoText) navDesc += ` Logo: "${navP.logoText}" fixed top-left.`;
-    lines.push(navDesc);
+    lines.push(navDesc + navHoverSuffix);
   } else if (vpr.navStyle==='transparent-hero') {
-    lines.push('**Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to '+(isDark?'`rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`':'`rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`')+'. Logo left, CTA right.');
+    lines.push('**Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to '+(isDark?'`rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`':'`rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`')+'. Logo left, CTA right.'+navHoverSuffix);
   } else if (vpr.navStyle==='frosted') {
-    lines.push('**Navigation:** Sticky. `backdrop-filter:blur(12px)`, '+(isDark?'dark':'light')+' semi-transparent bg. Logo left, CTA right.');
+    lines.push('**Navigation:** Sticky. `backdrop-filter:blur(12px)`, '+(isDark?'dark':'light')+' semi-transparent bg. Logo left, CTA right.'+navHoverSuffix);
   } else {
-    lines.push('**Navigation:** Sticky, '+(isDark?'`'+(pageBg||'#111')+'`':'`'+(pageBg||'#fff')+'`')+' bg. `border-bottom:1px solid '+(isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)')+'`. Logo left, CTA right.');
+    lines.push('**Navigation:** Sticky, '+(isDark?'`'+(pageBg||'#111')+'`':'`'+(pageBg||'#fff')+'`')+' bg. `border-bottom:1px solid '+(isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)')+'`. Logo left, CTA right.'+navHoverSuffix);
   }
 
   // ── Curved decorative panel ──
@@ -1205,10 +1221,6 @@ function generateComponentGuidance(data, style) {
     lines.push(`**Live text:** "${cd.text}" — positioned ${cd.position}. Playful real-time element.`);
   }
 
-  // ── Primary Button ──
-  // Use extracted button data if available
-  const bs = data.buttonStyles || {};
-  const hoverStates = data.hoverStates || [];
   let btn;
   if (bs.primary) {
     const p = bs.primary;
@@ -1225,6 +1237,7 @@ function generateComponentGuidance(data, style) {
 
     // Find real hover values from hoverStates
     const primaryHover = hoverStates.find(h => /btn.*(?:primary|cta|red|main|action)/i.test(h.selector) || /(?:primary|cta|red|main).*btn/i.test(h.selector));
+    if (primaryHover) claimedSelectors.add(primaryHover.selector);
     let hoverDesc;
     if (primaryHover) {
       const hoverProps = Object.entries(primaryHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ');
@@ -1263,6 +1276,7 @@ function generateComponentGuidance(data, style) {
     const g = bs.ghost;
     const ghostShape = g.clipPath ? `chamfered via clip-path` : `\`${g.borderRadius||defaultRadius}\` radius`;
     const ghostHover = hoverStates.find(h => /ghost|outline/i.test(h.selector));
+    if (ghostHover) claimedSelectors.add(ghostHover.selector);
     const ghostHoverDesc = ghostHover
       ? Object.entries(ghostHover).filter(([k]) => k !== 'selector').map(([k,v]) => `\`${k}: ${v}\``).join(', ')
       : `bg ${isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.04)'}`;
@@ -1368,12 +1382,89 @@ function generateComponentGuidance(data, style) {
     lines.push(`**Arrow link CTA:** Inline text link with trailing arrow — e.g. "Learn more →". Color: ${color}. No button border/background. Font-weight: 500–600. Arrow character: → or custom SVG arrow that translates +4px on hover (transform: translateX). Transition: 150ms ease. Used for secondary actions within feature sections — distinct from pill CTA buttons.`);
   }
 
+  // ── Global interactive rules (unclaimed hover states + links + blend modes) ──
+  {
+    const unclaimed = hoverStates.filter(h => !claimedSelectors.has(h.selector));
+    const blendModes = vpr.blendModes || [];
+    const globalParts = [];
+    if (specsData.links) {
+      const lk = specsData.links;
+      globalParts.push(`links → \`color: ${lk.color}\`${lk.textDecoration && lk.textDecoration !== 'none' ? `, \`text-decoration: ${lk.textDecoration}\`` : ', no underline'}${lk.textUnderlineOffset ? ', offset `'+lk.textUnderlineOffset+'`' : ''}`);
+    }
+    if (blendModes.length > 0) globalParts.push(`\`mix-blend-mode: ${blendModes.join(', ')}\` on overlaid elements`);
+    unclaimed.slice(0, 4).forEach(h => {
+      const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${v}`).join(', ');
+      globalParts.push(`\`${h.selector}\` → ${props}`);
+    });
+    if (globalParts.length > 0) lines.push(`**Global interactive rules:** ${globalParts.join('; ')}.`);
+  }
+
   return lines;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PROMPT BUILDER
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ── Compressed direction for focused modes ──
+function getCompressedDirection(directionText, focus) {
+  const FOCUS_PRIMARY = {
+    colors:     ['color usage', 'image usage'],
+    typography: ['typography'],
+    shadows:    ['shape & elevation', 'shape, elevation'],
+    motion:     ['animation', 'interaction choreography'],
+    components: ['shape & elevation', 'shape, elevation', 'animation', 'interaction choreography'],
+    layout:     ['section rhythm'],
+  };
+  const primary = FOCUS_PRIMARY[focus] || [];
+  const paragraphs = [];
+  const rawLines = directionText.split('\n');
+  let currentLabel = '', currentLines = [];
+  for (const line of rawLines) {
+    const m = line.match(/^\*\*([^*]+)\*\*/);
+    if (m) {
+      if (currentLines.length) paragraphs.push({ label: currentLabel, text: currentLines.join('\n') });
+      currentLabel = m[1].toLowerCase();
+      currentLines = [line];
+    } else {
+      currentLines.push(line);
+    }
+  }
+  if (currentLines.length) paragraphs.push({ label: currentLabel, text: currentLines.join('\n') });
+
+  return paragraphs.map(p => {
+    const isPrimary = primary.some(r => p.label.includes(r));
+    if (isPrimary) {
+      if (p.label.includes('section rhythm') && focus !== 'layout') {
+        const pLines = p.text.split('\n');
+        const cutIdx = pLines.findIndex(l => l.includes('The page unfolds') || /^\d+\.\s\*\*/.test(l));
+        return cutIdx > 0 ? pLines.slice(0, cutIdx).join('\n').trimEnd() : p.text;
+      }
+      return p.text;
+    } else {
+      const pLines = p.text.split('\n');
+      const firstContent = pLines.slice(1).find(l => l.trim().length > 0);
+      if (!firstContent) return null;
+      const firstSentence = (firstContent.split(/\.\s/)[0] || firstContent).trim().replace(/\.$/, '') + '.';
+      const labelLine = pLines[0].replace(/\*\*([^*]+)\*\*/, '**$1 (context)**');
+      return `${labelLine} ${firstSentence}`;
+    }
+  }).filter(Boolean).join('\n\n');
+}
+
+// ── Copy pattern analyzer for section headings ──
+function analyzeCopyPattern(text) {
+  if (!text || text.length < 3) return '';
+  const wordCount = text.trim().split(/\s+/).length;
+  const isQuestion = text.trim().endsWith('?');
+  const hasVerb = /\b(is|are|was|be|have|has|do|does|will|would|could|should|make|get|build|create|transform|unlock|power|start|join|explore|design|develop|ship|launch|scale|grow|help|let|turn|use|see|become|run|work|give|show|find|stay|move|provide|include|continue|expect|allow|lead|understand|stop|create|buy|serve|send|build|fall|reach|raise|pass|sell|require|report|decide|suggest)\b/i.test(text);
+  const structure = isQuestion ? 'question' : hasVerb ? 'statement' : 'noun phrase';
+  const technicalKW = /\b(api|sdk|architecture|infrastructure|system|platform|framework|protocol|database|runtime|compute|deploy|scale|cloud|server|model|agent|workflow|pipeline|integration|token|vector|embedding|latency|cli|config|schema|query|endpoint|webhook|microservice|container|kubernetes|docker|codebase|function|component|library|multi-agent|agentic)\b/i;
+  const aspirationalKW = /\b(transform|unlock|supercharge|revolutionize|reimagine|elevate|redefine|effortlessly|seamlessly|incredible|game.changing|next.gen|cutting.edge)\b/i;
+  const register = technicalKW.test(text) ? 'technical' : aspirationalKW.test(text) ? 'aspirational' : 'direct';
+  return `${structure} · ${register} · ~${wordCount} words`;
+}
+
 async function buildPromptFromData(data, source) {
   const useAI = state.provider !== 'none' && !!state.apiKeys[state.provider];
   showLoading(useAI ? `Analyzing with ${PROVIDERS[state.provider].name}…` : 'Generating prompt…');
@@ -1405,17 +1496,31 @@ function buildPagePrompt(data, aiDirection) {
   const style=analyzeDesignStyle(data), vpr=data.visualProfile||{}, ui=(vpr.uiPatterns)||{};
   const lines=[];
 
-  lines.push('IMPORTANT: This prompt contains EXACT design specifications extracted from a real website.');
-  lines.push('Use the specific hex colors, px values, font names, and spacing values below.');
-  lines.push('Do NOT substitute with framework defaults (shadcn, Tailwind, etc.).');
-  lines.push('Every visual detail is intentional and must be reproduced faithfully.');
-  lines.push('');
-  lines.push(`Inspired by: ${site}`);
-  lines.push(`Page type: ${data.layoutInfo?.pageType||'web page'}`);
+  if (focus === 'all') {
+    lines.push('IMPORTANT: This prompt contains EXACT design specifications extracted from a real website.');
+    lines.push('Use the specific hex colors, px values, font names, and spacing values below.');
+    lines.push('Do NOT substitute with framework defaults (shadcn, Tailwind, etc.).');
+    lines.push('Every visual detail is intentional and must be reproduced faithfully.');
+    lines.push('');
+    lines.push(`Inspired by: ${site}`);
+    lines.push(`Page type: ${data.layoutInfo?.pageType||'web page'}`);
+  } else {
+    const FOCUS_LABELS = {
+      colors: 'Color System', typography: 'Typography System', shadows: 'Shape & Elevation System',
+      motion: 'Motion System', layout: 'Layout System', components: 'Component System',
+    };
+    const focusLabel = FOCUS_LABELS[focus] || focus;
+    lines.push(`Here is the **${focusLabel}** extracted from ${site}.`);
+    lines.push('Use as specification for your implementation. Values are measured from the live site — do not substitute with framework defaults.');
+    lines.push('');
+    lines.push(`Source: ${site} · Page type: ${data.layoutInfo?.pageType||'web page'}`);
+  }
   lines.push(''); lines.push(getPlatformHeader()); lines.push('');
 
+  // ── Design Direction ──
   lines.push('### Design Direction');
-  lines.push(aiDirection || generateRuleBasedDirection(data, style));
+  const rawDirection = aiDirection || generateRuleBasedDirection(data, style);
+  lines.push(focus === 'all' ? rawDirection : getCompressedDirection(rawDirection, focus));
   lines.push('');
 
   if(focus==='all'||focus==='colors') {
@@ -1697,17 +1802,6 @@ function buildPagePrompt(data, aiDirection) {
       lines.push('');
     }
 
-    // Hover States section
-    if(hoverStates.length > 0) {
-      lines.push('### Hover States');
-      hoverStates.slice(0, 10).forEach(h => {
-        const { selector, ...props } = h;
-        const propStr = Object.entries(props).map(([k,v]) => `${k}: ${v}`).join(', ');
-        lines.push(`- \`${selector}\`: ${propStr}`);
-      });
-      lines.push('');
-    }
-
     // Blend modes
     if(blendModes.length > 0) {
       lines.push(`- Mix-blend-modes used: ${blendModes.join(', ')}`);
@@ -1716,7 +1810,7 @@ function buildPagePrompt(data, aiDirection) {
 
   if(focus==='all'||focus==='components') {
     lines.push('### Component Patterns');
-    generateComponentGuidance(data, style).forEach(c=>lines.push(c));
+    generateComponentGuidance(data, style, specsData).forEach(c=>lines.push(c));
     lines.push('');
   }
 
@@ -1773,7 +1867,10 @@ function buildPagePrompt(data, aiDirection) {
           }
         }
         let desc = `**Section ${i+1}: ${secType}**`;
-        if (sec.heading) desc += ` — "${sec.heading}"`;
+        if (sec.heading) {
+          const tone = analyzeCopyPattern(sec.heading);
+          desc += ` — [SAMPLE COPY] "${sec.heading}"${tone ? ' ['+tone+']' : ''}`;
+        }
         lines.push(desc);
         if (sec.bgColor) lines.push(`  Background: ${sec.bgColor}`);
         if (sec.gradient) lines.push(`  Gradient: \`${sec.gradient}\``);
@@ -1808,7 +1905,10 @@ function buildPagePrompt(data, aiDirection) {
         } else if (vpr.hasScrollAnimation) {
           lines.push('  '+entranceAnim);
         }
-        if (sec.ctas) lines.push(`  CTAs: ${sec.ctas.map(c=>'"'+c+'"').join(', ')}`);
+        if (sec.ctas && sec.ctas.length > 0) {
+          const ctaTone = analyzeCopyPattern(sec.ctas[0]);
+          lines.push(`  CTAs: [SAMPLE COPY] ${sec.ctas.map(c=>'"'+c+'"').join(' · ')}${ctaTone ? ' ['+ctaTone+']' : ''}`);
+        }
         if (sec.arrowLinks) lines.push(`  Arrow links: ${sec.arrowLinks.map(c=>'"'+c+'"').join(', ')}`);
         if (sec.hasSlider) lines.push('  Has slider/carousel: CSS scroll-snap, auto-play with pause on hover.');
         if (sec.hasNumberedItems) lines.push('  Numbered items (01, 02, 03 pattern)');
@@ -2187,7 +2287,7 @@ function buildDesignSystemPrompt(data, style) {
   }
 
   lines.push('## Component Patterns');
-  generateComponentGuidance(data, style).forEach(c => lines.push(c));
+  generateComponentGuidance(data, style, specsData).forEach(c => lines.push(c));
   lines.push('');
 
   lines.push('## Deriving New Components');
