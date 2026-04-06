@@ -170,7 +170,12 @@ async function init() {
     const savedItem = domainEntries.sort((a,b) => b.savedAt - a.savedAt)[0];
     if (savedItem && savedItem.prompt) {
       state.lastPrompt = savedItem.prompt;
-      if (savedItem.focus) state.focus = savedItem.focus;
+      if (savedItem.focus) {
+        state.focus = savedItem.focus;
+        document.querySelectorAll('.chip[data-focus]').forEach(c => {
+          c.classList.toggle('active', c.dataset.focus === savedItem.focus);
+        });
+      }
       showResult(savedItem.prompt, { url: savedItem.url || state.currentUrl }, savedItem.source, savedItem.provider, true);
       $('saveIndicator').style.display = 'none';
     }
