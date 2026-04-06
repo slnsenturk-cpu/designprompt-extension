@@ -78,18 +78,20 @@ const $ = id => document.getElementById(id);
 // ═══════════════════════════════════════════════════════════════════════════
 // HISTORY STORAGE
 // ═══════════════════════════════════════════════════════════════════════════
-async function savePrompt(url, prompt, source, platform) {
+async function savePrompt(url, prompt, source, platform, focus) {
   const domain = safeHostname(url);
+  const key = `${domain}::${focus || 'all'}`;
   const stored = await chrome.storage.local.get(HISTORY_KEY);
   let history = stored[HISTORY_KEY] || {};
 
-  // Upsert: same domain → overwrite (1 prompt per domain)
-  history[domain] = {
+  // Upsert: same domain+focus → overwrite (1 prompt per domain per focus)
+  history[key] = {
     domain,
     url,
     prompt,
     source,       // page | element | image
     platform,
+    focus: focus || 'all',
     provider: state.provider !== 'none' ? state.provider : null,
     savedAt: Date.now(),
   };
@@ -109,10 +111,10 @@ async function loadHistory() {
   return Object.values(history).sort((a,b) => b.savedAt - a.savedAt);
 }
 
-async function deleteHistoryItem(domain) {
+async function deleteHistoryItem(key) {
   const stored = await chrome.storage.local.get(HISTORY_KEY);
   const history = stored[HISTORY_KEY] || {};
-  delete history[domain];
+  delete history[key];
   await chrome.storage.local.set({ [HISTORY_KEY]: history });
 }
 
@@ -124,6 +126,10 @@ async function clearHistory() {
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 async function init() {
+  // Dynamic version badge from manifest
+  const vb = document.getElementById('versionBadge');
+  if (vb) vb.textContent = 'v' + chrome.runtime.getManifest().version;
+
   const stored = await chrome.storage.local.get(['provider','apiKeys','dp_pending','selectedModels']);
   state.provider = stored.provider || 'gemini';
   state.apiKeys = stored.apiKeys || {};
@@ -159,16 +165,20 @@ async function init() {
     const domain = safeHostname(state.currentUrl);
     const historyStored = await chrome.storage.local.get(HISTORY_KEY);
     const history = historyStored[HISTORY_KEY] || {};
-    const savedItem = history[domain];
+    // Find the most recently saved entry for this domain (any focus)
+    const domainEntries = Object.values(history).filter(e => e.domain === domain);
+    const savedItem = domainEntries.sort((a,b) => b.savedAt - a.savedAt)[0];
     if (savedItem && savedItem.prompt) {
       state.lastPrompt = savedItem.prompt;
+      if (savedItem.focus) state.focus = savedItem.focus;
       showResult(savedItem.prompt, { url: savedItem.url || state.currentUrl }, savedItem.source, savedItem.provider, true);
       $('saveIndicator').style.display = 'none';
     }
   }
 
-  // Always show settings panel on open
-  $('settingsPanel').style.display = 'flex';
+  // Show settings panel based on last saved state
+  const { settings_panel_open } = await chrome.storage.local.get('settings_panel_open');
+  $('settingsPanel').style.display = settings_panel_open ? 'flex' : 'none';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -271,7 +281,7 @@ async function renderHistory() {
   }
 
   list.innerHTML = '';
-  items.slice(0, 20).forEach(item => {
+  items.slice(0, MAX_HISTORY).forEach(item => {
     const el = document.createElement('div');
     el.className = 'history-item';
     el.dataset.domain = item.domain;
@@ -282,6 +292,10 @@ async function renderHistory() {
     const providerDot = providerCfg
       ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${providerCfg.color};margin-right:2px"></span>${providerCfg.name}`
       : '';
+    const focusLabel = item.focus && item.focus !== 'all'
+      ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.2)">${item.focus}</span>`
+      : '';
+    const itemKey = `${item.domain}::${item.focus || 'all'}`;
 
     el.innerHTML = `
       <span class="history-item-icon">${sourceIcon}</span>
@@ -289,11 +303,12 @@ async function renderHistory() {
         <div class="history-item-domain">${item.domain}</div>
         <div class="history-item-meta">
           <span>${timeStr}</span>
+          ${focusLabel}
           ${item.platform && item.platform !== 'generic' ? `<span class="platform-badge">${item.platform}</span>` : ''}
           ${providerDot ? `<span style="font-size:9px;color:var(--text-3)">${providerDot}</span>` : ''}
         </div>
       </div>
-      <button class="history-item-delete" data-domain="${item.domain}" title="Sil">✕</button>
+      <button class="history-item-delete" data-key="${itemKey}" title="Delete">✕</button>
     `;
 
     // Click to restore prompt
@@ -305,7 +320,7 @@ async function renderHistory() {
     // Delete button
     el.querySelector('.history-item-delete').addEventListener('click', async e => {
       e.stopPropagation();
-      await deleteHistoryItem(item.domain);
+      await deleteHistoryItem(itemKey);
       el.style.opacity = '0';
       el.style.transform = 'translateX(8px)';
       el.style.transition = 'all 0.2s ease';
@@ -320,6 +335,13 @@ function restorePrompt(item) {
   state.lastPrompt = item.prompt;
   $('historyPanel').style.display = 'none';
   $('saveIndicator').style.display = 'none';
+  // Restore focus chip to match saved analysis
+  if (item.focus) {
+    state.focus = item.focus;
+    document.querySelectorAll('.chip[data-focus]').forEach(c => {
+      c.classList.toggle('active', c.dataset.focus === item.focus);
+    });
+  }
   showResult(item.prompt, { url: item.url || `https://${item.domain}` }, item.source, item.provider, false);
 }
 
@@ -332,7 +354,7 @@ function formatRelativeTime(ts) {
   if (min < 60) return `${min}m ago`;
   if (hour < 24) return `${hour}h ago`;
   if (day < 7) return `${day}d ago`;
-  return new Date(ts).toLocaleDateString('tr-TR', { day:'numeric', month:'short' });
+  return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short' });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -340,11 +362,12 @@ function formatRelativeTime(ts) {
 // ═══════════════════════════════════════════════════════════════════════════
 function setupListeners() {
   // Settings
-  $('settingsToggle').addEventListener('click', () => {
+  $('settingsToggle').addEventListener('click', async () => {
     const p = $('settingsPanel'), h = $('historyPanel');
     const opening = p.style.display === 'none';
     p.style.display = opening ? 'flex' : 'none';
     h.style.display = 'none';
+    await chrome.storage.local.set({ settings_panel_open: opening });
   });
   $('saveApiKey').addEventListener('click', saveApiKey);
   $('apiKeyInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
@@ -360,6 +383,7 @@ function setupListeners() {
     if (opening) await renderHistory();
   });
   $('clearHistoryBtn').addEventListener('click', async () => {
+    if (!confirm('Clear all saved prompts? This cannot be undone.')) return;
     await clearHistory();
     await renderHistory();
   });
@@ -1507,7 +1531,7 @@ async function buildPromptFromData(data, source) {
 
   // Auto-save
   const url = data.url || state.currentUrl;
-  await savePrompt(url, prompt, source, state.platform);
+  await savePrompt(url, prompt, source, state.platform, state.focus);
 
   showResult(prompt, { url }, source, aiDirection ? state.provider : null);
   flashSaveIndicator();
@@ -2792,7 +2816,7 @@ async function buildImagePrompt(data) {
 
     lines.push(getPlatformInstruction(null, site, data));
     const prompt=lines.join('\n'); state.lastPrompt=prompt;
-    await savePrompt(data.url||state.currentUrl, prompt, 'image', platform);
+    await savePrompt(data.url||state.currentUrl, prompt, 'image', platform, state.focus);
     showResult(prompt,{url:data.url},'image',null);
     flashSaveIndicator();
   } catch(err){showError('Could not generate prompt: '+err.message);}
