@@ -881,8 +881,8 @@ function generateRuleBasedDirection(data, style) {
   lines.push('**Typography**');
   
   const MONO_KW = ['mono','code','fira','jetbrains','courier','inconsolata','ibm plex mono','space mono','source code'];
-  const DISPLAY_KW = ['anton','impact','bebas','oswald','barlow condensed','black','ultra','heavy','poster','playfair','merriweather','lora','garamond'];
-  
+  const DISPLAY_KW = ['display','headline','heading','anton','impact','bebas','oswald','barlow condensed','black','ultra','heavy','poster','playfair','merriweather','lora','garamond'];
+
   function classifyFontRole(name) {
     const n = name.toLowerCase();
     if (MONO_KW.some(k=>n.includes(k))) return 'mono';
@@ -890,20 +890,45 @@ function generateRuleBasedDirection(data, style) {
     return 'sans';
   }
 
-  if (uniqueFonts.length >= 2) {
-    const classified = uniqueFonts.slice(0,2).map(f=>({name:f, type:classifyFontRole(f)}));
-    // Display font: non-mono preferred, else first
-    const disp = classified.find(f=>f.type!=='mono') || classified[0];
-    const body = classified.find(f=>f!==disp) || classified[1];
-    const dispType = disp.type;
-    const bodyType = body.type;
+  // Use typographyPatterns as ground truth — avoids font list ordering bugs
+  const tp_dir = data.typographyPatterns || {};
+  const h1FontGT = tp_dir.h1?.fontFamily;
+  const bodyFontGT = tp_dir.body?.fontFamily;
 
-    if (dispType === 'display' && bodyType === 'mono') {
-      lines.push('Two-font system: "'+disp.name+'" (bold geometric display) for hero headlines and major titles at 48–72px; "'+body.name+'" (monospace) for body copy, labels, and code-adjacent content. The pairing signals brand authority and technical credibility simultaneously.');
+  if (h1FontGT && bodyFontGT && h1FontGT !== bodyFontGT) {
+    const h1Size = tp_dir.h1 ? `${tp_dir.h1.fontSize}/${tp_dir.h1.fontWeight}` : '48–72px/700';
+    const bodySize = tp_dir.body ? `${tp_dir.body.fontSize}/${tp_dir.body.fontWeight}` : '16–18px/400';
+    const lh = tp_dir.body?.lineHeight ? `, line-height ${tp_dir.body.lineHeight}` : '';
+    const bodyType = classifyFontRole(bodyFontGT);
+    if (bodyType === 'mono') {
+      lines.push(`Two-font system: "${h1FontGT}" for display headings (${h1Size}); "${bodyFontGT}" (monospace) for body and UI — reinforces developer positioning. Keep roles strict: display font for brand moments, mono for functional copy.`);
     } else if (isSerif) {
-      lines.push('Serif display ("'+disp.name+'") for headings, clean sans ("'+body.name+'") for body. H1: clamp(52px,7vw,88px). The typeface contrast IS the design — never use the sans for headlines.');
-    } else if (bodyType === 'mono') {
-      lines.push('Two-font system: "'+disp.name+'" for display headings; "'+body.name+'" (monospace) for body and UI — reinforces developer positioning. Keep roles strict: display font for brand moments, mono for functional copy.');
+      lines.push(`Serif display ("${h1FontGT}") for headings, clean sans ("${bodyFontGT}") for body. H1: ${h1Size}. The typeface contrast IS the design — never use the sans for headlines.`);
+    } else {
+      lines.push(`Two-font system: "${h1FontGT}" for headings (${h1Size}); "${bodyFontGT}" for body and UI (${bodySize}${lh}). Distinct registers — never blur the roles.`);
+    }
+    // Detect a third typeface used for subheadings (e.g. Geist Mono for H2/H3)
+    const subheadFontGT = tp_dir.h2?.fontFamily || tp_dir.h3?.fontFamily;
+    if (subheadFontGT && subheadFontGT !== h1FontGT && subheadFontGT !== bodyFontGT) {
+      const subType = classifyFontRole(subheadFontGT);
+      if (subType === 'mono') {
+        lines.push(`Third typeface: "${subheadFontGT}" (monospace) for H2–H3 subheadings — technical register at mid-hierarchy. Use strictly for H2–H3, never for hero text or body copy.`);
+      } else {
+        lines.push(`Third typeface: "${subheadFontGT}" for H2–H3 subheadings — distinct register at mid-hierarchy. Do not use for hero text or body copy.`);
+      }
+    }
+  } else if (h1FontGT) {
+    lines.push(`Single typeface: "${h1FontGT}" — hierarchy via weight and size contrast.`);
+  } else if (uniqueFonts.length >= 2) {
+    // Fallback: heuristic classification
+    const classified = uniqueFonts.slice(0,2).map(f=>({name:f, type:classifyFontRole(f)}));
+    const disp = classified.find(f=>f.type==='display') || classified.find(f=>f.type!=='mono') || classified[0];
+    const body = classified.find(f=>f!==disp) || classified[1];
+    const bodyType = body.type;
+    if (bodyType === 'mono') {
+      lines.push('Two-font system: "'+disp.name+'" for display headings; "'+body.name+'" (monospace) for body and UI — reinforces developer positioning. Keep roles strict.');
+    } else if (isSerif) {
+      lines.push('Serif display ("'+disp.name+'") for headings, clean sans ("'+body.name+'") for body. The typeface contrast IS the design — never use the sans for headlines.');
     } else {
       lines.push('Two-font system: "'+disp.name+'" for headings (700–800 weight), "'+body.name+'" for body and UI (400). Distinct weight and style registers — never blur the boundaries.');
     }
@@ -1180,6 +1205,21 @@ function generateComponentGuidance(data, style, specsData) {
   const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
   const lines=[];
 
+  // CSS var resolver — uses data.cssVars, falls back to semantic hint from var name
+  const cssVarsGCG = data.cssVars || {};
+  const resolveVarGCG = v => {
+    if (!v || !String(v).includes('var(')) return v;
+    const m = String(v).match(/var\(\s*(--[^,)]+)/);
+    const varName = m?.[1]?.trim();
+    const resolved = varName && cssVarsGCG[varName];
+    if (resolved) return `${resolved} (${v})`;
+    if (varName) {
+      const hint = varName.replace(/^--[\w]+-[\w]+-?/, '').replace(/-/g, ' ').trim();
+      return `[${hint}]`;
+    }
+    return v;
+  };
+
   // ── Primary Button ──
   // Use extracted button data if available
   const bs = data.buttonStyles || {};
@@ -1188,11 +1228,11 @@ function generateComponentGuidance(data, style, specsData) {
 
   // Pre-match nav link hover state
   const navLinkHover = hoverStates.find(h =>
-    /nav[_-]?link|navbar[_-]?link|header[_-]?link|nav[_-]?item|menu[_-]?item|nav[_-]?a\b/i.test(h.selector)
+    /nav\w*[_-]?link|navbar\w*[_-]?link|header[_-]?link|nav[_-]?item|menu[_-]?item|nav[_-]?a\b/i.test(h.selector)
   );
   if (navLinkHover) claimedSelectors.add(navLinkHover.selector);
   const navHoverSuffix = navLinkHover
-    ? ' Nav link hover: ' + Object.entries(navLinkHover).filter(([k])=>k!=='selector').map(([k,v])=>'`'+k+': '+v+'`').join(', ') + '.'
+    ? ' Nav link hover: ' + Object.entries(navLinkHover).filter(([k])=>k!=='selector').map(([k,v])=>'`'+k+': '+resolveVarGCG(v)+'`').join(', ') + '.'
     : '';
 
   // ── Navigation — use detected nav pattern when available ──
@@ -1392,9 +1432,23 @@ function generateComponentGuidance(data, style, specsData) {
       globalParts.push(`links → \`color: ${lk.color}\`${lk.textDecoration && lk.textDecoration !== 'none' ? `, \`text-decoration: ${lk.textDecoration}\`` : ', no underline'}${lk.textUnderlineOffset ? ', offset `'+lk.textUnderlineOffset+'`' : ''}`);
     }
     if (blendModes.length > 0) globalParts.push(`\`mix-blend-mode: ${blendModes.join(', ')}\` on overlaid elements`);
-    unclaimed.slice(0, 4).forEach(h => {
-      const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${v}`).join(', ');
-      globalParts.push(`\`${h.selector}\` → ${props}`);
+    // Generic single-word component class names that are safe to keep
+    const GENERIC_CLASSES = new Set(['nav','btn','button','cta','link','card','tag','badge','chip','input','select','a','p','label']);
+    unclaimed.slice(0, 6).forEach(h => {
+      const sel = h.selector;
+      // Skip framework/utility patterns
+      if (/^\.w-|text-style-|text-weight-|text-color-|^\.framer-|^\.swiper-|^\.aos-|lightbox|modal|overlay|backdrop/i.test(sel)) return;
+      if (/^[.#]/.test(sel)) {
+        // Class/ID: only keep if it's a single generic component word — drop all site-specific names
+        const bare = sel.replace(/^[.#]/, '').replace(/:.*$/, '').replace(/[_-]/g, '').toLowerCase();
+        if (!GENERIC_CLASSES.has(bare)) return;
+        const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${resolveVarGCG(v)}`).join(', ');
+        globalParts.push(`${bare} hover: ${props}`);
+      } else {
+        // Element selector — always keep, resolve vars
+        const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${resolveVarGCG(v)}`).join(', ');
+        globalParts.push(`\`${sel}\` → ${props}`);
+      }
     });
     if (globalParts.length > 0) lines.push(`**Global interactive rules:** ${globalParts.join('; ')}.`);
   }
@@ -1409,7 +1463,7 @@ function generateComponentGuidance(data, style, specsData) {
 // ── Compressed direction for focused modes ──
 function getCompressedDirection(directionText, focus) {
   const FOCUS_PRIMARY = {
-    colors:     ['color usage', 'image usage'],
+    colors:     ['color usage'],
     typography: ['typography'],
     shadows:    ['shape & elevation', 'shape, elevation'],
     motion:     ['animation', 'interaction choreography'],
@@ -1494,6 +1548,7 @@ function buildPagePrompt(data, aiDirection) {
   const focus=state.focus, platform=state.platform;
   const colors=data.colors||[], accents=data.accentColors||[];
   const style=analyzeDesignStyle(data), vpr=data.visualProfile||{}, ui=(vpr.uiPatterns)||{};
+  const specsData = getDesignSpecsData(data, style);
   const lines=[];
 
   if (focus === 'all') {
@@ -1604,6 +1659,66 @@ function buildPagePrompt(data, aiDirection) {
       if (namedVars.length > 0) lines.push('Computed:');
       computedLines.forEach(l => lines.push(l));
     }
+
+    // For colors focus: add semantic role descriptions + Context section
+    if (focus === 'colors') {
+      // Semantic role table — which color does what, what NOT to swap
+      const roleLines = [];
+      if (primaryColor) {
+        roleLines.push(`- \`${primaryColor}\` — **primary action**: CTAs, primary buttons, focus rings, active states. The color that says "act here." Use only at decision points.`);
+      }
+      // Named accents from CSS vars — infer role from var key name
+      const accentVars = Object.entries(vars).filter(([k, v]) =>
+        /^#[0-9a-f]{3,8}$/i.test(v.trim()) &&
+        !k.startsWith('--tw-') && !k.startsWith('--framer-') && !k.startsWith('--wf-') &&
+        v.toLowerCase() !== primaryColor?.toLowerCase() &&
+        hexSat(v.trim()) > 30
+      ).slice(0, 4);
+      accentVars.forEach(([k, v]) => {
+        const key = k.toLowerCase();
+        let role = '';
+        if (/orange|alert|error|danger|warn/i.test(key)) role = '**alert / highlight accent**: status indicators, warnings, error states. Never swap with primary action.';
+        else if (/blue|link|info/i.test(key)) role = '**link / secondary CTA accent**: hyperlinks, secondary actions, informational callouts.';
+        else if (/green|success|confirm|positive/i.test(key)) role = '**success / status indicator**: confirmations, positive states, badges.';
+        else if (/purple|violet|brand/i.test(key)) role = '**brand accent**: decorative emphasis, specific brand moments.';
+        else if (/gray|grey|neutral/i.test(key)) role = '**neutral surface**: backgrounds, borders, disabled states.';
+        if (role && v.toLowerCase() !== primaryColor?.toLowerCase()) {
+          roleLines.push(`- \`${v.trim()}\` (${k}) — ${role}`);
+        }
+      });
+      if (roleLines.length > 0) {
+        lines.push('**Semantic roles:**');
+        roleLines.forEach(r => lines.push(r));
+        lines.push('');
+      }
+
+      // Context section
+      const ctxC = [];
+      const tp_c = data.typographyPatterns || {};
+      const typoParts_c = [];
+      if (tp_c.h1?.fontFamily) typoParts_c.push(`"${tp_c.h1.fontFamily}" headings`);
+      if (tp_c.body?.fontFamily && tp_c.body.fontFamily !== tp_c.h1?.fontFamily) typoParts_c.push(`"${tp_c.body.fontFamily}" body`);
+      if (tp_c.body?.fontSize) typoParts_c.push(`${tp_c.body.fontSize}/${tp_c.body.fontWeight || '400'}`);
+      if (typoParts_c.length > 0) ctxC.push('**Typography:** ' + typoParts_c.join(', '));
+      const sp_c = vpr.spacingSystem || {};
+      const layoutParts_c = [];
+      if (sp_c.containerMaxWidth && sp_c.containerMaxWidth !== 'none') layoutParts_c.push(`\`${sp_c.containerMaxWidth}\` max-width`);
+      if (sp_c.sectionPaddingY) layoutParts_c.push(`\`${sp_c.sectionPaddingY}\` section padding`);
+      if (layoutParts_c.length > 0) ctxC.push('**Layout:** ' + layoutParts_c.join(', '));
+      const interactiveRadii_c = (data.borderRadii || []).filter(r => r && r !== '0px' && !r.includes('50%'));
+      const r8_c = interactiveRadii_c.find(r => parseInt(r) >= 4 && parseInt(r) <= 24);
+      const rPill_c = interactiveRadii_c.find(r => parseInt(r) > 100);
+      const shapeParts_c = [];
+      if (r8_c) shapeParts_c.push(`\`${r8_c}\` component radius`);
+      if (rPill_c) shapeParts_c.push(`\`${rPill_c}\` pill badges`);
+      if (shapeParts_c.length > 0) ctxC.push('**Shape:** ' + shapeParts_c.join(', '));
+      if (ctxC.length > 0) {
+        lines.push('### Context — Do not change');
+        ctxC.forEach(p => lines.push('- ' + p));
+        lines.push('');
+      }
+    }
+
     lines.push('');
   }
 
@@ -1627,7 +1742,16 @@ function buildPagePrompt(data, aiDirection) {
         if (h1Font && bodyFont && h1Font !== bodyFont) {
           lines.push(`- Display/heading: "${h1Font}"`);
           lines.push(`- Body/UI: "${bodyFont}"`);
-          if (labelFont && labelFont !== h1Font && labelFont !== bodyFont) {
+          // Detect distinct subheading font (e.g. Geist Mono for H2/H3)
+          const h2Font = tp.h2?.fontFamily;
+          const h3Font = tp.h3?.fontFamily;
+          const subheadFont = (h2Font && h2Font !== h1Font && h2Font !== bodyFont) ? h2Font :
+                              (h3Font && h3Font !== h1Font && h3Font !== bodyFont) ? h3Font : null;
+          if (subheadFont) {
+            const sfIsMono = ['mono','code','fira','jetbrains','courier','inconsolata'].some(k=>subheadFont.toLowerCase().includes(k));
+            lines.push(`- Subheading (H2–H3): "${subheadFont}"${sfIsMono ? ' (monospace)' : ''}`);
+          }
+          if (labelFont && labelFont !== h1Font && labelFont !== bodyFont && labelFont !== subheadFont) {
             lines.push(`- Labels/mono: "${labelFont}"`);
           }
         } else if (h1Font) {
@@ -1655,6 +1779,59 @@ function buildPagePrompt(data, aiDirection) {
       const sizeVars=Object.entries(vars).filter(([k,v])=>/size|step|scale/.test(k)&&/\d+(px|rem)/.test(v)
         &&!k.startsWith('--tw-')&&!k.startsWith('--swiper-')&&!k.startsWith('--toastify-')&&!k.includes('icon'));
       if(sizeVars.length>0){lines.push('Size scale:');sizeVars.slice(0,6).forEach(([k,v])=>lines.push(`  - \`${k}\`: ${v}`));}
+
+      // For typography focus: add full type scale with measurements
+      if (focus === 'typography') {
+        const tp = data.typographyPatterns || {};
+        const hasScale = tp.h1 || tp.h2 || tp.body;
+        if (hasScale) {
+          lines.push('');
+          lines.push('### Type Scale');
+          for (const [key, label] of [['h1','H1'],['h2','H2'],['h3','H3'],['body','Body'],['label','Label']]) {
+            const t = tp[key];
+            if (!t) continue;
+            let spec = `- **${label}:** \`${t.fontSize}/${t.lineHeight||'1.2'}/${t.fontWeight||'400'}\``;
+            if (t.letterSpacing) spec += `, tracking \`${t.letterSpacing}\``;
+            if (t.textTransform) spec += `, \`${t.textTransform}\``;
+            if (t.fontFamily) spec += `, font "${t.fontFamily}"`;
+            lines.push(spec);
+          }
+          const fontW = data.fontWeights || [];
+          if (fontW.length > 0) lines.push(`- Weights used: ${fontW.join(', ')}`);
+        }
+
+        // Context section for typography focus
+        {
+          const ctxParts = [];
+          const sc2 = style.semanticColors || {};
+          const bgHex2 = style.pageBg || data.pageBackground;
+          const primaryHex2 = sc2.primary || style.vibrantColors?.[0];
+          const colorParts2 = [];
+          if (bgHex2) colorParts2.push(`\`${bgHex2}\` base`);
+          if (primaryHex2) colorParts2.push(`\`${primaryHex2}\` primary action`);
+          const accentHex2 = style.accents?.find(c => c !== primaryHex2 && hexSat(c) > 50);
+          if (accentHex2) colorParts2.push(`\`${accentHex2}\` accent`);
+          if (colorParts2.length > 0) ctxParts.push('**Colors:** ' + colorParts2.join(', '));
+          const sp2 = vpr.spacingSystem || {};
+          const layoutParts2 = [];
+          if (sp2.containerMaxWidth && sp2.containerMaxWidth !== 'none') layoutParts2.push(`\`${sp2.containerMaxWidth}\` max-width`);
+          if (sp2.sectionPaddingY) layoutParts2.push(`\`${sp2.sectionPaddingY}\` section padding`);
+          if (layoutParts2.length > 0) ctxParts.push('**Layout:** ' + layoutParts2.join(', '));
+          const interactiveRadii2 = (data.borderRadii || []).filter(r => r && r !== '0px' && !r.includes('50%'));
+          const r8 = interactiveRadii2.find(r => parseInt(r) >= 4 && parseInt(r) <= 24);
+          const rPill = interactiveRadii2.find(r => parseInt(r) > 100);
+          const shapeParts2 = [];
+          if (r8) shapeParts2.push(`\`${r8}\` component radius`);
+          if (rPill) shapeParts2.push(`\`${rPill}\` pill`);
+          if (shapeParts2.length > 0) ctxParts.push('**Shape:** ' + shapeParts2.join(', '));
+          if (ctxParts.length > 0) {
+            lines.push('');
+            lines.push('### Context — Do not change');
+            ctxParts.forEach(p => lines.push('- ' + p));
+          }
+        }
+      }
+
       lines.push('');
     }
   }
@@ -1717,7 +1894,7 @@ function buildPagePrompt(data, aiDirection) {
     }
   }
 
-  if(focus==='all'||focus==='components') {
+  if(focus==='all'||focus==='components'||focus==='shadows') {
     const LIBRARY_PREFIXES = ['--tw-','--swiper-','--toastify-','--toast-','--sonner-','--tippy-','--mdb-','--bs-'];
     const radiiVars=Object.entries(vars).filter(([k])=>
       /radius|rounded/.test(k) && !LIBRARY_PREFIXES.some(p=>k.startsWith(p))
@@ -1735,15 +1912,25 @@ function buildPagePrompt(data, aiDirection) {
       } else {
         // Sort and dedupe, add semantic labels
         const sorted=[...new Set(radii)].sort((a,b)=>parseInt(a)-parseInt(b));
+        const btnR = data.buttonStyles?.primary?.borderRadius;
         sorted.slice(0,6).forEach(r=>{
-          // Label common values
           const v = parseInt(r);
+          const isComplex = /\s/.test(r.trim()); // multi-value shorthand like "8px 8px 0px 0px"
           let label = '';
-          if (r === '9999px' || r === '50%') label = ' (pill / circle)';
-          else if (v >= 16) label = ' (card, large container)';
-          else if (v >= 8) label = ' (component, medium)';
-          else if (v >= 4) label = ' (input, small element)';
-          lines.push(`- ${r}${label}`);
+          if (isComplex) {
+            label = ' (partial — top-attached panel or directional corner)';
+          } else if (r === '9999px' || r === '50%' || v >= 100) {
+            label = ' (pill / large-radius)';
+          } else if (btnR && r === btnR) {
+            label = ' (primary button)';
+          } else if (v >= 12) {
+            label = ' (card / container)';
+          } else if (v >= 8) {
+            label = ' (component)';
+          } else if (v >= 4) {
+            label = ' (input / small)';
+          }
+          lines.push(`- \`${r}\`${label}`);
         });
         // Always add 9999px if pill shapes detected but not in list
         if (hasPill && !sorted.some(r=>r==='9999px'||parseInt(r)>100)) {
@@ -1751,6 +1938,33 @@ function buildPagePrompt(data, aiDirection) {
         }
       }
       lines.push('');
+    }
+
+    // Context section for shadows focus
+    if (focus === 'shadows') {
+      const ctxSh = [];
+      const sc_sh = style.semanticColors || {};
+      const primaryHex_sh = sc_sh.primary || style.vibrantColors?.[0];
+      const bgHex_sh = style.pageBg || data.pageBackground;
+      const colorParts_sh = [];
+      if (bgHex_sh) colorParts_sh.push(`\`${bgHex_sh}\` base`);
+      if (primaryHex_sh) colorParts_sh.push(`\`${primaryHex_sh}\` primary action`);
+      if (colorParts_sh.length > 0) ctxSh.push('**Colors:** ' + colorParts_sh.join(', '));
+      const tp_sh = data.typographyPatterns || {};
+      const typoParts_sh = [];
+      if (tp_sh.h1?.fontFamily) typoParts_sh.push(`"${tp_sh.h1.fontFamily}" headings`);
+      if (tp_sh.body?.fontFamily && tp_sh.body.fontFamily !== tp_sh.h1?.fontFamily) typoParts_sh.push(`"${tp_sh.body.fontFamily}" body`);
+      if (typoParts_sh.length > 0) ctxSh.push('**Typography:** ' + typoParts_sh.join(', '));
+      const sp_sh = vpr.spacingSystem || {};
+      const layoutParts_sh = [];
+      if (sp_sh.containerMaxWidth && sp_sh.containerMaxWidth !== 'none') layoutParts_sh.push(`\`${sp_sh.containerMaxWidth}\` max-width`);
+      if (sp_sh.sectionPaddingY) layoutParts_sh.push(`\`${sp_sh.sectionPaddingY}\` section padding`);
+      if (layoutParts_sh.length > 0) ctxSh.push('**Layout:** ' + layoutParts_sh.join(', '));
+      if (ctxSh.length > 0) {
+        lines.push('### Context — Do not change');
+        ctxSh.forEach(p => lines.push('- ' + p));
+        lines.push('');
+      }
     }
   }
 
@@ -1779,27 +1993,208 @@ function buildPagePrompt(data, aiDirection) {
     const animationDetails = data.animationDetails || [];
     const blendModes = vpr.blendModes || [];
     if(motionVars.length>0||transitions.length>0||animations.length>0||hoverStates.length>0) {
-      lines.push('### Motion Tokens');
-      if(motionVars.length>0) motionVars.slice(0,4).forEach(([k,v])=>lines.push(`- \`${k}\`: ${v}`));
-      if(transitions.length>0) transitions.slice(0,3).forEach(t=>lines.push(`- transition: \`${t}\``));
-      // Keyframes with from→to content
-      if(animations.length>0) {
-        animations.slice(0,6).forEach(a => {
-          if (typeof a === 'object' && a.name) {
-            let kfLine = `- Keyframe \`${a.name}\``;
-            if (a.from) kfLine += `: from \`${a.from}\``;
-            if (a.to) kfLine += ` → to \`${a.to}\``;
-            lines.push(kfLine);
-          } else {
-            lines.push(`- Keyframe: ${a}`);
+      if (focus === 'motion') {
+        // ── Rich motion output for focused mode ──
+        lines.push('### Motion System');
+        lines.push('');
+
+        // Helper: resolve CSS var to hex, or derive semantic hint from var name
+        const resolveVar = v => {
+          if (!v || !String(v).includes('var(')) return v;
+          const m = String(v).match(/var\(\s*(--[^,)]+)/);
+          const varName = m?.[1]?.trim();
+          const resolved = varName && vars[varName];
+          if (resolved) return `${resolved} (${v})`;
+          if (varName) {
+            const hint = varName.replace(/^--[\w]+-[\w]+-?/, '').replace(/-/g, ' ').trim();
+            return `[${hint}]`;
+          }
+          return v;
+        };
+
+        // Helper: find timing for a CSS property from the extracted transitions list
+        const timingForProp = prop => {
+          const cssKey = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
+          const match = transitions.find(t => t.startsWith(cssKey) || t.startsWith('all'));
+          if (!match) return null;
+          const dur = match.match(/(\d+(?:\.\d+)?(?:ms|s))/)?.[1];
+          const ease = match.match(/(ease-out|ease-in-out|ease-in|ease|linear)/)?.[1];
+          return [dur, ease].filter(Boolean).join(' ') || null;
+        };
+
+        // 1. Interaction patterns — hover states grouped by component type, vars resolved + timing embedded
+        const COMP_MOTION = [
+          { name: 'Button / CTA',   regex: /btn|button|cta|submit/i },
+          { name: 'Nav link',       regex: /nav\w*[_-]?link|navbar\w*[_-]?link|header[_-]?link|menu[_-]?item/i },
+          { name: 'Card / item',    regex: /card|item|tile|entry/i },
+          { name: 'Arrow / icon',   regex: /arrow|chevron|icon(?!-size)/i },
+          { name: 'Link / text',    regex: /^a[^-]|\.link\b|title.*hover|blog.*hover/i },
+          { name: 'Input',          regex: /input|field|form/i },
+        ];
+        const SKIP_M = [/^\.w-/i, /text-style-/i, /text-weight-/i, /lightbox/i, /modal/i];
+        const seenComp = new Set();
+        const compInteractions = [];
+        hoverStates.forEach(h => {
+          if (SKIP_M.some(p => p.test(h.selector))) return;
+          let match = COMP_MOTION.find(p => p.regex.test(h.selector));
+          if (match) {
+            let compName = match.name;
+            if (match.name === 'Button / CTA') {
+              // Detect secondary/ghost by selector keyword
+              const isSecondaryBySelector = /secondary|ghost|outline|disabled/i.test(h.selector);
+              if (!isSecondaryBySelector) {
+                // Detect by color contrast: if hover bg is very light AND primary button bg is dark
+                const hoverBg = h['background-color'] || h['backgroundColor'] || '';
+                const bgMatch = hoverBg.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+                const primaryBg = (data.buttonStyles?.primary?.background || '').replace(/\s/g, '');
+                const primaryIsDark = /^#[0-9a-f]{6}$/i.test(primaryBg) &&
+                  parseInt(primaryBg.slice(1, 3), 16) < 120;
+                if (bgMatch && primaryIsDark) {
+                  const [, r, g, b] = bgMatch;
+                  if (+r > 180 && +g > 180 && +b > 180) compName = 'Button (secondary/ghost)';
+                }
+              } else {
+                compName = 'Button (secondary/ghost)';
+              }
+            }
+            if (!seenComp.has(compName)) {
+              seenComp.add(compName);
+              compInteractions.push({ label: compName, h });
+            }
           }
         });
+        if (compInteractions.length > 0) {
+          lines.push('**Interaction patterns:**');
+          compInteractions.forEach(({ label, h }) => {
+            const parts = Object.entries(h).filter(([k]) => k !== 'selector').map(([k, v]) => {
+              // Skip multi-color border shorthand artifacts (e.g. "orange rgb(0,0,0) rgb(0,0,0) orange")
+              if ((k === 'border' || k === 'border-color' || k === 'borderColor') &&
+                  (String(v).match(/(?:rgb\(|rgba\(|#[0-9a-f]{3,6}|\b(?:orange|red|blue|green|black|white|transparent)\b)/gi) || []).length >= 3) {
+                return null;
+              }
+              const resolved = resolveVar(v);
+              // Skip unresolvable vars — only a semantic hint, no actionable color signal
+              if (/^\[.+\]$/.test(String(resolved))) return null;
+              const timing = timingForProp(k);
+              const timingSuffix = timing ? `, ${timing}` : '';
+              if (k === 'background-color' || k === 'backgroundColor') return `bg → \`${resolved}\`${timingSuffix}`;
+              if (k === 'color') return `text → \`${resolved}\`${timingSuffix}`;
+              if (k === 'opacity') return `opacity → \`${resolved}\`${timingSuffix}`;
+              if (k === 'transform') return `transform: \`${resolved}\`${timingSuffix}`;
+              if (k === 'border-color' || k === 'borderColor') return `border → \`${resolved}\`${timingSuffix}`;
+              if (k === 'box-shadow' || k === 'boxShadow') return `shadow → \`${resolved}\`${timingSuffix}`;
+              return `${k}: \`${resolved}\`${timingSuffix}`;
+            }).filter(Boolean);
+            if (parts.length > 0) lines.push(`- **${label}:** ${parts.join(', ')}`);
+          });
+          lines.push('');
+        }
+
+        // 2. Scroll-triggered animations
+        const sap2 = vpr.animationPatterns || {};
+        if (sap2.hasMaskReveal || sap2.hasStaggerReveal || sap2.hasTextReveal || vpr.hasScrollAnimation) {
+          lines.push('**Scroll-triggered animations:**');
+          if (sap2.hasMaskReveal) lines.push('- Mask reveal: `clip-path: inset(100%→0%)`, 0.6s ease-out on scroll entry');
+          else if (sap2.hasStaggerReveal) lines.push('- Stagger reveal: children `opacity 0→1, translateY(20px→0)`, 80ms delay between siblings, 0.4s ease-out — trigger with IntersectionObserver');
+          else if (vpr.hasScrollAnimation) lines.push('- Scroll reveal: `opacity 0→1, translateY(20px→0)`, 0.5s ease-out on scroll entry — trigger with IntersectionObserver');
+          lines.push('');
+        }
+
+        // 3. Keyframe animations with semantic intent
+        if (animations.length > 0) {
+          lines.push('**Keyframe animations:**');
+          animations.slice(0, 4).forEach(a => {
+            if (typeof a !== 'object' || !a.name) { lines.push(`- \`${a}\``); return; }
+            let desc = `- \`${a.name}\``;
+            if (a.from && a.to) desc += `: \`${a.from}\` → \`${a.to}\``;
+            if (/spin|rotat/i.test(a.name)) desc += ' — continuous rotation (loading / decorative spinner)';
+            else if (/fade|opacity/i.test(a.name)) desc += ' — fade in/out';
+            else if (/slide|translat/i.test(a.name)) desc += ' — slide movement';
+            else if (/pulse|breath/i.test(a.name)) desc += ' — pulsing rhythm';
+            else if (/marquee|ticker/i.test(a.name)) desc += ' — infinite scroll ticker';
+            else if (/bounce/i.test(a.name)) desc += ' — bounce / spring motion';
+            lines.push(desc);
+          });
+          lines.push('');
+        }
+
+        // 4. CSS variable-defined motion tokens (only if any)
+        if (motionVars.length > 0) {
+          lines.push('**Motion tokens (CSS variables):**');
+          motionVars.slice(0, 4).forEach(([k, v]) => lines.push(`- \`${k}\`: ${v}`));
+          lines.push('');
+        }
+
+        // 5. Context — cross-system reference so LLM doesn't fall back to defaults
+        {
+          const ctxParts = [];
+          // Colors: page bg + primary action + top accent
+          const sc = style.semanticColors || {};
+          const bgHex = style.pageBg || data.pageBackground;
+          const primaryHex = sc.primary || style.vibrantColors?.[0];
+          const accentHex = style.accents?.find(c => c !== primaryHex && hexSat(c) > 50);
+          const colorParts = [];
+          if (bgHex) colorParts.push(`\`${bgHex}\` base`);
+          if (primaryHex) colorParts.push(`\`${primaryHex}\` primary action`);
+          if (accentHex) colorParts.push(`\`${accentHex}\` accent`);
+          if (colorParts.length > 0) ctxParts.push('**Colors:** ' + colorParts.join(', '));
+          // Typography: head font + body font + key body size
+          const tp = data.typographyPatterns || {};
+          const typoParts = [];
+          if (tp.h1?.fontFamily) typoParts.push(`"${tp.h1.fontFamily}" headings`);
+          if (tp.body?.fontFamily && tp.body.fontFamily !== tp.h1?.fontFamily) typoParts.push(`"${tp.body.fontFamily}" body`);
+          if (tp.body?.fontSize) typoParts.push(`body ${tp.body.fontSize}/${tp.body.fontWeight || '400'}`);
+          if (typoParts.length > 0) ctxParts.push('**Typography:** ' + typoParts.join(', '));
+          // Layout: max-width + section padding
+          const sp = vpr.spacingSystem || {};
+          const layoutParts = [];
+          if (sp.containerMaxWidth && sp.containerMaxWidth !== 'none') layoutParts.push(`\`${sp.containerMaxWidth}\` max-width`);
+          if (sp.sectionPaddingY) layoutParts.push(`\`${sp.sectionPaddingY}\` section padding`);
+          if (layoutParts.length > 0) ctxParts.push('**Layout:** ' + layoutParts.join(', '));
+          if (ctxParts.length > 0) {
+            lines.push('### Context — Do not change');
+            ctxParts.forEach(p => lines.push('- ' + p));
+            lines.push('');
+          }
+        }
+
+      } else {
+        // 'all' mode — token list with element context hints
+        lines.push('### Motion Tokens');
+        if(motionVars.length>0) motionVars.slice(0,4).forEach(([k,v])=>lines.push(`- \`${k}\`: ${v}`));
+        if(transitions.length>0) {
+          const PROP_CTX = {
+            'background-color':'hover/active bg', 'background':'hover/active bg',
+            'color':'text color hover', 'opacity':'fade entrance / hover',
+            'transform':'movement, scale, rotate', 'height':'accordion / expand-collapse',
+            'max-height':'accordion / expand-collapse', 'width':'expand / resize',
+            'border-color':'border emphasis on hover', 'box-shadow':'elevation on hover',
+            'filter':'color or blur filter', 'padding':'layout shift',
+          };
+          transitions.slice(0,3).forEach(t=>{
+            const prop = t.split(/\s+/)[0];
+            const ctx = PROP_CTX[prop] ? ` — ${PROP_CTX[prop]}` : '';
+            lines.push(`- transition: \`${t}\`${ctx}`);
+          });
+        }
+        if(animations.length>0) {
+          animations.slice(0,6).forEach(a => {
+            if (typeof a === 'object' && a.name) {
+              let kfLine = `- Keyframe \`${a.name}\``;
+              if (a.from) kfLine += `: from \`${a.from}\``;
+              if (a.to) kfLine += ` → to \`${a.to}\``;
+              lines.push(kfLine);
+            } else {
+              lines.push(`- Keyframe: ${a}`);
+            }
+          });
+        }
+        if(animationDetails.length>0) {
+          lines.push('- Active animations:');
+          animationDetails.slice(0,4).forEach(a => lines.push(`  - \`${a}\``));
+        }
+        lines.push('');
       }
-      if(animationDetails.length>0) {
-        lines.push('- Active animations:');
-        animationDetails.slice(0,4).forEach(a => lines.push(`  - \`${a}\``));
-      }
-      lines.push('');
     }
 
     // Blend modes

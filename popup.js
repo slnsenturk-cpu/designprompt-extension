@@ -1067,7 +1067,7 @@ function generateRuleBasedDirection(data, style) {
   lines.push('**Typography**');
 
   const MONO_KW = ['mono','code','fira','jetbrains','courier','inconsolata','ibm plex mono','space mono','source code'];
-  const DISPLAY_KW = ['anton','impact','bebas','oswald','barlow condensed','black','ultra','heavy','poster','playfair','merriweather','lora','garamond'];
+  const DISPLAY_KW = ['display','headline','heading','anton','impact','bebas','oswald','barlow condensed','black','ultra','heavy','poster','playfair','merriweather','lora','garamond'];
 
   function classifyFontRole(name) {
     const n = name.toLowerCase();
@@ -1076,19 +1076,44 @@ function generateRuleBasedDirection(data, style) {
     return 'sans';
   }
 
-  if (uniqueFonts.length >= 2) {
-    const classified = uniqueFonts.slice(0,2).map(f=>({name:f, type:classifyFontRole(f)}));
-    const disp = classified.find(f=>f.type!=='mono') || classified[0];
-    const body = classified.find(f=>f!==disp) || classified[1];
-    const dispType = disp.type;
-    const bodyType = body.type;
+  // Use typographyPatterns as ground truth — avoids font list ordering bugs
+  const tp_dir = data.typographyPatterns || {};
+  const h1FontGT = tp_dir.h1?.fontFamily;
+  const bodyFontGT = tp_dir.body?.fontFamily;
 
-    if (dispType === 'display' && bodyType === 'mono') {
-      lines.push('"'+disp.name+'" for headlines 48–72px; "'+body.name+'" (mono) for body/labels. Never cross roles.');
+  if (h1FontGT && bodyFontGT && h1FontGT !== bodyFontGT) {
+    const h1Size = tp_dir.h1 ? `${tp_dir.h1.fontSize}/${tp_dir.h1.fontWeight}` : '48–72px/700';
+    const bodySize = tp_dir.body ? `${tp_dir.body.fontSize}/${tp_dir.body.fontWeight}` : '16–18px/400';
+    const bodyType = classifyFontRole(bodyFontGT);
+    if (bodyType === 'mono') {
+      lines.push(`"${h1FontGT}" for display headings (${h1Size}); "${bodyFontGT}" (mono) for body/UI. Strict role separation.`);
+    } else if (isSerif) {
+      lines.push(`Serif "${h1FontGT}" for headings (${h1Size}), sans "${bodyFontGT}" for body. Never swap.`);
+    } else {
+      lines.push(`"${h1FontGT}" for headings (${h1Size}), "${bodyFontGT}" for body (${bodySize}). Never blur boundaries.`);
+    }
+    // Detect a third typeface used for subheadings (e.g. Geist Mono for H2/H3)
+    const subheadFontGT = tp_dir.h2?.fontFamily || tp_dir.h3?.fontFamily;
+    if (subheadFontGT && subheadFontGT !== h1FontGT && subheadFontGT !== bodyFontGT) {
+      const subType = classifyFontRole(subheadFontGT);
+      if (subType === 'mono') {
+        lines.push(`Third typeface: "${subheadFontGT}" (monospace) for H2–H3 subheadings — technical register at mid-hierarchy. Use strictly for H2–H3, never for hero text or body copy.`);
+      } else {
+        lines.push(`Third typeface: "${subheadFontGT}" for H2–H3 subheadings — distinct register at mid-hierarchy. Do not use for hero text or body copy.`);
+      }
+    }
+  } else if (h1FontGT) {
+    lines.push(`Single typeface: "${h1FontGT}" — hierarchy via weight and size contrast.`);
+  } else if (uniqueFonts.length >= 2) {
+    // Fallback: heuristic classification
+    const classified = uniqueFonts.slice(0,2).map(f=>({name:f, type:classifyFontRole(f)}));
+    const disp = classified.find(f=>f.type==='display') || classified.find(f=>f.type!=='mono') || classified[0];
+    const body = classified.find(f=>f!==disp) || classified[1];
+    const bodyType = body.type;
+    if (bodyType === 'mono') {
+      lines.push('"'+disp.name+'" for display headings; "'+body.name+'" (mono) for body/UI. Strict role separation.');
     } else if (isSerif) {
       lines.push('Serif "'+disp.name+'" for headings, sans "'+body.name+'" for body. H1: clamp(52px,7vw,88px). Never swap.');
-    } else if (bodyType === 'mono') {
-      lines.push('"'+disp.name+'" for display headings; "'+body.name+'" (mono) for body/UI. Strict role separation.');
     } else {
       lines.push('"'+disp.name+'" for headings (700–800), "'+body.name+'" for body (400). Never blur boundaries.');
     }
@@ -1211,6 +1236,19 @@ function generateComponentGuidance(data, style, specsData) {
   const interactiveRadii = radii.filter(r=>!r.includes('50%'));
   const radiusSample = interactiveRadii[0] || null; // Use actual site radius, no hardcoded fallback
   const defaultRadius = radiusSample || '0px'; // If site has no radii, assume sharp corners
+  const cssVarsGCG = data.cssVars || {};
+  const resolveVarGCG = v => {
+    if (!v || !String(v).includes('var(')) return v;
+    const m = String(v).match(/var\(\s*(--[^,)]+)/);
+    const varName = m?.[1]?.trim();
+    const resolved = varName && cssVarsGCG[varName];
+    if (resolved) return `${resolved} (${v})`;
+    if (varName) {
+      const hint = varName.replace(/^--[\w]+-[\w]+-?/, '').replace(/-/g, ' ').trim();
+      return `[${hint}]`;
+    }
+    return v;
+  };
   const lines=[];
 
   // ── Navigation — use detected nav pattern when available ──
@@ -1246,11 +1284,11 @@ function generateComponentGuidance(data, style, specsData) {
 
   // Pre-match nav link hover state
   const navLinkHover = hoverStates.find(h =>
-    /nav[_-]?link|navbar[_-]?link|header[_-]?link|nav[_-]?item|menu[_-]?item|nav[_-]?a\b/i.test(h.selector)
+    /nav\w*[_-]?link|navbar\w*[_-]?link|header[_-]?link|nav[_-]?item|menu[_-]?item|nav[_-]?a\b/i.test(h.selector)
   );
   if (navLinkHover) claimedSelectors.add(navLinkHover.selector);
   const navHoverSuffix = navLinkHover
-    ? ' Nav link hover: ' + Object.entries(navLinkHover).filter(([k])=>k!=='selector').map(([k,v])=>'`'+k+': '+v+'`').join(', ') + '.'
+    ? ' Nav link hover: ' + Object.entries(navLinkHover).filter(([k])=>k!=='selector').map(([k,v])=>'`'+k+': '+resolveVarGCG(v)+'`').join(', ') + '.'
     : '';
 
   if (bs.primary) {
@@ -1409,9 +1447,19 @@ function generateComponentGuidance(data, style, specsData) {
       globalParts.push(`links → \`color: ${lk.color}\`${lk.textDecoration && lk.textDecoration !== 'none' ? `, \`text-decoration: ${lk.textDecoration}\`` : ', no underline'}${lk.textUnderlineOffset ? ', offset `'+lk.textUnderlineOffset+'`' : ''}`);
     }
     if (blendModes.length > 0) globalParts.push(`\`mix-blend-mode: ${blendModes.join(', ')}\` on overlaid elements`);
-    unclaimed.slice(0, 4).forEach(h => {
-      const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${v}`).join(', ');
-      globalParts.push(`\`${h.selector}\` → ${props}`);
+    const GENERIC_CLASSES = new Set(['nav','btn','button','cta','link','card','tag','badge','chip','input','select','a','p','label']);
+    unclaimed.slice(0, 6).forEach(h => {
+      const sel = h.selector;
+      if (/^\.w-|text-style-|text-weight-|text-color-|^\.framer-|^\.swiper-|^\.aos-|lightbox|modal|overlay|backdrop/i.test(sel)) return;
+      if (/^[.#]/.test(sel)) {
+        const bare = sel.replace(/^[.#]/, '').replace(/:.*$/, '').replace(/[_-]/g, '').toLowerCase();
+        if (!GENERIC_CLASSES.has(bare)) return;
+        const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${resolveVarGCG(v)}`).join(', ');
+        globalParts.push(`${bare} hover: ${props}`);
+      } else {
+        const props = Object.entries(h).filter(([k])=>k!=='selector').map(([k,v])=>`${k}: ${resolveVarGCG(v)}`).join(', ');
+        globalParts.push(`\`${sel}\` → ${props}`);
+      }
     });
     if (globalParts.length > 0) lines.push(`**Global interactive rules:** ${globalParts.join('; ')}.`);
   }
@@ -1468,7 +1516,7 @@ async function buildPromptFromData(data, source) {
 // ── Compressed direction for focused modes ──
 function getCompressedDirection(directionText, focus) {
   const FOCUS_PRIMARY = {
-    colors:     ['color usage', 'image usage'],
+    colors:     ['color usage'],
     typography: ['typography'],
     shadows:    ['shape & elevation', 'shape, elevation'],
     motion:     ['animation', 'interaction choreography'],
@@ -1679,7 +1727,16 @@ function buildPagePrompt(data, aiDirection) {
 
         if (h1Font && bodyFont && h1Font !== bodyFont) {
           lines.push(`**Font pairing:** Display/heading in "${h1Font}" and body/UI in "${bodyFont}" — the contrast between these typefaces creates hierarchy without relying on size alone.`);
-          if (labelFont && labelFont !== h1Font && labelFont !== bodyFont) {
+          // Detect distinct subheading font (e.g. Geist Mono for H2/H3)
+          const h2Font_p = tp.h2?.fontFamily;
+          const h3Font_p = tp.h3?.fontFamily;
+          const subheadFont_p = (h2Font_p && h2Font_p !== h1Font && h2Font_p !== bodyFont) ? h2Font_p :
+                                (h3Font_p && h3Font_p !== h1Font && h3Font_p !== bodyFont) ? h3Font_p : null;
+          if (subheadFont_p) {
+            const sfMono_p = ['mono','code','fira','jetbrains','courier','inconsolata'].some(k=>subheadFont_p.toLowerCase().includes(k));
+            lines.push(`Subheading register (H2–H3): "${subheadFont_p}"${sfMono_p ? ' (monospace) — technical, developer-tone at mid-hierarchy' : ' — distinct mid-hierarchy voice'}. Do not use for hero or body.`);
+          }
+          if (labelFont && labelFont !== h1Font && labelFont !== bodyFont && labelFont !== subheadFont_p) {
             lines.push(`A third register: "${labelFont}" for labels and monospace contexts.`);
           }
         } else if (h1Font) {
@@ -1797,11 +1854,15 @@ function buildPagePrompt(data, aiDirection) {
       } else if (radii.length > 0 || hasPill) {
         lines.push('**Shape language:**');
         const sorted=[...new Set(radii)].sort((a,b)=>parseInt(a)-parseInt(b));
+        const btnR_sh = data.buttonStyles?.primary?.borderRadius;
         sorted.slice(0,6).forEach(r=>{
           const v = parseInt(r);
+          const isComplex = /\s/.test(r.trim());
           let comp = 'element';
-          if (r === '9999px' || r === '50%') comp = 'interactive element';
-          else if (v >= 16) comp = 'card';
+          if (isComplex) comp = 'partial-panel';
+          else if (r === '9999px' || r === '50%' || v >= 100) comp = 'interactive element';
+          else if (btnR_sh && r === btnR_sh) comp = 'button';
+          else if (v >= 12) comp = 'card';
           else if (v >= 8) comp = 'component';
           else if (v >= 4) comp = 'input';
           lines.push('- '+narrateRadius(r, comp));
