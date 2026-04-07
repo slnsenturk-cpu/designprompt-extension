@@ -1,0 +1,10 @@
+# VibeDesign Benchmark URLs
+# Run these after every major change to catch regressions.
+# Format: URL | expected visual character | key assertion
+
+https://www.rollups.com/     | dark green, serif, tab component   | tab states 2+ extracted
+https://rig.ai/              | orange hero + dark body, editorial | dual color architecture
+https://linear.app/          | dark, glassmorphism, smooth scroll | glassmorphism detected
+https://stripe.com/          | light, gradient, complex UI        | gradient extracted
+https://lottiefiles.com/     | lottie animations                  | lottie deduplicated (1x only)
+https://framer.com/          | framer-motion                      | framer-motion in animLibs

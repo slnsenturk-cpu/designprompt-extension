@@ -314,7 +314,21 @@
       if (seenHovers.has(key)) return false;
       seenHovers.add(key);
       return true;
-    }).slice(0, 20);
+    }).slice(0, 20).map(h => {
+      // Enrich with "before" computed state for before→after diff format
+      try {
+        const el = document.querySelector(h.selector.replace(/:hover.*$/, '').trim());
+        if (!el) return h;
+        const cs = window.getComputedStyle(el);
+        const before = {};
+        if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)') before.background = cs.backgroundColor;
+        if (cs.color) before.color = cs.color;
+        if (cs.transform && cs.transform !== 'none') before.transform = cs.transform;
+        if (cs.boxShadow && cs.boxShadow !== 'none') before.boxShadow = cs.boxShadow;
+        if (cs.opacity && cs.opacity !== '1') before.opacity = cs.opacity;
+        return Object.keys(before).length > 0 ? { ...h, before } : h;
+      } catch(e) { return h; }
+    });
 
     // ── 2. Aggressive color scan from computed styles ──
     const colorSet = new Set();
@@ -487,7 +501,467 @@
     tokens.customCursor = detectCustomCursor();
     tokens.masonryGrid = detectMasonryGrid();
 
+    // ── 8. Responsive breakpoints ──
+    tokens.breakpoints = extractBreakpoints();
+
+    // ── 9. Asset URLs (fonts, backgrounds, icons) ──
+    tokens.assets = extractAssets();
+
+    // ── 10. Animation libraries ──
+    tokens.animationLibraries = detectAnimationLibraries();
+
+    // ── 11. Deep motion profile ──
+    tokens.motionProfile = extractDeepMotionProfile();
+
+    // ── 12. Hero entrance sequence ──
+    tokens.heroEntranceSequence = extractHeroEntranceSequence();
+
+    // ── 13. Rive / Lottie detection ──
+    tokens.riveAndLottie = detectRiveAndLottie();
+
+    // ── 14. Tabbed content components ──
+    tokens.tabbedComponents = detectTabbedContentComponents();
+
+    // ── 15. Fixed / sticky UI chrome ──
+    tokens.fixedUIChrome = detectFixedUIChrome();
+
+    // ── 16. Multi-state interactive capture ──
+    // Skip on heavy DOMs (Notion, Linear, Figma-like apps) — click simulation is unreliable and slow
+    const _domSize = document.querySelectorAll('*').length;
+    tokens.interactiveStates = _domSize <= 2500 ? await extractAllInteractiveStates() : null;
+
+    // ── 17. Layered image compositions ──
+    tokens.layeredImages = detectLayeredImages();
+
+    // ── 18. Spacing scale ──
+    tokens.spacingScale = detectSpacingScale();
+
+    // ── 20. Section-specific illustrations ──
+    tokens.sectionIllustrations = detectSectionIllustrations();
+
+    // ── 21. Subtle background textures ──
+    tokens.subtleTextures = detectSubtleBackgroundTextures();
+
+    // ── 22. Hero image URL (for Vision API illustration analysis) ──
+    tokens.heroImageUrl = null;
+    const _heroEl = document.querySelector(
+      '[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type'
+    );
+    if (_heroEl) {
+      // Strategy 1: <img> tag
+      const _heroImg = _heroEl.querySelector('img:not([class*="avatar"]):not([class*="logo"])');
+      if (_heroImg?.src) {
+        const _heroRect = _heroImg.getBoundingClientRect();
+        if (_heroRect.width > 200 && _heroRect.height > 200) {
+          tokens.heroImageUrl = _heroImg.src;
+        }
+      }
+      // Strategy 2: background-image on visual container
+      if (!tokens.heroImageUrl) {
+        const _bgEls = _heroEl.querySelectorAll('[class*="visual"], [class*="image"], [class*="graphic"]');
+        for (const el of _bgEls) {
+          const _bg = window.getComputedStyle(el).backgroundImage;
+          const _bgMatch = _bg?.match(/url\(["']?([^"')]+)["']?\)/);
+          if (_bgMatch?.[1] && !_bgMatch[1].startsWith('data:')) {
+            tokens.heroImageUrl = _bgMatch[1].startsWith('http')
+              ? _bgMatch[1]
+              : new URL(_bgMatch[1], window.location.origin).href;
+            break;
+          }
+        }
+      }
+    }
+
     return tokens;
+  }
+
+  // ─── Deep motion profile — scroll behavior & timing personality ──────────
+  function extractDeepMotionProfile() {
+    const profile = {
+      scrollParadigm: null,
+      revealStyle: null,
+      timingPersonality: null,
+      dominantDuration: null,
+      dominantEasing: null,
+      staggerPattern: null,
+      gsapScrollTriggers: null,
+      revealKeyframes: [],
+    };
+
+    // 1. Scroll-scrub detection
+    const hasScrollTimeline = Array.from(document.styleSheets).some(sheet => {
+      try {
+        return Array.from(sheet.cssRules || []).some(rule =>
+          rule.style && rule.style.animationTimeline && rule.style.animationTimeline.includes('scroll')
+        );
+      } catch(e) { return false; }
+    });
+    const scrollDrivenEls = document.querySelectorAll('[style*="animation-timeline"],[style*="view-timeline"]');
+    if (hasScrollTimeline || scrollDrivenEls.length > 0) profile.scrollParadigm = 'scroll-scrub';
+
+    // 2. Classify reveal style from @keyframes
+    const revealKeyframes = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          if (rule.type !== CSSRule.KEYFRAMES_RULE) continue;
+          const frames = Array.from(rule.cssRules || []);
+          if (frames.length === 0) continue;
+          const first = frames[0];
+          const last = frames[frames.length - 1];
+          const fromProps = {}, toProps = {};
+          const props = ['opacity','transform','clip-path','filter'];
+          if (first?.style) props.forEach(p => { const v = first.style.getPropertyValue(p); if (v) fromProps[p] = v; });
+          if (last?.style) props.forEach(p => { const v = last.style.getPropertyValue(p); if (v) toProps[p] = v; });
+          let revealType = null;
+          const fromClip = fromProps['clip-path'];
+          const toClip = toProps['clip-path'];
+          if (fromClip && fromClip !== toClip) {
+            revealType = 'clip-path-reveal';
+          } else if (fromProps.transform && fromProps.transform.includes('scaleY(0)')) {
+            revealType = 'mask-reveal';
+          } else if (fromProps.opacity === '0' && fromProps.transform?.includes('translateY')) {
+            revealType = 'fade-up';
+          } else if (fromProps.opacity === '0' && fromProps.transform?.includes('translateX')) {
+            revealType = 'fade-left-or-right';
+          } else if (fromProps.opacity === '0' && !fromProps.transform) {
+            revealType = 'fade-only';
+          } else if (fromProps.transform?.includes('scale(0') || fromProps.transform?.includes('scale(0.8')) {
+            revealType = 'scale-in';
+          }
+          if (revealType) revealKeyframes.push({ name: rule.name, revealType, from: fromProps, to: toProps });
+        }
+      } catch(e) {}
+    }
+    if (revealKeyframes.length > 0) {
+      const typeCounts = {};
+      revealKeyframes.forEach(k => { typeCounts[k.revealType] = (typeCounts[k.revealType] || 0) + 1; });
+      profile.revealStyle = Object.entries(typeCounts).sort((a,b) => b[1]-a[1])[0]?.[0];
+      profile.revealKeyframes = revealKeyframes.slice(0, 6);
+    }
+
+    // 3. Dominant duration + easing personality
+    const durations = [], easings = [];
+    let sampled = 0;
+    for (const el of document.querySelectorAll('*')) {
+      if (sampled > 300) break;
+      try {
+        const cs = window.getComputedStyle(el);
+        const tr = cs.transitionDuration, te = cs.transitionTimingFunction, an = cs.animationDuration;
+        if (tr && tr !== '0s') { const ms = parseFloat(tr) * (tr.includes('ms') ? 1 : 1000); if (ms > 0) { durations.push(ms); sampled++; } }
+        if (an && an !== '0s') { const ms = parseFloat(an) * (an.includes('ms') ? 1 : 1000); if (ms > 0) durations.push(ms); }
+        if (te && te !== 'ease' && te !== 'initial' && te !== 'ease 0s') easings.push(te);
+      } catch(e) {}
+    }
+    if (durations.length > 0) {
+      const avg = durations.reduce((a,b) => a+b, 0) / durations.length;
+      profile.dominantDuration = Math.round(avg) + 'ms';
+      if (avg < 200) profile.timingPersonality = 'snappy';
+      else if (avg < 400) profile.timingPersonality = 'smooth';
+      else if (avg < 700) profile.timingPersonality = 'editorial';
+      else profile.timingPersonality = 'cinematic';
+    }
+    if (easings.length > 0) {
+      const easeCount = {};
+      easings.forEach(e => { easeCount[e] = (easeCount[e] || 0) + 1; });
+      const topEasing = Object.entries(easeCount).sort((a,b) => b[1]-a[1])[0]?.[0];
+      if (topEasing) {
+        profile.dominantEasing = topEasing;
+        const cbMatch = topEasing.match(/cubic-bezier\(([\d.]+),\s*([\d.-]+),\s*([\d.]+),\s*([\d.-]+)\)/);
+        if (cbMatch) {
+          const [,x1,y1,x2,y2] = cbMatch.map(Number);
+          if (y1 > 1 || y2 > 1 || y1 < 0) profile.timingPersonality = 'springy';
+        }
+      }
+    }
+
+    // 4. Stagger pattern detection
+    const staggerCandidates = [];
+    const animatedEls = document.querySelectorAll('[class*="animate"],[class*="reveal"],[class*="fade"],[data-aos],[class*="motion"],[class*="entrance"],[class*="appear"]');
+    for (const el of Array.from(animatedEls).slice(0, 50)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const delay = cs.animationDelay || cs.transitionDelay;
+        if (delay && delay !== '0s') {
+          const ms = parseFloat(delay) * (delay.includes('ms') ? 1 : 1000);
+          staggerCandidates.push({ ms, el: el.tagName });
+        }
+      } catch(e) {}
+    }
+    if (staggerCandidates.length >= 3) {
+      const delays = staggerCandidates.map(s => s.ms).sort((a,b) => a-b);
+      const diffs = delays.slice(1).map((d,i) => d - delays[i]);
+      const avgDiff = diffs.reduce((a,b) => a+b, 0) / diffs.length;
+      if (avgDiff > 20 && avgDiff < 300) {
+        profile.staggerPattern = {
+          delayBetween: Math.round(avgDiff) + 'ms',
+          elementCount: staggerCandidates.length,
+          tag: staggerCandidates[0]?.el,
+        };
+      }
+    }
+
+    // 5. GSAP ScrollTrigger live config
+    try {
+      if (window.ScrollTrigger && window.ScrollTrigger.getAll) {
+        const triggers = window.ScrollTrigger.getAll().slice(0, 8);
+        profile.gsapScrollTriggers = triggers.map(t => ({
+          trigger: (t.vars?.trigger?.className || t.trigger?.className || 'unknown').toString().trim().slice(0, 40),
+          start: t.vars?.start || t.start || null,
+          end: t.vars?.end || null,
+          scrub: !!(t.vars?.scrub),
+          pin: !!(t.vars?.pin),
+        }));
+        if (profile.gsapScrollTriggers.some(t => t.scrub)) profile.scrollParadigm = 'scroll-scrub';
+        else if (!profile.scrollParadigm) profile.scrollParadigm = 'trigger-based';
+      }
+    } catch(e) {}
+
+    if (!profile.scrollParadigm) {
+      profile.scrollParadigm = (document.querySelector('[data-aos],[data-scroll]')) ? 'trigger-based' : 'trigger-based';
+    }
+
+    return profile;
+  }
+
+  // ─── Hero entrance sequence extraction ────────────────────────────────────
+  function extractHeroEntranceSequence() {
+    const hero = document.querySelector(
+      '[class*="hero"],[class*="Hero"],main > section:first-child,section:first-of-type,header + section,.hero,#hero'
+    );
+    if (!hero) return null;
+
+    const sequence = [];
+    const children = hero.querySelectorAll('h1,h2,p,[class*="subtitle"],[class*="cta"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
+    for (const el of Array.from(children).slice(0, 12)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const animName = cs.animationName;
+        const animDelay = cs.animationDelay;
+        const animDuration = cs.animationDuration;
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < -100) continue;
+        const delayMs = animDelay && animDelay !== '0s' ? Math.round(parseFloat(animDelay) * (animDelay.includes('ms') ? 1 : 1000)) : null;
+        const durationMs = animDuration && animDuration !== '0s' ? Math.round(parseFloat(animDuration) * (animDuration.includes('ms') ? 1 : 1000)) : null;
+        if (animName && animName !== 'none') {
+          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName, delay: delayMs !== null ? delayMs + 'ms' : null, duration: durationMs !== null ? durationMs + 'ms' : null, opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible' });
+        } else if (parseFloat(cs.opacity) < 0.2 && rect.width > 0) {
+          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName: 'js-triggered-entrance', delay: null, duration: null, opacity: 'starts-invisible' });
+        }
+      } catch(e) {}
+    }
+
+    const heroCanvas = hero.querySelector('canvas');
+    const heroVideo = hero.querySelector('video');
+    const heroSvgAnim = hero.querySelector('svg animate,svg animateTransform,svg animateMotion');
+    return {
+      elements: sequence,
+      hasCanvasAnimation: !!heroCanvas,
+      hasVideoBackground: !!heroVideo,
+      hasSvgAnimation: !!heroSvgAnim,
+      canvasSize: heroCanvas ? { w: Math.round(heroCanvas.getBoundingClientRect().width), h: Math.round(heroCanvas.getBoundingClientRect().height) } : null,
+    };
+  }
+
+  // ─── Rive & Lottie detection ───────────────────────────────────────────────
+  function detectRiveAndLottie() {
+    const result = { hasRive: false, hasLottie: false, hasDotLottie: false, details: [] };
+
+    // Rive
+    try {
+      if (window.Rive || window.rive) result.hasRive = true;
+      for (const s of document.querySelectorAll('script[src]')) {
+        if (s.src.toLowerCase().includes('rive')) result.hasRive = true;
+      }
+      const riveCanvas = document.querySelectorAll('canvas[class*="rive"],canvas[data-src*=".riv"],[class*="rive-canvas"],canvas[id*="rive"]');
+      if (riveCanvas.length > 0) {
+        result.hasRive = true;
+        for (const c of riveCanvas) {
+          const rect = c.getBoundingClientRect();
+          result.details.push({ type: 'rive', location: rect.top < window.innerHeight ? 'above-fold' : 'below-fold', size: { w: Math.round(rect.width), h: Math.round(rect.height) }, dataSrc: c.dataset.src || null, id: c.id || null });
+        }
+      }
+      if (!result.hasRive) {
+        for (const c of document.querySelectorAll('canvas')) {
+          const parent = c.closest('[class*="hero"],[class*="Hero"],section:first-of-type,main > div:first-child');
+          if (parent) {
+            const rect = c.getBoundingClientRect();
+            if (rect.width > 100 && rect.height > 100) {
+              result.details.push({ type: 'canvas-hero-animation', location: 'above-fold', size: { w: Math.round(rect.width), h: Math.round(rect.height) }, note: 'Canvas in hero — likely Rive, Three.js, or custom WebGL' });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    // Lottie
+    try {
+      if (window.lottie || window.Lottie || window.bodymovin) result.hasLottie = true;
+      for (const s of document.querySelectorAll('script[src]')) {
+        if (/lottie|bodymovin/.test(s.src.toLowerCase())) result.hasLottie = true;
+      }
+      const lottieEls = document.querySelectorAll('lottie-player,[class*="lottie"],[data-lottie],[id*="lottie"]');
+      if (lottieEls.length > 0) {
+        result.hasLottie = true;
+        // Find the single best (largest visible) element — avoid pushing one entry per wrapper div
+        let bestEl = null, bestArea = 0;
+        for (const el of lottieEls) {
+          const rect = el.getBoundingClientRect();
+          const area = rect.width * rect.height;
+          if (area > bestArea) { bestArea = area; bestEl = el; }
+        }
+        if (bestEl) {
+          const rect = bestEl.getBoundingClientRect();
+          const src = bestEl.getAttribute('src') || bestEl.getAttribute('data-src') || bestEl.dataset?.lottie;
+          result.details.push({
+            type: 'lottie',
+            location: rect.top < window.innerHeight ? 'above-fold' : 'below-fold',
+            size: rect.width > 0 ? { w: Math.round(rect.width), h: Math.round(rect.height) } : null,
+            src: src ? src.split('/').pop()?.slice(0, 50) : null,
+            loop: bestEl.getAttribute('loop') !== null,
+            autoplay: bestEl.getAttribute('autoplay') !== null,
+            totalCount: lottieEls.length,
+          });
+        }
+      }
+    } catch(e) {}
+
+    // DotLottie
+    try {
+      if (window.DotLottie) result.hasDotLottie = true;
+      const dotEls = document.querySelectorAll('dotlottie-player,[class*="dotlottie"]');
+      if (dotEls.length > 0) { result.hasDotLottie = true; result.details.push({ type: 'dotlottie', count: dotEls.length }); }
+    } catch(e) {}
+
+    return (result.hasRive || result.hasLottie || result.hasDotLottie || result.details.length > 0) ? result : null;
+  }
+
+  // ─── Animation library detection ─────────────────────────────────────────
+  function detectAnimationLibraries() {
+    const found = new Set();
+
+    // 1. Global window objects
+    try {
+      if (window.gsap || window.ScrollTrigger) found.add('gsap');
+      if (window.Lenis) found.add('lenis');
+      if (window.locomotiveScroll) found.add('locomotive-scroll');
+      if (window.THREE) found.add('three.js');
+      if (window.PIXI || window.PixiJS) found.add('pixi.js');
+    } catch(e) {}
+
+    // 2. Script src patterns
+    try {
+      for (const script of document.querySelectorAll('script[src]')) {
+        const src = (script.src || '').toLowerCase();
+        if (src.includes('gsap')) found.add('gsap');
+        if (src.includes('three')) found.add('three.js');
+        if (src.includes('lenis')) found.add('lenis');
+        if (src.includes('framer-motion')) found.add('framer-motion');
+        if (/\/anime(\.min)?\.js/.test(src) || src.includes('animejs')) found.add('anime.js');
+      }
+    } catch(e) {}
+
+    // 3. DOM class/attribute markers
+    try {
+      if (document.querySelector('[data-scroll],[data-scroll-container]')) found.add('locomotive-scroll');
+      if (document.querySelector('[data-aos]')) found.add('aos');
+      if (document.querySelector('[data-gsap],[class*="gsap-"]')) found.add('gsap');
+    } catch(e) {}
+
+    return [...found];
+  }
+
+  // ─── Asset extraction: fonts, background images, icons ───────────────────
+  function extractAssets() {
+    const assets = { fonts: [], backgrounds: [], icons: [] };
+
+    // ── Font face URLs from stylesheets ──
+    const sheets = Array.from(document.styleSheets);
+    for (const sheet of sheets) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          if (rule.type === CSSRule.FONT_FACE_RULE) {
+            const src = rule.style.getPropertyValue('src');
+            const family = rule.style.getPropertyValue('font-family')?.replace(/['"]/g, '').trim();
+            const urlMatch = src.match(/url\(["']?([^"')]+)["']?\)/);
+            if (urlMatch && family) {
+              const url = urlMatch[1];
+              if (/\.(woff2?|ttf|otf)(\?|$)/i.test(url) && !url.startsWith('data:')) {
+                const absolute = url.startsWith('http') ? url : new URL(url, window.location.origin).href;
+                assets.fonts.push({ family, url: absolute });
+              }
+            }
+          }
+        }
+      } catch(e) {}
+    }
+    // Dedupe by family name, cap at 10
+    const seenFamilies = new Set();
+    assets.fonts = assets.fonts.filter(f => {
+      if (seenFamilies.has(f.family)) return false;
+      seenFamilies.add(f.family);
+      return true;
+    }).slice(0, 10);
+
+    // ── Background pattern/texture URLs ──
+    const bgCandidates = document.querySelectorAll(
+      'body, main, section, [class*="hero"], [class*="bg-"], [class*="background"], ' +
+      '[class*="pattern"], [class*="grid"], [class*="noise"], [class*="texture"], [class*="spotlight"]'
+    );
+    const seenBgUrls = new Set();
+    for (const el of Array.from(bgCandidates).slice(0, 30)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const bgImage = cs.backgroundImage;
+        if (!bgImage || bgImage === 'none') continue;
+        const urlMatches = bgImage.match(/url\(["']?([^"')]+)["']?\)/g);
+        if (!urlMatches) continue;
+        for (const match of urlMatches) {
+          const url = match.match(/url\(["']?([^"')]+)["']?\)/)?.[1];
+          if (!url || url.startsWith('data:')) continue;
+          const absolute = url.startsWith('http') ? url : new URL(url, window.location.origin).href;
+          if (seenBgUrls.has(absolute)) continue;
+          seenBgUrls.add(absolute);
+          const ext = absolute.split('?')[0].split('.').pop()?.toLowerCase();
+          const isSvg = ext === 'svg' || absolute.includes('.svg');
+          const rect = el.getBoundingClientRect();
+          assets.backgrounds.push({
+            url: absolute,
+            type: isSvg ? 'svg-pattern' : 'image-texture',
+            element: el.tagName.toLowerCase(),
+            fullWidth: rect.width > window.innerWidth * 0.7,
+          });
+        }
+      } catch(e) {}
+    }
+    assets.backgrounds = assets.backgrounds.slice(0, 8);
+
+    // ── Favicon / apple-touch-icon ──
+    for (const sel of ['link[rel="icon"]','link[rel="shortcut icon"]','link[rel="apple-touch-icon"]','link[rel="mask-icon"]']) {
+      const el = document.querySelector(sel);
+      if (el?.href) assets.icons.push({ type: sel.includes('apple') ? 'apple-touch' : 'favicon', url: el.href });
+    }
+
+    return assets;
+  }
+
+  // ─── Breakpoint extraction from CSS media queries ────────────────────────
+  function extractBreakpoints() {
+    const bps = new Set();
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            if (rule.type === CSSRule.MEDIA_RULE) {
+              const m = rule.conditionText ? rule.conditionText.match(/(\d{3,4})px/) : null;
+              if (m) bps.add(parseInt(m[1]));
+            }
+          }
+        } catch(e) { /* cross-origin sheet, skip */ }
+      }
+    } catch(e) {}
+    // Return sorted breakpoints in typical responsive range (320-1920)
+    return [...bps].filter(b => b >= 320 && b <= 1920).sort((a,b) => a-b);
   }
 
   // ─── Rotating / cycling text detection ───────────────────────────────────
@@ -871,7 +1345,7 @@
 
   // ─── Button style extraction ──────────────────────────────────────────────
   function extractButtonStyles() {
-    const result = { primary: null, ghost: null, secondary: null, navCta: null };
+    const result = { primary: null, ghost: null, secondary: null, navCta: null, textOnly: null };
     const btns = document.querySelectorAll(
       'button, a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], [role="button"], input[type="submit"], a[href][class]'
     );
@@ -907,8 +1381,17 @@
         const cls = (btn.className || '').toString();
         const isNavCta = !!btn.closest('nav, header, [class*="nav"], [class*="header"], [role="navigation"]');
 
+        // Reconstruct accurate padding shorthand from individual sides
+        // cs.padding can collapse to '8px' when sides differ (e.g. padding-inline set separately)
+        const _pt = cs.paddingTop, _pr = cs.paddingRight, _pb = cs.paddingBottom, _pl = cs.paddingLeft;
+        let paddingValue;
+        if (_pt === _pb && _pr === _pl && _pt === _pr) paddingValue = _pt;
+        else if (_pt === _pb && _pr === _pl) paddingValue = `${_pt} ${_pr}`;
+        else if (_pr === _pl) paddingValue = `${_pt} ${_pr} ${_pb}`;
+        else paddingValue = `${_pt} ${_pr} ${_pb} ${_pl}`;
+
         const data = {
-          padding: cs.padding,
+          padding: paddingValue,
           fontSize: cs.fontSize,
           fontWeight: cs.fontWeight,
           letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
@@ -923,6 +1406,7 @@
           lineHeight: cs.lineHeight,
           fontFamily: cleanFont(cs.fontFamily) || null,
           clipPath: cs.clipPath !== 'none' ? cs.clipPath : null,
+          transition: (cs.transition && cs.transition !== 'all 0s ease 0s' && cs.transition !== 'none 0s ease 0s' && cs.transition !== 'all' && cs.transition !== 'none') ? cs.transition : null,
           isNavCta, cls, bgSat, bgLum,
           width: Math.round(rect.width),
           text: btn.innerText?.trim().slice(0, 30) || '',
@@ -962,13 +1446,15 @@
       // Bigger buttons = more prominent (hero CTAs are usually larger)
       if (c.width > 140) score += 1;
       if (parseInt(c.height) > 44) score += 1;
+      // Pill-shaped = prominent hero CTA (360px, 1000px, 9999px radius)
+      if (c.borderRadius && parseInt(c.borderRadius) >= 100) score += 2;
       // Text hints — CTA text patterns
       if (/get started|start|sign up|try|begin|join|subscribe/i.test(c.text)) score += 3;
       // Ghost indicators
       if (/ghost|outline|secondary|subtle|text/i.test(c.cls)) score -= 5;
       if (!c.backgroundColor && c.border) score -= 3;
-      // Nav buttons score lower than hero buttons
-      if (c.isNavCta) score -= 1;
+      // Nav buttons strongly penalized — hero CTAs should win primary slot
+      if (c.isNavCta) score -= 4;
       c._score = score;
     });
 
@@ -1005,6 +1491,32 @@
       result.navCta = navBtns[0];
     }
 
+    // Text-only CTA detection (no bg, no border, bold text + optional arrow)
+    if (!result.textOnly) {
+      const textCTAEls = document.querySelectorAll(
+        'a:not([class*="btn"]):not([class*="button"]), ' +
+        '[class*="cta"]:not([class*="btn"]), ' +
+        '[class*="link-cta"], [class*="text-cta"]'
+      );
+      for (const el of Array.from(textCTAEls).slice(0, 10)) {
+        try {
+          const cs = window.getComputedStyle(el);
+          const rect = el.getBoundingClientRect();
+          if (isTransparent(cs.backgroundColor) && (cs.borderStyle === 'none' || cs.borderWidth === '0px') &&
+              parseInt(cs.fontWeight) >= 600 && rect.width > 60 && rect.width < 300 && rect.height > 0) {
+            const text = el.textContent?.trim().slice(0, 30);
+            if (!text || text.length < 3) continue;
+            const hasArrow = text.includes('→') || text.includes('↗') || !!el.querySelector('svg');
+            result.textOnly = {
+              fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color,
+              hasArrow, textTransform: cs.textTransform, sample: text,
+            };
+            break;
+          }
+        } catch(e) {}
+      }
+    }
+
     // Cleanup internal fields
     for (const key of ['primary', 'ghost', 'secondary', 'navCta']) {
       if (result[key]) {
@@ -1030,12 +1542,42 @@
 
     for (const { key, selector } of levels) {
       const els = document.querySelectorAll(selector);
+      // For h2/h3: pick the DOMINANT instance (largest font-size outside nav/footer/header)
+      // For h1/body: first visible match is sufficient
+      if (key === 'h2' || key === 'h3') {
+        let best = null, bestSize = 0;
+        for (const el of Array.from(els).slice(0, 40)) {
+          try {
+            // Skip elements inside nav, header, footer — those use small utility headings
+            if (el.closest('nav, header, footer, [class*="nav"], [class*="header"], [class*="footer"]')) continue;
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) continue;
+            if (!el.innerText || el.innerText.trim().length < 4) continue;
+            const cs = window.getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            const size = parseFloat(cs.fontSize) || 0;
+            if (size > bestSize) { bestSize = size; best = { el, cs }; }
+          } catch(e) {}
+        }
+        if (best) {
+          patterns[key] = {
+            fontSize: best.cs.fontSize,
+            fontWeight: best.cs.fontWeight,
+            lineHeight: best.cs.lineHeight,
+            letterSpacing: best.cs.letterSpacing !== 'normal' ? best.cs.letterSpacing : null,
+            textTransform: best.cs.textTransform !== 'none' ? best.cs.textTransform : null,
+            fontFamily: cleanFont(best.cs.fontFamily),
+          };
+        }
+        continue;
+      }
       for (const el of els) {
         try {
           const rect = el.getBoundingClientRect();
           if (rect.width === 0 || rect.height === 0) continue;
           if (!el.innerText || el.innerText.trim().length < 2) continue;
           const cs = window.getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
           patterns[key] = {
             fontSize: cs.fontSize,
             fontWeight: cs.fontWeight,
@@ -1044,7 +1586,7 @@
             textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
             fontFamily: cleanFont(cs.fontFamily),
           };
-          break; // first visible one is enough
+          break;
         } catch(e) {}
       }
     }
@@ -1390,9 +1932,17 @@
       const rect = sec.getBoundingClientRect();
       if (rect.height < 100 || rect.width < 300) continue;
 
-      const heading = sec.querySelector('h1, h2, h3');
+      // Pick first VISIBLE heading (skip display:none responsive clones)
+      const heading = Array.from(sec.querySelectorAll('h1, h2, h3')).find(el => {
+        const cs = window.getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+      }) || null;
       const headingText = heading?.innerText?.trim().slice(0, 60) || '';
-      const hasH1 = !!sec.querySelector('h1');
+      const hasH1 = !!Array.from(sec.querySelectorAll('h1')).find(el => {
+        const cs = window.getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden';
+      });
 
       // ── Detect colored/highlighted words in headings ──
       let headingColoredWords = [];
@@ -1465,6 +2015,8 @@
 
       // Layout detection
       let layout = 'stacked'; // default
+      let gridCols = null;
+      let _splitContainer = null;
       const innerContainers = sec.querySelectorAll(':scope > div > div, :scope > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
         const cs = window.getComputedStyle(child);
@@ -1473,12 +2025,27 @@
           const c2 = child.children[1].getBoundingClientRect();
           if (Math.abs(c1.top - c2.top) < 50 && c1.width > 200 && c2.width > 200) {
             layout = 'split-columns';
+            _splitContainer = child;
             break;
           }
         }
         if (cs.display === 'grid') {
           const cols = cs.gridTemplateColumns;
-          if (cols && cols.split(' ').length >= 3) { layout = 'multi-column-grid'; break; }
+          if (cols && cols.split(' ').length >= 3) {
+            layout = 'multi-column-grid';
+            const _colParts = cols.split(' ').filter(Boolean);
+            const _uniq = new Set(_colParts);
+            if (_uniq.size === 1 && _colParts.length > 6) {
+              // Baseline/decorative grid: N identical columns — summarize instead of repeating
+              gridCols = `baseline-grid:${_colParts.length}-col×${_colParts[0]}`;
+            } else if (_colParts.length > 8) {
+              // Too many varied columns — truncate
+              gridCols = `${_colParts.length}-col grid (${_colParts.slice(0,3).join(' ')}...)`;
+            } else {
+              gridCols = cols;
+            }
+            break;
+          }
         }
       }
 
@@ -1827,6 +2394,36 @@
         if (!isDup) visualDescriptions.push(p);
       });
 
+      // Measure heading→subtitle spacing (margin-bottom on heading element)
+      let headingToSubtitleGap = null;
+      if (heading) {
+        const nextEl = heading.nextElementSibling;
+        if (nextEl) {
+          const gap = parseInt(window.getComputedStyle(heading).marginBottom) || 0;
+          if (gap > 4) headingToSubtitleGap = gap + 'px';
+        }
+      }
+
+      // Hero column analysis — tells LLM which side is text, which is visual
+      let heroColumns = null;
+      if (type === 'hero' && layout === 'split-columns' && _splitContainer) {
+        const secRect = sec.getBoundingClientRect();
+        const colChildren = Array.from(_splitContainer.children).filter(c => {
+          const r = c.getBoundingClientRect();
+          return r.width > 100 && r.height > 50;
+        });
+        if (colChildren.length >= 2) {
+          heroColumns = colChildren.map(col => {
+            const r = col.getBoundingClientRect();
+            const widthPct = Math.round((r.width / secRect.width) * 100);
+            const hasText = !!col.querySelector('h1, h2, p, [class*="heading"], [class*="title"]');
+            const hasVisual = !!col.querySelector('img, svg, video, canvas, [class*="visual"], [class*="animation"], [class*="lottie"]');
+            const content = hasText && hasVisual ? 'text+visual' : hasText ? 'text' : hasVisual ? 'visual' : 'other';
+            return { width: `${widthPct}%`, content };
+          });
+        }
+      }
+
       const entry = {
         type,
         heading: headingText,
@@ -1839,10 +2436,20 @@
         arrowLinks: arrowLinks.length > 0 ? arrowLinks : null,
         hasSlider: hasSwiper || false,
         hasNumberedItems,
+        gridCols: gridCols || null,
+        heroColumns: heroColumns || null,
+        headingToSubtitleGap: headingToSubtitleGap || null,
         headingColoredWords: headingColoredWords.length > 0 ? headingColoredWords : null,
         decorativeGradients: sectionDecorations.length > 0 ? sectionDecorations : null,
         entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
       };
+
+      // Dedup: skip this section if it's a responsive clone of the previous one
+      // (same type + same heading text → same content rendered twice for different breakpoints)
+      const prev = map[map.length - 1];
+      if (prev && prev.type === type && prev.heading && headingText && prev.heading === headingText) {
+        continue; // responsive duplicate — skip
+      }
 
       map.push(entry);
     }
@@ -2019,14 +2626,34 @@
     }
 
     // ── Step 0: Text color cross-check ──
-    // The default text color on body is the most reliable signal for page brightness.
+    // Sample content text color (h1, h2, p) rather than document.body.color.
+    // body.color is often the browser default #000 even on dark sites where text is white on child elements.
     // Dark text (luminance < 0.3) = light page.  Light text (luminance > 0.7) = dark page.
-    // This catches sites where bg is set via texture/SVG/gradient or transparent inheritance.
     function getBodyTextLuminance() {
+      function colorLum(cssColor) {
+        const m = (cssColor||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (!m) return null;
+        return (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
+      }
+      // Priority: first visible heading or paragraph — these have explicit color set by the designer
+      const samplers = ['h1','h2','main p','section p','[class*="hero"] p','[class*="hero"] h1'];
+      for (const sel of samplers) {
+        try {
+          const el = document.querySelector(sel);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) continue;
+          const cs = window.getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          const lum = colorLum(cs.color);
+          // Only trust a clear signal (not mid-gray browser defaults)
+          if (lum !== null && (lum < 0.2 || lum > 0.7)) return lum;
+        } catch(e) {}
+      }
+      // Fallback: body element color
       try {
-        const bodyColor = window.getComputedStyle(document.body).color;
-        const m = bodyColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-        if (m) return (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
+        const lum = colorLum(window.getComputedStyle(document.body).color);
+        if (lum !== null) return lum;
       } catch(e) {}
       return 0.5; // unknown
     }
@@ -3582,6 +4209,314 @@
     if (e.key !== 'Escape') return;
     if (pickerActive) deactivatePicker();
     if (imagePickerActive) deactivateImagePicker();
+  }
+
+  // ─── Multi-state interactive capture ───────────────────────────────────────
+  async function extractAllInteractiveStates() {
+    // Safe selector list — excludes nav[class*="tab"] a and ul[class*="tab"] li
+    // which match real navigation links and can cause page redirects
+    const clickTargets = document.querySelectorAll(
+      '[role="tab"], ' +
+      '[data-tab], [data-step], [data-panel], ' +
+      '[class*="tab-btn"], [class*="tab-button"]'
+    );
+
+    if (clickTargets.length < 2 || clickTargets.length > 10) return null;
+
+    // Safety check: filter out elements that would navigate away from the page
+    const safeTargets = Array.from(clickTargets).filter(el => {
+      if (el.tagName === 'A') {
+        const href = el.getAttribute('href');
+        // Only anchor links (#, #section-id) are safe to click
+        if (!href || (href !== '#' && !href.startsWith('#'))) return false;
+      }
+      if (el.type === 'submit') return false;
+      if (el.closest('form')) return false;
+      return true;
+    });
+
+    if (safeTargets.length < 2) return null;
+
+    // Record which tab was originally active so we can restore it
+    const originalActive = safeTargets.findIndex(el =>
+      el.getAttribute('aria-selected') === 'true' ||
+      el.classList.toString().includes('active') ||
+      el.classList.toString().includes('selected')
+    );
+
+    const states = [];
+
+    try {
+      for (const target of safeTargets.slice(0, 6)) {
+        target.click();
+        await new Promise(r => setTimeout(r, 300));
+
+        const label = target.textContent?.trim().slice(0, 40);
+        const activePanel = document.querySelector(
+          '[role="tabpanel"]:not([hidden]), ' +
+          '[class*="panel"][class*="active"], ' +
+          '[class*="panel"][class*="visible"], ' +
+          '[class*="content"][class*="active"]'
+        );
+        if (!activePanel) continue;
+
+        const heading = activePanel.querySelector('h1,h2,h3,h4')?.textContent?.trim().slice(0, 60);
+        const bullets = Array.from(activePanel.querySelectorAll('li, [class*="bullet"], [class*="item"]'))
+          .slice(0, 5).map(li => li.textContent?.trim().slice(0, 80)).filter(Boolean);
+        const img = activePanel.querySelector('img');
+        const cta = activePanel.querySelector('a[href], button')?.textContent?.trim().slice(0, 30);
+
+        states.push({ trigger: label, heading, bullets, hasImage: !!img, imgSrc: img?.src?.split('/').pop()?.slice(0, 50), cta });
+      }
+    } finally {
+      // Always restore original active tab, even if an error occurred mid-loop
+      const restoreIndex = originalActive >= 0 ? originalActive : 0;
+      safeTargets[restoreIndex]?.click();
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    return states.length > 1 ? states : null;
+  }
+
+  // ─── Layered image detection ────────────────────────────────────────────────
+  function detectLayeredImages() {
+    const layeredComps = [];
+    const containers = document.querySelectorAll(
+      '[class*="hero"], [class*="feature"], [class*="product"], ' +
+      '[class*="visual"], [class*="mockup"], section, .card'
+    );
+    for (const container of Array.from(containers).slice(0, 20)) {
+      const imgs = container.querySelectorAll('img');
+      const bgEls = Array.from(container.querySelectorAll('*')).filter(el => {
+        const bg = window.getComputedStyle(el).backgroundImage;
+        return bg && bg !== 'none' && bg.startsWith('url');
+      });
+      const totalLayers = imgs.length + bgEls.length;
+      if (totalLayers < 2) continue;
+
+      const layers = [];
+      bgEls.forEach(el => {
+        const cs = window.getComputedStyle(el);
+        layers.push({ type: 'background', zIndex: parseInt(cs.zIndex) || 0, position: cs.position,
+          url: cs.backgroundImage.match(/url\(["']?([^"')]+)/)?.[1]?.split('/').pop()?.slice(0, 50) });
+      });
+      Array.from(imgs).forEach(img => {
+        const cs = window.getComputedStyle(img);
+        const r = img.getBoundingClientRect();
+        layers.push({ type: 'img', zIndex: parseInt(cs.zIndex) || 0, position: cs.position,
+          url: img.src?.split('/').pop()?.slice(0, 50), width: Math.round(r.width), height: Math.round(r.height) });
+      });
+      layers.sort((a, b) => a.zIndex - b.zIndex);
+
+      layeredComps.push({ section: container.tagName + (container.className ? '.' + String(container.className).slice(0, 30) : ''), layerCount: totalLayers, layers });
+    }
+    return layeredComps.length > 0 ? layeredComps.slice(0, 5) : null;
+  }
+
+  // ─── Spacing scale detection ────────────────────────────────────────────────
+  function detectSpacingScale() {
+    const spacingValues = new Set();
+    const elements = document.querySelectorAll('section, div, article, header, footer, nav');
+    for (const el of Array.from(elements).slice(0, 100)) {
+      const cs = window.getComputedStyle(el);
+      ['paddingTop','paddingBottom','paddingLeft','paddingRight','marginTop','marginBottom','gap','rowGap','columnGap'].forEach(prop => {
+        const val = parseInt(cs[prop]);
+        if (val > 0 && val <= 200) spacingValues.add(val);
+      });
+    }
+    const vals = [...spacingValues].sort((a, b) => a - b);
+    if (vals.length < 4) return null;
+
+    let bestBase = 8, bestScore = 0;
+    for (const base of [4, 8, 10, 12, 16]) {
+      const score = vals.filter(v => v % base === 0).length;
+      if (score > bestScore) { bestScore = score; bestBase = base; }
+    }
+    const conforming = vals.filter(v => v % bestBase === 0);
+    const conformRate = conforming.length / vals.length;
+    if (conformRate <= 0.6) return null;
+
+    return { baseUnit: bestBase, conformRate: Math.round(conformRate * 100), commonValues: conforming.slice(0, 8), outliers: vals.filter(v => v % bestBase !== 0).slice(0, 4) };
+  }
+
+  // ─── Section-specific illustrations ────────────────────────────────────────
+  function detectSectionIllustrations() {
+    const sections = document.querySelectorAll('section, [class*="section"], main > div');
+    const results = [];
+
+    for (const section of Array.from(sections).slice(0, 8)) {
+      const rect = section.getBoundingClientRect();
+      if (rect.height < 200) continue;
+
+      const illus = { type: null, details: null };
+      const svg = section.querySelector('svg');
+
+      if (svg) {
+        const paths = svg.querySelectorAll('path, polyline, line');
+        const circles = svg.querySelectorAll('circle');
+        const texts = svg.querySelectorAll('text, [class*="label"], [class*="tooltip"]');
+
+        if (circles.length >= 4) {
+          const radii = Array.from(circles).map(c => parseFloat(c.getAttribute('r') || '0')).sort((a, b) => a - b);
+          if (radii.length >= 4 && (radii[radii.length - 1] / (radii[0] || 1)) > 3) {
+            illus.type = 'concentric-circles';
+            illus.details = { ringCount: circles.length, hasIcon: !!svg.querySelector('path[d*="M"]') };
+          }
+        }
+        if (!illus.type && circles.length > 20) {
+          const colorsSet = new Set(Array.from(circles).slice(0, 20).map(c =>
+            c.getAttribute('fill') || window.getComputedStyle(c).fill
+          ).filter(c => c && c !== 'none'));
+          illus.type = 'particle-scatter';
+          illus.details = { particleCount: circles.length, colors: [...colorsSet].slice(0, 3) };
+        }
+        if (!illus.type && paths.length >= 2 && paths.length <= 10) {
+          const colors = [...new Set(Array.from(paths).map(p =>
+            p.getAttribute('stroke') || window.getComputedStyle(p).stroke
+          ).filter(c => c && c !== 'none'))];
+          illus.type = colors.length >= 2 ? 'multi-line-chart' : 'single-line-chart';
+          illus.details = {
+            lineCount: colors.length, colors,
+            hasTooltip: texts.length > 0,
+            tooltipText: texts[0]?.textContent?.trim().slice(0, 30),
+            hasDots: circles.length > 0 && circles.length < 10,
+          };
+        }
+      }
+
+      // Architecture diagram (dashed boundaries)
+      const dashedEls = section.querySelectorAll('[style*="dashed"], [class*="dashed"], [class*="boundary"]');
+      if (!illus.type && dashedEls.length > 0) {
+        const labels = Array.from(section.querySelectorAll('[class*="label"], small, [style*="monospace"]'))
+          .map(el => el.textContent?.trim().slice(0, 30)).filter(Boolean);
+        illus.type = 'architecture-diagram';
+        illus.details = { labels: labels.slice(0, 6), dashedBoundaries: dashedEls.length };
+      }
+
+      if (illus.type) {
+        const heading = section.querySelector('h1,h2,h3')?.textContent?.trim().slice(0, 50);
+        const label = section.querySelector('[class*="label"], [class*="eyebrow"], small')?.textContent?.trim().slice(0, 30);
+        results.push({ ...illus, sectionHeading: heading, sectionLabel: label });
+      }
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── Subtle background textures ─────────────────────────────────────────────
+  function detectSubtleBackgroundTextures() {
+    const result = [];
+    const candidates = document.querySelectorAll('section, [class*="hero"], [class*="bg"]');
+    for (const el of Array.from(candidates).slice(0, 8)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const bgImage = cs.backgroundImage;
+        if (bgImage && bgImage !== 'none') {
+          if (bgImage.includes('radial-gradient') || bgImage.includes('conic-gradient')) {
+            result.push({
+              type: bgImage.includes('radial') ? 'radial-gradient-texture' : 'conic-gradient-texture',
+              value: bgImage.slice(0, 120),
+              element: el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).slice(0, 20) : ''),
+            });
+          }
+        }
+        // Low-opacity SVG overlays used as texture
+        const bgSvgs = el.querySelectorAll('svg[class*="bg"], svg[class*="background"], [class*="texture"] svg, [class*="noise"] svg');
+        for (const svg of bgSvgs) {
+          const svgCs = window.getComputedStyle(svg);
+          if (parseFloat(svgCs.opacity) < 0.2) {
+            result.push({ type: 'svg-texture-overlay', opacity: svgCs.opacity, childCount: svg.querySelectorAll('*').length });
+          }
+        }
+      } catch(e) {}
+    }
+    return result.length > 0 ? result.slice(0, 5) : null;
+  }
+
+  // ─── Tabbed content components ─────────────────────────────────────────────
+  function detectTabbedContentComponents() {
+    const results = [];
+
+    // Pattern A: explicit [role="tab"] or [class*="tab"] switchers
+    const tabLists = document.querySelectorAll('[role="tablist"], [class*="tab-list"], [class*="tabs-nav"]');
+    tabLists.forEach(tabList => {
+      const tabs = Array.from(tabList.querySelectorAll('[role="tab"], [class*="tab-item"], [class*="tab-trigger"]'));
+      if (tabs.length < 2) return;
+      const labels = tabs.map(t => t.textContent.trim()).filter(Boolean).slice(0, 6);
+      const activeTab = tabs.find(t => t.getAttribute('aria-selected') === 'true' || t.classList.toString().includes('active') || t.classList.toString().includes('selected'));
+      const activeLabel = activeTab ? activeTab.textContent.trim() : labels[0];
+      // Try to find associated panel
+      const panel = document.querySelector('[role="tabpanel"], [class*="tab-panel"], [class*="tab-content"]');
+      const panelLayout = panel ? (window.getComputedStyle(panel).display === 'grid' ? 'grid' : window.getComputedStyle(panel).display === 'flex' ? 'flex' : 'block') : null;
+      results.push({ type: 'tab-switcher', labels, activeLabel, panelLayout, count: labels.length });
+    });
+
+    // Pattern B: numbered/labeled switcher buttons (01/02/03 pattern) — not <nav>
+    if (results.length === 0) {
+      const numberedContainers = document.querySelectorAll('[class*="switcher"], [class*="selector"], [class*="steps-nav"], [class*="feature-nav"]');
+      numberedContainers.forEach(container => {
+        const items = Array.from(container.querySelectorAll('button, [role="button"], li, [class*="item"]'));
+        if (items.length < 2 || items.length > 10) return;
+        const labels = items.map(it => it.textContent.trim().replace(/^\d{1,2}[.\s]/, '').trim()).filter(l => l.length > 1 && l.length < 60).slice(0, 6);
+        if (labels.length < 2) return;
+        const hasNumbers = items.some(it => /^\d{2}/.test(it.textContent.trim()));
+        results.push({ type: 'numbered-switcher', labels, hasNumbers, count: labels.length });
+      });
+    }
+
+    // Pattern C: split-content panels (image left + bullets right, with optional testimonial)
+    const splitPanels = document.querySelectorAll('[class*="panel"], [class*="feature-panel"], [class*="content-panel"]');
+    splitPanels.forEach(panel => {
+      const img = panel.querySelector('img, video, canvas, svg[width]');
+      const bullets = panel.querySelectorAll('li, [class*="bullet"], [class*="check"]');
+      const testimonial = panel.querySelector('[class*="testimonial"], [class*="quote"], blockquote');
+      if (img && bullets.length >= 2) {
+        const cs = window.getComputedStyle(panel);
+        if (cs.display === 'grid' || cs.display === 'flex') {
+          results.push({ type: 'split-panel', hasBullets: true, bulletCount: bullets.length, hasTestimonial: !!testimonial, layout: cs.display });
+        }
+      }
+    });
+
+    return results.slice(0, 5);
+  }
+
+  // ─── Fixed / sticky UI chrome ───────────────────────────────────────────────
+  function detectFixedUIChrome() {
+    const results = [];
+    const allEls = document.querySelectorAll('*');
+    const viewH = window.innerHeight;
+    const viewW = window.innerWidth;
+
+    for (const el of allEls) {
+      const cs = window.getComputedStyle(el);
+      if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < viewW * 0.4) continue; // skip narrow sidebars
+      if (rect.height < 30 || rect.height > viewH * 0.25) continue; // skip tiny or full-height
+
+      const zIndex = parseInt(cs.zIndex) || 0;
+      const bg = cs.backgroundColor;
+      const hasButton = !!el.querySelector('button, a[class*="btn"], a[class*="cta"], [role="button"]');
+      const text = el.textContent.trim().slice(0, 80);
+
+      let role;
+      if (rect.top < viewH * 0.15) {
+        role = 'stickyHeader';
+      } else if (rect.bottom > viewH * 0.85) {
+        role = 'stickyBottom';
+      } else {
+        role = 'stickyAside';
+      }
+
+      results.push({ role, height: Math.round(rect.height), bg, hasButton, text, zIndex });
+    }
+
+    // Dedupe: keep highest z-index per role
+    const seen = {};
+    return results.filter(r => {
+      if (!seen[r.role] || r.zIndex > seen[r.role].zIndex) { seen[r.role] = r; return true; }
+      return false;
+    });
   }
 
   // ─── Message listener ──────────────────────────────────────────────────────
