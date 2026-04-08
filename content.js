@@ -2378,6 +2378,31 @@
       const rect = sec.getBoundingClientRect();
       if (rect.height < 100 || rect.width < 300) continue;
 
+      // ── Detect eyebrow/overline label (e.g. "OUR APPROACH", "PHILOSOPHY") ──
+      let eyebrowText = null;
+      const _eyebrowEl = sec.querySelector('[class*="eyebrow"], [class*="overline"], [class*="kicker"], [class*="tag-label"], [class*="super-title"], [class*="pre-title"]');
+      if (_eyebrowEl) {
+        const t = _eyebrowEl.innerText?.trim();
+        if (t && t.length > 1 && t.length < 40) eyebrowText = t;
+      }
+      if (!eyebrowText) {
+        // Fallback: find small uppercase text appearing before the first heading
+        const _allEls = sec.querySelectorAll('span, div, p, label, a');
+        for (const el of Array.from(_allEls).slice(0, 20)) {
+          try {
+            const cs = window.getComputedStyle(el);
+            if (cs.textTransform === 'uppercase' && parseInt(cs.fontSize) <= 14 && cs.display !== 'none') {
+              const t = el.innerText?.trim();
+              const r = el.getBoundingClientRect();
+              if (t && t.length > 1 && t.length < 40 && r.width > 20 && r.height > 0) {
+                // Must appear above or at the top of section (within first 200px)
+                if (r.top - rect.top < 200) { eyebrowText = t; break; }
+              }
+            }
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
+        }
+      }
+
       // Pick first VISIBLE heading (skip display:none responsive clones)
       const heading = Array.from(sec.querySelectorAll('h1, h2, h3')).find(el => {
         const cs = window.getComputedStyle(el);
@@ -2452,20 +2477,34 @@
         const r = s.getBoundingClientRect();
         return r.width > 200 && r.height > 200;
       }).length;
-      // Also detect canvases that visually overlap with this section but are not DOM descendants
-      // (e.g. position:fixed or position:absolute background canvases mounted outside the section)
-      const _secBR = sec.getBoundingClientRect();
-      const _overlappingCanvas = !sec.querySelector('canvas') && Array.from(document.querySelectorAll('canvas')).find(c => {
-        const cr = c.getBoundingClientRect();
-        return cr.width > 100 && cr.height > 100 &&
-               cr.top < _secBR.bottom && cr.bottom > _secBR.top &&
-               cr.left < _secBR.right && cr.right > _secBR.left;
-      });
-      const hasCanvas = !!sec.querySelector('canvas') || !!_overlappingCanvas;
+      // Only detect canvases that are actual DOM children of this section
+      // (fixed/absolute canvases are handled separately via visual descriptions with _fixedCanvasReportCount)
+      const hasCanvas = !!sec.querySelector('canvas');
       const hasSwiper = !!sec.querySelector('.swiper, [class*="slider"], [class*="carousel"]');
       // Fix 7: List-structure-based detection — avoids false-positive on any "01" text in sidebar/nav
       const listItemEls = sec.querySelectorAll('li, [role="listitem"], [class*="step-item"], [class*="steps-item"]');
       const hasNumberedItems = Array.from(listItemEls).some(li => /^\s*0?[1-9][\.\)\s]/.test(li.textContent?.trim()));
+
+      // Capture step card content when numbered items are detected
+      let stepItems = null;
+      if (hasNumberedItems) {
+        stepItems = [];
+        for (const li of Array.from(listItemEls).slice(0, 8)) {
+          try {
+            const liText = li.textContent?.trim() || '';
+            if (!/^\s*0?[1-9][\.\)\s]/.test(liText) && !/step\s*0?[1-9]/i.test(liText)) continue;
+            // Find step label (small text like "STEP 01")
+            const labelEl = li.querySelector('[class*="step"], [class*="label"], [class*="number"], [class*="eyebrow"], [class*="overline"], span, small');
+            const label = labelEl?.innerText?.trim().slice(0, 20) || liText.match(/^[\s\d\.\)]+/)?.[0]?.trim() || '';
+            // Find step heading (the main bold/large text)
+            const headingEl = li.querySelector('h2, h3, h4, h5, [class*="heading"], [class*="title"], strong, b');
+            const stepHeading = headingEl?.innerText?.trim().slice(0, 60) || '';
+            if (label || stepHeading) stepItems.push({ label, heading: stepHeading });
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
+        }
+        if (stepItems.length === 0) stepItems = null;
+      }
+
       const hasStats = /\d+[KkMm+%]|\$\d/.test(sec.innerText);
       const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
       const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
@@ -3183,6 +3222,8 @@
         arrowLinks: arrowLinks.length > 0 ? arrowLinks : null,
         hasSlider: hasSwiper || false,
         hasNumberedItems,
+        steps: stepItems || null,
+        eyebrow: eyebrowText || null,
         gridCols: gridCols || null,
         heroColumns: heroColumns || null,
         headingToSubtitleGap: headingToSubtitleGap || null,
