@@ -19,6 +19,7 @@
     <div class="header-right">
       <span class="version-badge" id="versionBadge"></span>
       <span class="mode-badge mode-badge--fallback" id="modeBadge">Rule-based</span>
+      <button class="icon-btn fusion-toggle" id="fusionToggle" title="Design Fusion" aria-label="Design Fusion">⚡<span class="fusion-badge" id="fusionBadge" style="display:none">0</span></button>
       <button class="icon-btn" id="historyToggle" title="Saved prompts" aria-label="Saved prompts">◷</button>
       <button class="icon-btn" id="settingsToggle" title="API Settings" aria-label="API Settings">⚙</button>
     </div>
@@ -49,6 +50,21 @@
       <button class="btn btn-sm" id="saveApiKey">Save</button>
     </div>
     <div class="settings-note" id="settingsNote"></div>
+  </section>
+
+  <!-- Fusion Panel -->
+  <section class="fusion-panel" id="fusionPanel" style="display:none" aria-label="Design Fusion">
+    <div class="fusion-header">
+      <span class="settings-title">Design Fusion</span>
+      <button class="btn btn-sm btn-ghost danger-btn" id="clearFusionBtn" aria-label="Clear fusion collection">Clear</button>
+    </div>
+    <div class="fusion-sites" id="fusionSites">
+      <p class="empty-state">Analyze sites and click "Add to Fusion" to start mixing design layers.</p>
+    </div>
+    <div class="fusion-layers" id="fusionLayers" style="display:none"></div>
+    <button class="btn btn-primary btn-full fusion-generate-btn" id="generateFusionBtn" style="display:none">
+      <span aria-hidden="true">⚡</span> Generate Fusion Prompt
+    </button>
   </section>
 
   <!-- History Panel -->
@@ -100,6 +116,7 @@
     <div class="result-header">
       <div class="result-meta" id="resultMeta"></div>
       <div class="result-actions">
+        <button class="btn btn-sm btn-ghost" id="addToFusionBtn" aria-label="Add to Design Fusion" style="display:none">⚡ Add to Fusion</button>
         <button class="btn btn-sm btn-ghost" id="copyBtn" aria-label="Copy prompt to clipboard"><span id="copyIcon" aria-hidden="true">⎘</span> Copy</button>
         <button class="btn btn-sm btn-ghost" id="resetBtn" aria-label="Reset and start over">↺</button>
       </div>
@@ -136,6 +153,7 @@
 </div>
 <script src="lib/prompt-builder.js"></script>
 <script src="lib/ai-caller.js"></script>
+<script src="lib/fusion-engine.js"></script>
 <script src="lib/ui-helpers.js"></script>
 <script src="popup.js"></script>
 </body>

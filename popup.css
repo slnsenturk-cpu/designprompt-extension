@@ -949,3 +949,139 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+/* DESIGN FUSION                                                         */
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Fusion toggle button + badge ─── */
+.fusion-toggle { position: relative; }
+.fusion-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 7px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* ─── Fusion panel ─── */
+.fusion-panel {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.fusion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ─── Fusion site list ─── */
+.fusion-site-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.fusion-site-item:last-child { border-bottom: none; }
+.fusion-site-domain {
+  font-weight: 500;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.fusion-color-dots {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.fusion-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.fusion-site-font {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fusion-site-remove {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.fusion-site-remove:hover { color: var(--red); background: rgba(248,113,113,0.1); }
+
+/* ─── Fusion layer selection ─── */
+.fusion-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fusion-layer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fusion-layer-row .field-label {
+  min-width: 64px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.fusion-layer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.fusion-layer-chips .chip {
+  padding: 3px 8px;
+  font-size: 10px;
+}
+
+/* ─── Fusion generate button ─── */
+.fusion-generate-btn {
+  margin-top: 4px;
+}
+
+/* ─── Fusion result tag ─── */
+.fusion-result-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  background: var(--accent-glow);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--accent-2);
+  font-family: var(--font-mono);
+}
