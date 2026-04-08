@@ -275,7 +275,7 @@
             }
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // Deduplicate keyframes by name
@@ -287,26 +287,48 @@
     });
 
     // ── 1b. Extract :hover rules from stylesheets ──
-    for (const sheet of sheets) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          if (rule.selectorText?.includes(':hover')) {
-            const sel = rule.selectorText;
-            // Skip framework noise, video players, and pseudo-elements
-            if (/^_|^__|Toastify|nprogress|react-|chakra-|\.vjs-|video-js|\.plyr|\.mux-/i.test(sel)) continue;
-            if (sel.length > 100) continue;
-            const props = {};
-            for (const prop of ['background','background-color','color','transform','box-shadow','border-color','opacity','filter','text-decoration','letter-spacing','scale']) {
-              const val = rule.style?.getPropertyValue(prop);
-              if (val) props[prop] = val;
+    // Recursive helper: traverses into @media blocks (e.g. @media (hover: hover) { .btn:hover { } })
+    // which modern sites use to avoid sticky hover on touch devices. Without recursion these are missed.
+    const _collectHoverRules = (ruleList) => {
+      for (const rule of Array.from(ruleList || [])) {
+        // Recurse into @media / @supports blocks
+        if (rule.type === CSSRule.MEDIA_RULE || rule.type === CSSRule.SUPPORTS_RULE) {
+          try { _collectHoverRules(rule.cssRules); } catch(e) { console.debug('[VibeDesign]', e.message); }
+          continue;
+        }
+        if (!rule.selectorText?.includes(':hover')) continue;
+        // Skip framework/library noise
+        if (/^_|^__|Toastify|nprogress|react-|chakra-|\.vjs-|video-js|\.plyr|\.mux-/i.test(rule.selectorText)) continue;
+
+        // Multi-selector split: ".btn:hover, .button:hover { }" → process each selector independently
+        const selectors = rule.selectorText.split(',').map(s => s.trim()).filter(s => s.includes(':hover'));
+        for (const sel of selectors) {
+          if (sel.length > 140) continue;
+          const props = {};
+          for (const prop of [
+            'background','background-color','background-image',
+            'color','transform','box-shadow','border-color','border',
+            'opacity','filter','text-decoration','letter-spacing','scale',
+            'outline','outline-color','outline-offset','transition'
+          ]) {
+            let val = rule.style?.getPropertyValue(prop);
+            if (!val) continue;
+            // Resolve CSS custom properties inline using already-collected cssVars
+            if (val.includes('var(')) {
+              val = val.replace(/var\(\s*(--[^,)]+)[^)]*\)/g, (match, name) => tokens.cssVars[name.trim()] || match);
             }
-            if (Object.keys(props).length > 0) {
-              tokens.hoverStates.push({ selector: sel.slice(0, 80), ...props });
-            }
+            props[prop] = val;
+          }
+          if (Object.keys(props).length > 0) {
+            tokens.hoverStates.push({ selector: sel.slice(0, 140), ...props });
           }
         }
-      } catch(e) {}
+      }
+    };
+    for (const sheet of sheets) {
+      try { _collectHoverRules(sheet.cssRules); } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
+
     // Deduplicate and limit
     const seenHovers = new Set();
     tokens.hoverStates = tokens.hoverStates.filter(h => {
@@ -314,10 +336,13 @@
       if (seenHovers.has(key)) return false;
       seenHovers.add(key);
       return true;
-    }).slice(0, 20).map(h => {
+    }).slice(0, 40).map(h => {
       // Enrich with "before" computed state for before→after diff format
+      // Strip :hover and child combinators to find the base element
       try {
-        const el = document.querySelector(h.selector.replace(/:hover.*$/, '').trim());
+        const baseSelector = h.selector.replace(/:hover\b.*$/, '').trim();
+        if (!baseSelector) return h;
+        const el = document.querySelector(baseSelector);
         if (!el) return h;
         const cs = window.getComputedStyle(el);
         const before = {};
@@ -341,7 +366,7 @@
     let scanned = 0;
     const allEls = document.querySelectorAll('*');
     for (const el of allEls) {
-      if (scanned > 500) break;
+      if (scanned > 800) break;
       try {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
@@ -417,7 +442,7 @@
           transSet.add(tr);
         }
 
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // ── 3. Deduplicate and rank colors ──
@@ -430,8 +455,8 @@
 
     tokens.fonts = [...fontSet].filter(Boolean).slice(0, 5);
     tokens.borderRadii = [...radiusSet].slice(0, 6);
-    tokens.shadows = [...shadowSet].slice(0, 4);
-    tokens.transitions = [...transSet].slice(0, 4);
+    tokens.shadows = [...shadowSet].slice(0, 8);
+    tokens.transitions = [...transSet].slice(0, 6);
 
     // ── 3b. Computed animation properties from visible elements ──
     const animDetailSet = new Set();
@@ -440,9 +465,9 @@
         const cs = window.getComputedStyle(el);
         const anim = cs.animation;
         if (anim && anim !== 'none' && anim.length < 200) animDetailSet.add(anim);
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     });
-    tokens.animationDetails = [...animDetailSet].slice(0, 8);
+    tokens.animationDetails = [...animDetailSet].slice(0, 16);
 
     // ── 3c. Button style extraction ──
     tokens.buttonStyles = extractButtonStyles();
@@ -542,7 +567,19 @@
     // ── 21. Subtle background textures ──
     tokens.subtleTextures = detectSubtleBackgroundTextures();
 
-    // ── 22. Hero image URL (for Vision API illustration analysis) ──
+    // ── 22a. Visual type classification ──
+    tokens.visualClassification = classifyVisuals();
+
+    // ── 22b. Card styles ──
+    tokens.cardStyles = extractCardStyles();
+
+    // ── 22c. CSS filter effects ──
+    tokens.filterEffects = extractFilterEffects();
+
+    // ── 22d. Shadow system analysis ──
+    tokens.shadowSystem = analyzeShadowSystem(tokens.shadows);
+
+    // ── 23. Hero image URL (for Vision API illustration analysis) ──
     tokens.heroImageUrl = null;
     const _heroEl = document.querySelector(
       '[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type'
@@ -572,7 +609,54 @@
       }
     }
 
+    // ── 23. Framework / site builder detection ──
+    tokens.frameworkDetection = detectFrameworkSite();
+
     return tokens;
+  }
+
+  // ─── Framework / site builder detection ────────────────────────────────────
+  function detectFrameworkSite() {
+    const result = { isFramer: false, isWebflow: false, isEditor: null, signals: [] };
+
+    // Framer signals
+    const framerSignals = [];
+    if (document.querySelector('[class*="framer-"]')) framerSignals.push('framer-class');
+    if (document.querySelector('[data-framer-component-type]')) framerSignals.push('framer-component-attr');
+    if (document.querySelector('[data-framer-name]')) framerSignals.push('framer-name-attr');
+    // Framer injects a script with "framer.com" or "framerusercontent"
+    const scripts = Array.from(document.querySelectorAll('script[src]'));
+    if (scripts.some(s => /framer(user)?content|framer\.com\/m\//i.test(s.src || ''))) framerSignals.push('framer-script');
+    // Framer adds CSS custom props like --framer-font-size
+    const rootStyles = getComputedStyle(document.documentElement);
+    const framerCSSVar = rootStyles.getPropertyValue('--framer-font-size') || rootStyles.getPropertyValue('--framer-color-tint');
+    if (framerCSSVar) framerSignals.push('framer-css-var');
+    // Meta generator or canonical URL
+    const metaGen = document.querySelector('meta[name="generator"]');
+    if (metaGen?.content?.toLowerCase().includes('framer')) framerSignals.push('framer-generator-meta');
+    if (window.location.hostname.endsWith('.framer.website') || window.location.hostname.endsWith('.framer.app')) {
+      framerSignals.push('framer-hostname');
+    }
+
+    if (framerSignals.length >= 1) {
+      result.isFramer = true;
+      result.isEditor = 'framer';
+      result.signals = framerSignals;
+    }
+
+    // Webflow signals (secondary, for future use)
+    if (!result.isFramer) {
+      const webflowSignals = [];
+      if (document.querySelector('[class*="w-"]') && document.querySelector('html[data-wf-site]')) webflowSignals.push('webflow-attr');
+      if (scripts.some(s => /webflow\.com/i.test(s.src || ''))) webflowSignals.push('webflow-script');
+      if (webflowSignals.length >= 1) {
+        result.isWebflow = true;
+        result.isEditor = 'webflow';
+        result.signals = webflowSignals;
+      }
+    }
+
+    return result;
   }
 
   // ─── Deep motion profile — scroll behavior & timing personality ──────────
@@ -631,7 +715,7 @@
           }
           if (revealType) revealKeyframes.push({ name: rule.name, revealType, from: fromProps, to: toProps });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     if (revealKeyframes.length > 0) {
       const typeCounts = {};
@@ -641,25 +725,48 @@
     }
 
     // 3. Dominant duration + easing personality
+    // Fix 4: filter carousel/library elements to avoid skewing the average
+    const MOTION_SKIP_SELECTORS = '.swiper, .swiper-wrapper, .swiper-slide, [class*="splide__"], [class*="glide__"], [class*="embla__"], [class*="keen-slider"]';
+    let skipEls;
+    try { skipEls = new Set(Array.from(document.querySelectorAll(MOTION_SKIP_SELECTORS))); } catch(e) { skipEls = new Set(); }
+
     const durations = [], easings = [];
     let sampled = 0;
     for (const el of document.querySelectorAll('*')) {
       if (sampled > 300) break;
+      // Skip library-owned elements
+      if (skipEls.has(el)) continue;
+      try {
+        const closest = el.closest?.('.swiper, [class*="splide"], [class*="embla"]');
+        if (closest) continue;
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
       try {
         const cs = window.getComputedStyle(el);
         const tr = cs.transitionDuration, te = cs.transitionTimingFunction, an = cs.animationDuration;
-        if (tr && tr !== '0s') { const ms = parseFloat(tr) * (tr.includes('ms') ? 1 : 1000); if (ms > 0) { durations.push(ms); sampled++; } }
-        if (an && an !== '0s') { const ms = parseFloat(an) * (an.includes('ms') ? 1 : 1000); if (ms > 0) durations.push(ms); }
+        if (tr && tr !== '0s') {
+          const ms = parseFloat(tr) * (tr.includes('ms') ? 1 : 1000);
+          // Fix 4: ignore durations > 2s (decorative loops like marquee, rotate) and < 50ms (imperceptible)
+          if (ms >= 50 && ms <= 2000) { durations.push(ms); sampled++; }
+        }
+        if (an && an !== '0s') {
+          const ms = parseFloat(an) * (an.includes('ms') ? 1 : 1000);
+          if (ms >= 50 && ms <= 2000) durations.push(ms);
+        }
         if (te && te !== 'ease' && te !== 'initial' && te !== 'ease 0s') easings.push(te);
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     if (durations.length > 0) {
-      const avg = durations.reduce((a,b) => a+b, 0) / durations.length;
-      profile.dominantDuration = Math.round(avg) + 'ms';
-      if (avg < 200) profile.timingPersonality = 'snappy';
-      else if (avg < 400) profile.timingPersonality = 'smooth';
-      else if (avg < 700) profile.timingPersonality = 'editorial';
-      else profile.timingPersonality = 'cinematic';
+      // Fix 4: use mode-bucket instead of mean — avoids long-tail skew from one slow animation
+      const short = durations.filter(d => d < 200).length;
+      const medium = durations.filter(d => d >= 200 && d < 500).length;
+      const long = durations.filter(d => d >= 500).length;
+      const dominant = short >= medium && short >= long ? 'short' : medium >= long ? 'medium' : 'long';
+      const bucketRepresentative = { short: 150, medium: 300, long: 600 };
+      profile.dominantDuration = bucketRepresentative[dominant] + 'ms';
+      // Timing personality from bucket
+      if (dominant === 'short') profile.timingPersonality = 'snappy';
+      else if (dominant === 'medium') profile.timingPersonality = 'smooth';
+      else profile.timingPersonality = 'editorial';
     }
     if (easings.length > 0) {
       const easeCount = {};
@@ -686,7 +793,7 @@
           const ms = parseFloat(delay) * (delay.includes('ms') ? 1 : 1000);
           staggerCandidates.push({ ms, el: el.tagName });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     if (staggerCandidates.length >= 3) {
       const delays = staggerCandidates.map(s => s.ms).sort((a,b) => a-b);
@@ -715,7 +822,7 @@
         if (profile.gsapScrollTriggers.some(t => t.scrub)) profile.scrollParadigm = 'scroll-scrub';
         else if (!profile.scrollParadigm) profile.scrollParadigm = 'trigger-based';
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     if (!profile.scrollParadigm) {
       profile.scrollParadigm = (document.querySelector('[data-aos],[data-scroll]')) ? 'trigger-based' : 'trigger-based';
@@ -748,7 +855,7 @@
         } else if (parseFloat(cs.opacity) < 0.2 && rect.width > 0) {
           sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName: 'js-triggered-entrance', delay: null, duration: null, opacity: 'starts-invisible' });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     const heroCanvas = hero.querySelector('canvas');
@@ -792,7 +899,7 @@
           }
         }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     // Lottie
     try {
@@ -824,14 +931,14 @@
           });
         }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     // DotLottie
     try {
       if (window.DotLottie) result.hasDotLottie = true;
       const dotEls = document.querySelectorAll('dotlottie-player,[class*="dotlottie"]');
       if (dotEls.length > 0) { result.hasDotLottie = true; result.details.push({ type: 'dotlottie', count: dotEls.length }); }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     return (result.hasRive || result.hasLottie || result.hasDotLottie || result.details.length > 0) ? result : null;
   }
@@ -847,7 +954,7 @@
       if (window.locomotiveScroll) found.add('locomotive-scroll');
       if (window.THREE) found.add('three.js');
       if (window.PIXI || window.PixiJS) found.add('pixi.js');
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     // 2. Script src patterns
     try {
@@ -859,14 +966,14 @@
         if (src.includes('framer-motion')) found.add('framer-motion');
         if (/\/anime(\.min)?\.js/.test(src) || src.includes('animejs')) found.add('anime.js');
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     // 3. DOM class/attribute markers
     try {
       if (document.querySelector('[data-scroll],[data-scroll-container]')) found.add('locomotive-scroll');
       if (document.querySelector('[data-aos]')) found.add('aos');
       if (document.querySelector('[data-gsap],[class*="gsap-"]')) found.add('gsap');
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     return [...found];
   }
@@ -893,7 +1000,7 @@
             }
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     // Dedupe by family name, cap at 10
     const seenFamilies = new Set();
@@ -932,7 +1039,7 @@
             fullWidth: rect.width > window.innerWidth * 0.7,
           });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     assets.backgrounds = assets.backgrounds.slice(0, 8);
 
@@ -959,7 +1066,7 @@
           }
         } catch(e) { /* cross-origin sheet, skip */ }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
     // Return sorted breakpoints in typical responsive range (320-1920)
     return [...bps].filter(b => b >= 320 && b <= 1920).sort((a,b) => a-b);
   }
@@ -1153,9 +1260,9 @@
               return result;
             }
           }
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     // Strategy 2: JS-driven cursor element (div following mouse, position:fixed, pointer-events:none)
     const cursorEls = document.querySelectorAll('[class*="cursor"], [class*="Cursor"], [id*="cursor"]');
@@ -1321,14 +1428,39 @@
     // Check for hamburger/burger elements
     const burger = document.querySelector('[class*="burger"], [class*="Burger"], [class*="hamburger"], [class*="menu-toggle"], [class*="MenuToggle"]');
     result.hasHamburger = !!burger;
-    // Check for visible nav links
-    const navLinks = document.querySelectorAll('nav a, header a, [class*="nav"] a');
+    // Check for visible nav links — include buttons for Framer/React nav patterns
+    const navLinks = document.querySelectorAll(
+      'nav a, nav button, header a, header button, ' +
+      '[class*="nav"] a, [class*="nav"] button, ' +
+      '[role="navigation"] a, [role="navigation"] button'
+    );
     const visibleLinks = Array.from(navLinks).filter(a => {
       const r = a.getBoundingClientRect();
-      return r.width > 0 && r.height > 0 && a.textContent?.trim().length < 30;
+      if (r.width === 0 || r.height === 0) return false;
+      const text = (a.textContent || '').trim();
+      if (text.length < 2 || text.length >= 30) return false;
+      // Skip CTAs (colored background = nav button, not nav link)
+      const cs = window.getComputedStyle(a);
+      if (!isTransparent(cs.backgroundColor)) {
+        const bgHex = rgbToHex(cs.backgroundColor);
+        if (bgHex && bgHex.length >= 6) {
+          const rC = parseInt(bgHex.slice(1,3),16), gC = parseInt(bgHex.slice(3,5),16), bC = parseInt(bgHex.slice(5,7),16);
+          const lum = (rC*0.299 + gC*0.587 + bC*0.114) / 255;
+          if (lum < 0.85) return false; // colored bg = CTA button, skip
+        }
+      }
+      return true;
     });
-    result.hasVisibleLinks = visibleLinks.length > 2;
-    result.visibleLinks = visibleLinks.map(a => a.textContent?.trim()).slice(0, 6);
+    // Dedupe nav link labels
+    const _seenNavLabels = new Set();
+    const _dedupedNavLinks = visibleLinks.filter(a => {
+      const t = (a.textContent || '').trim();
+      if (_seenNavLabels.has(t)) return false;
+      _seenNavLabels.add(t);
+      return true;
+    });
+    result.hasVisibleLinks = _dedupedNavLinks.length > 1;
+    result.visibleLinks = _dedupedNavLinks.map(a => (a.textContent || '').trim()).slice(0, 8);
     // Logo
     const logo = document.querySelector('[class*="logo"], [class*="Logo"], header a:first-child');
     if (logo) {
@@ -1422,11 +1554,11 @@
                 bg: !isTransparent(before.backgroundColor) ? rgbToHex(before.backgroundColor) : null,
               };
             }
-          } catch(e) {}
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
 
         candidates.push(data);
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // Score-based classification
@@ -1513,7 +1645,7 @@
             };
             break;
           }
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
     }
 
@@ -1537,6 +1669,7 @@
       { key: 'h1', selector: 'h1' },
       { key: 'h2', selector: 'h2' },
       { key: 'h3', selector: 'h3' },
+      { key: 'h4', selector: 'h4' },
       { key: 'body', selector: 'p' },
     ];
 
@@ -1544,7 +1677,8 @@
       const els = document.querySelectorAll(selector);
       // For h2/h3: pick the DOMINANT instance (largest font-size outside nav/footer/header)
       // For h1/body: first visible match is sufficient
-      if (key === 'h2' || key === 'h3') {
+      if (key === 'h2' || key === 'h3' || key === 'h4') {
+        const h1Size = parseFloat(patterns.h1?.fontSize) || 0;
         let best = null, bestSize = 0;
         for (const el of Array.from(els).slice(0, 40)) {
           try {
@@ -1556,8 +1690,10 @@
             const cs = window.getComputedStyle(el);
             if (cs.display === 'none' || cs.visibility === 'hidden') continue;
             const size = parseFloat(cs.fontSize) || 0;
+            // Fix 3: skip if same size as H1 (within 2px) — H2 should have distinct scale
+            if (key === 'h2' && h1Size > 0 && Math.abs(size - h1Size) < 2) continue;
             if (size > bestSize) { bestSize = size; best = { el, cs }; }
-          } catch(e) {}
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
         if (best) {
           patterns[key] = {
@@ -1567,7 +1703,55 @@
             letterSpacing: best.cs.letterSpacing !== 'normal' ? best.cs.letterSpacing : null,
             textTransform: best.cs.textTransform !== 'none' ? best.cs.textTransform : null,
             fontFamily: cleanFont(best.cs.fontFamily),
+            color: best.cs.color && !isTransparent(best.cs.color) ? rgbToHex(best.cs.color) : null,
+            textShadow: best.cs.textShadow !== 'none' ? best.cs.textShadow : null,
           };
+        } else if (key === 'h2' && patterns.h1 && h1Size > 0) {
+          // Fix 3 fallback: no distinct H2 found — estimate at 65% of H1 size
+          const estSize = Math.round(h1Size * 0.65);
+          patterns[key] = { ...patterns.h1, fontSize: estSize + 'px', _estimated: true };
+        }
+        continue;
+      }
+      // Fix 2: body — use mode (most common font-size) instead of first visible <p>
+      if (key === 'body') {
+        const bodyEls = Array.from(document.querySelectorAll('p, [class*="body-text"], [class*="text-reg"], [class*="text-book"]'))
+          .filter(el => {
+            try {
+              if (el.closest('nav, header, footer, [class*="nav"], [class*="footer"], [class*="caption"], [class*="cookie"]')) return false;
+              const rect = el.getBoundingClientRect();
+              return rect.width > 80 && rect.height > 0 && el.innerText?.trim().length > 10;
+            } catch(e) { return false; }
+          })
+          .slice(0, 30);
+        // Build frequency map — skip very small text (< 12px, likely fine print)
+        const sizeFreq = {};
+        for (const el of bodyEls) {
+          try {
+            const fs = parseFloat(window.getComputedStyle(el).fontSize) || 0;
+            if (fs >= 12) sizeFreq[fs] = (sizeFreq[fs] || 0) + 1;
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
+        }
+        const modeEntry = Object.entries(sizeFreq).sort((a,b) => b[1] - a[1])[0];
+        if (modeEntry) {
+          const modeSize = parseFloat(modeEntry[0]);
+          const modeEl = bodyEls.find(el => {
+            try { return Math.abs(parseFloat(window.getComputedStyle(el).fontSize) - modeSize) < 0.5; } catch(e) { return false; }
+          });
+          if (modeEl) {
+            try {
+              const cs = window.getComputedStyle(modeEl);
+              patterns[key] = {
+                fontSize: cs.fontSize,
+                fontWeight: cs.fontWeight,
+                lineHeight: cs.lineHeight,
+                letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
+                textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
+                fontFamily: cleanFont(cs.fontFamily),
+                color: cs.color && !isTransparent(cs.color) ? rgbToHex(cs.color) : null,
+              };
+            } catch(e) { console.debug('[VibeDesign]', e.message); }
+          }
         }
         continue;
       }
@@ -1585,9 +1769,11 @@
             letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
             textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
             fontFamily: cleanFont(cs.fontFamily),
+            color: cs.color && !isTransparent(cs.color) ? rgbToHex(cs.color) : null,
+            textShadow: cs.textShadow !== 'none' ? cs.textShadow : null,
           };
           break;
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
     }
 
@@ -1610,10 +1796,264 @@
             break;
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
+    }
+
+    // Detect caption text (small text elements like figcaption, .caption)
+    const captionEls = document.querySelectorAll('figcaption, [class*="caption"], [class*="subtitle"], [class*="meta"], small, .text-sm, .text-xs');
+    for (const el of Array.from(captionEls).slice(0, 30)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const fs = parseFloat(cs.fontSize) || 0;
+        if (fs > 0 && fs <= 14) {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0 && el.innerText?.trim().length > 2) {
+            patterns.caption = {
+              fontSize: cs.fontSize,
+              fontWeight: cs.fontWeight,
+              lineHeight: cs.lineHeight,
+              letterSpacing: cs.letterSpacing !== 'normal' ? cs.letterSpacing : null,
+              textTransform: cs.textTransform !== 'none' ? cs.textTransform : null,
+              fontFamily: cleanFont(cs.fontFamily),
+              color: cs.color && !isTransparent(cs.color) ? rgbToHex(cs.color) : null,
+            };
+            break;
+          }
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
+    }
+
+    // Detect code/monospace text
+    const codeEls = document.querySelectorAll('code, pre, [class*="code"], kbd, samp');
+    for (const el of Array.from(codeEls).slice(0, 15)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const cs = window.getComputedStyle(el);
+          patterns.code = {
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            lineHeight: cs.lineHeight,
+            fontFamily: cleanFont(cs.fontFamily),
+            backgroundColor: cs.backgroundColor && !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
+            borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+          };
+          break;
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     return patterns;
+  }
+
+  // ─── Visual type classification ───────────────────────────────────────────
+  function classifyVisuals() {
+    const result = { heroVisual: null, sectionVisuals: [] };
+    const heroEl = document.querySelector('[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type');
+
+    function classifyImage(el) {
+      const cs = window.getComputedStyle(el);
+      const parentCs = el.parentElement ? window.getComputedStyle(el.parentElement) : null;
+      const src = (el.src || el.currentSrc || '').toLowerCase();
+      const tag = el.tagName.toLowerCase();
+      const rect = el.getBoundingClientRect();
+      const aspectRatio = rect.width > 0 ? (rect.width / rect.height).toFixed(2) : '1.00';
+
+      let type = 'photo', subtype = 'generic';
+
+      // SVG detection
+      if (tag === 'svg' || src.endsWith('.svg')) {
+        type = 'illustration';
+        const paths = tag === 'svg' ? el.querySelectorAll('path, circle, rect, line, polygon').length : 0;
+        subtype = paths > 20 ? 'detailed-vector' : paths > 5 ? 'icon-illustration' : 'simple-icon';
+      }
+      // URL-based hints
+      else if (/unsplash|pexels|shutterstock|gettyimages|stock/.test(src)) {
+        type = 'photo'; subtype = 'stock-photography';
+      } else if (/undraw|storyset|humaaans|blush|illustrations/.test(src)) {
+        type = 'illustration'; subtype = 'flat-vector';
+      }
+      // Size-based classification
+      else if (rect.width > 600 && rect.height > 400) {
+        subtype = 'hero-photo';
+      } else if (rect.width < 200 && rect.height < 200) {
+        type = 'icon'; subtype = 'small-visual';
+      }
+
+      // Filter/treatment detection
+      const filter = cs.filter !== 'none' ? cs.filter : null;
+      const blendMode = parentCs?.mixBlendMode !== 'normal' ? parentCs?.mixBlendMode : null;
+      let treatment = 'raw';
+      if (filter) {
+        if (/grayscale/.test(filter)) treatment = 'grayscale';
+        else if (/brightness.*saturate|saturate.*brightness/.test(filter)) treatment = 'color-adjusted';
+        else if (/blur/.test(filter)) treatment = 'blurred-bg';
+        else treatment = 'filtered';
+      }
+      if (parentCs?.clipPath && parentCs.clipPath !== 'none') treatment = 'clipped';
+      if (parentCs?.maskImage && parentCs.maskImage !== 'none') treatment = 'masked';
+
+      return {
+        type, subtype, treatment,
+        filters: filter,
+        blendMode: blendMode || 'none',
+        aspectRatio,
+        objectFit: cs.objectFit !== 'fill' ? cs.objectFit : null,
+      };
+    }
+
+    // Classify hero visual
+    if (heroEl) {
+      const heroImg = heroEl.querySelector('img:not([class*="avatar"]):not([class*="logo"]):not([width="1"])');
+      const heroVideo = heroEl.querySelector('video[autoplay], video[data-autoplay]');
+      const heroCanvas = heroEl.querySelector('canvas');
+      const heroSvg = heroEl.querySelector('svg:not([class*="icon"])');
+
+      if (heroVideo) {
+        result.heroVisual = { type: 'video', subtype: 'background-video', treatment: 'autoplay', blendMode: 'none', aspectRatio: '16:9' };
+      } else if (heroCanvas) {
+        result.heroVisual = { type: '3d', subtype: 'canvas-webgl', treatment: 'interactive', blendMode: 'none', aspectRatio: '16:9' };
+      } else if (heroSvg) {
+        try { result.heroVisual = classifyImage(heroSvg); } catch(e) { console.debug('[VibeDesign]', e.message); }
+      } else if (heroImg) {
+        try {
+          const rect = heroImg.getBoundingClientRect();
+          if (rect.width > 100 && rect.height > 100) result.heroVisual = classifyImage(heroImg);
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
+      } else {
+        // Check for background gradient/pattern as hero visual
+        try {
+          const heroBg = window.getComputedStyle(heroEl).backgroundImage;
+          if (heroBg && heroBg !== 'none' && !heroBg.startsWith('url(')) {
+            result.heroVisual = { type: 'abstract', subtype: 'gradient-bg', treatment: 'css-generated', blendMode: 'none', aspectRatio: 'full-width' };
+          }
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
+      }
+    }
+
+    return result;
+  }
+
+  // ─── Card style extraction ────────────────────────────────────────────────
+  function extractCardStyles() {
+    const cardEls = document.querySelectorAll(
+      '[class*="card"], [class*="Card"], article, [class*="feature"], [class*="pricing"], [class*="plan"], [class*="item"]:not(li):not(nav *)'
+    );
+    let bestCard = null, bestScore = 0;
+
+    for (const el of Array.from(cardEls).slice(0, 30)) {
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 100 || rect.height < 80) continue;
+        const cs = window.getComputedStyle(el);
+        // Score: prefer elements that look like cards (have bg, padding, radius)
+        let score = 0;
+        if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) score += 2;
+        if (cs.borderRadius && cs.borderRadius !== '0px') score += 2;
+        if (cs.boxShadow && cs.boxShadow !== 'none') score += 3;
+        if (cs.border && cs.border !== 'none' && !cs.border.includes('0px')) score += 1;
+        if (parseFloat(cs.padding) > 8) score += 1;
+        if (score > bestScore) {
+          bestScore = score;
+          bestCard = { el, cs, rect };
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
+    }
+
+    if (!bestCard || bestScore < 3) return null;
+
+    const { cs, el } = bestCard;
+    const result = {
+      padding: cs.padding,
+      borderRadius: cs.borderRadius,
+      backgroundColor: cs.backgroundColor && !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
+      border: cs.border && !cs.border.includes('0px') ? cs.border : null,
+      boxShadow: cs.boxShadow !== 'none' ? cs.boxShadow : null,
+      shadowType: 'none',
+      gap: cs.gap !== 'normal' ? cs.gap : null,
+      hoverEffect: null,
+    };
+
+    // Classify shadow type
+    if (result.boxShadow) {
+      const s = result.boxShadow;
+      if (s.includes('inset')) result.shadowType = 'inset';
+      else if (s.split(',').length > 2) result.shadowType = 'layered';
+      else if (/0px 0px \d+px/.test(s) || /0 0 \d+px/.test(s)) result.shadowType = 'glow';
+      else result.shadowType = 'drop';
+    }
+
+    // Check for hover effect via CSS rules
+    const className = el.className?.split?.(' ')[0];
+    if (className) {
+      const hoverState = (data => data.hoverStates || [])({ hoverStates: [] });
+      // We can't easily get hover styles here, so mark as 'check-hover-states'
+      result.hoverEffect = 'see hover states section';
+    }
+
+    return result;
+  }
+
+  // ─── CSS filter effects extraction ────────────────────────────────────────
+  function extractFilterEffects() {
+    const effects = { images: [], sections: [], summary: '' };
+    const summaryParts = [];
+
+    // Check images for filters
+    const imgs = document.querySelectorAll('img');
+    for (const img of Array.from(imgs).slice(0, 20)) {
+      try {
+        const cs = window.getComputedStyle(img);
+        const rect = img.getBoundingClientRect();
+        if (rect.width < 50 || rect.height < 50) continue;
+        if (cs.filter && cs.filter !== 'none') {
+          effects.images.push({ filter: cs.filter, context: 'image' });
+          if (!summaryParts.includes('image-filters')) summaryParts.push('image-filters');
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
+    }
+
+    // Check sections for backdrop-filter (glassmorphism) and mix-blend-mode
+    const sections = document.querySelectorAll('section, [class*="section"], [class*="hero"], [class*="card"], [class*="overlay"]');
+    for (const sec of Array.from(sections).slice(0, 20)) {
+      try {
+        const cs = window.getComputedStyle(sec);
+        if (cs.backdropFilter && cs.backdropFilter !== 'none') {
+          effects.sections.push({ backdropFilter: cs.backdropFilter, context: 'section-glassmorphism' });
+          if (!summaryParts.includes('glassmorphism')) summaryParts.push('glassmorphism');
+        }
+        if (cs.mixBlendMode && cs.mixBlendMode !== 'normal') {
+          effects.sections.push({ blendMode: cs.mixBlendMode, context: 'blend-effect' });
+          if (!summaryParts.includes('blend-modes')) summaryParts.push('blend-modes');
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
+    }
+
+    effects.summary = summaryParts.length > 0 ? summaryParts.join(', ') : 'none detected';
+    return effects.images.length > 0 || effects.sections.length > 0 ? effects : null;
+  }
+
+  // ─── Shadow system decomposition ──────────────────────────────────────────
+  function analyzeShadowSystem(shadows) {
+    if (!shadows || shadows.length === 0) return null;
+    let maxDepth = 0;
+    let style = 'standard';
+    const hasInset = shadows.some(s => s.includes('inset'));
+    const hasGlow = shadows.some(s => /0px 0px \d+px/.test(s) || /0 0 \d+px/.test(s));
+    const hasLayered = shadows.some(s => s.split(',').length > 2);
+    const hasBrutalist = shadows.some(s => {
+      const m = s.match(/(-?\d+)px\s+(-?\d+)px\s+(\d+)px/);
+      return m && parseInt(m[3]) === 0 && (parseInt(m[1]) >= 3 || parseInt(m[2]) >= 3);
+    });
+
+    maxDepth = Math.max(...shadows.map(s => s.split(',').length));
+    if (hasBrutalist) style = 'brutalist';
+    else if (hasGlow) style = 'glow-based';
+    else if (hasLayered) style = 'layered-elevation';
+    else if (hasInset) style = 'inset-defined';
+    else style = 'drop-shadow';
+
+    return { style, maxDepth, hasInset, hasGlow, hasLayered, hasBrutalist };
   }
 
   // ─── Badge/tag style extraction ─────────────────────────────────────────────
@@ -1639,7 +2079,7 @@
           fontWeight: cs.fontWeight,
           border: cs.borderWidth !== '0px' ? cs.border : null,
         };
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return null;
   }
@@ -1751,6 +2191,8 @@
       return 'customer testimonial/quote card';
     if (/logo|partner|company|brand|trust/i.test(allText))
       return 'company logo grid or scrolling marquee';
+    if (/\btoken[s]?\b|design.?system|figma.?plugin|token.*studio|design.*variable|variable.*panel|design.*handoff|sync.*(?:figma|token)|style.*guide.*(?:token|variable)/i.test(allText))
+      return 'design-system / token management interface — panel showing design token groups (colors, spacing, typography) with variable names and values';
     if (/step|process|workflow|how.*work/i.test(allText))
       return 'step-by-step process illustration showing workflow stages';
 
@@ -1927,6 +2369,10 @@
     }
 
     const map = [];
+    // Track how many times each fixed-canvas has been reported across sections.
+    // Full-viewport fixed canvases (WebGL backgrounds) technically overlap every section —
+    // we allow at most 2 reports per canvas (hero + one more prominent section) to avoid noise.
+    const _fixedCanvasReportCount = new Map();
 
     for (const sec of sectionEls.slice(0, 12)) {
       const rect = sec.getBoundingClientRect();
@@ -2006,9 +2452,20 @@
         const r = s.getBoundingClientRect();
         return r.width > 200 && r.height > 200;
       }).length;
-      const hasCanvas = !!sec.querySelector('canvas');
+      // Also detect canvases that visually overlap with this section but are not DOM descendants
+      // (e.g. position:fixed or position:absolute background canvases mounted outside the section)
+      const _secBR = sec.getBoundingClientRect();
+      const _overlappingCanvas = !sec.querySelector('canvas') && Array.from(document.querySelectorAll('canvas')).find(c => {
+        const cr = c.getBoundingClientRect();
+        return cr.width > 100 && cr.height > 100 &&
+               cr.top < _secBR.bottom && cr.bottom > _secBR.top &&
+               cr.left < _secBR.right && cr.right > _secBR.left;
+      });
+      const hasCanvas = !!sec.querySelector('canvas') || !!_overlappingCanvas;
       const hasSwiper = !!sec.querySelector('.swiper, [class*="slider"], [class*="carousel"]');
-      const hasNumberedItems = /\b0[1-9]\b|\bstep\s*[1-9]/i.test(sec.innerText);
+      // Fix 7: List-structure-based detection — avoids false-positive on any "01" text in sidebar/nav
+      const listItemEls = sec.querySelectorAll('li, [role="listitem"], [class*="step-item"], [class*="steps-item"]');
+      const hasNumberedItems = Array.from(listItemEls).some(li => /^\s*0?[1-9][\.\)\s]/.test(li.textContent?.trim()));
       const hasStats = /\d+[KkMm+%]|\$\d/.test(sec.innerText);
       const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
       const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
@@ -2062,7 +2519,7 @@
           // Get text from the deepest visible text-containing element
           const textEl = visibleNodes.find(n => n.children.length === 0 && (n.textContent || '').trim().length > 1);
           if (textEl) t = (textEl.textContent || '').trim();
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
         // Fallback to innerText
         if (!t) t = (el.innerText || '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
         // Still duplicated? Try splitting at repeat boundary
@@ -2101,6 +2558,21 @@
         const fallbackTexts = [...new Set(styledLinks.slice(0, 5).map(cleanCtaText).filter(t => t.length > 1))];
         fallbackTexts.slice(0, 3).forEach(t => ctaButtons.push(t));
       }
+      // Hero-specific final fallback: Framer sites wrap CTAs in 0-padding containers — bypass padding check
+      // Look for any large visible link/role=button with a colored bg, ignoring padding
+      if (ctaButtons.length === 0 && map.length === 0) {
+        const _heroBigBtns = Array.from(sec.querySelectorAll('a[href], [role="button"]'))
+          .filter(el => {
+            const r = el.getBoundingClientRect();
+            const cs = window.getComputedStyle(el);
+            if (r.width < 100 || r.height < 30) return false;
+            if (el.closest('nav, header')) return false;
+            return !isTransparent(cs.backgroundColor);
+          })
+          .map(el => cleanCtaText(el))
+          .filter(t => t.length > 2 && t.length < 60);
+        [...new Set(_heroBigBtns)].slice(0, 3).forEach(t => ctaButtons.push(t));
+      }
       const arrowLinks = Array.from(sec.querySelectorAll('a'))
         .filter(a => /→|→|arrow/i.test(a.innerText + (a.className || '')))
         .map(a => (a.innerText || '').trim().slice(0, 30))
@@ -2112,8 +2584,13 @@
       const hasAnyHeading = !!sec.querySelector('h1, h2, h3');
       // Hero: FIRST section is ALWAYS hero if it has any heading or CTA or visual
       if (isFirstSection && (hasH1 || hasAnyHeading || ctaButtons.length > 0 || hasVideo || hasCanvas)) type = 'hero';
-      else if (hasH1 && (hasForm || ctaButtons.length > 0)) type = 'hero';
-      else if (smallImgCount >= 4) type = 'logo-strip';
+      else if (hasH1 && (hasForm || ctaButtons.length > 0)) {
+        // Only classify as hero if near the top — avoids misclassifying mid-page h1+CTA sections (Framer sites repeat h1)
+        const _secTop = sec.offsetTop !== undefined ? sec.offsetTop : (sec.getBoundingClientRect().top + window.scrollY);
+        if (_secTop < window.innerHeight * 2) type = 'hero';
+        else type = 'cta-section';
+      }
+      else if (smallImgCount >= 4) type = (layout === 'split-columns') ? 'portfolio-split' : 'logo-strip';
       else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
       else if (hasNumberedItems) type = 'numbered-steps';
       else if (hasSwiper) type = 'slider/carousel';
@@ -2134,7 +2611,7 @@
       const visualDescriptions = [];
 
       // ── Analyze images with full visual context ──
-      if (type !== 'logo-strip') {
+      if (type !== 'logo-strip' && type !== 'portfolio-split') {
         const significantImgs = Array.from(sec.querySelectorAll('img')).filter(i => {
           const r = i.getBoundingClientRect();
           return r.width > 80 && r.height > 80;
@@ -2148,11 +2625,20 @@
           const altLow = alt.toLowerCase();
           const srcLow = (img.src || '').toLowerCase();
           const clsLow = (img.className || '').toLowerCase();
+          const _combined = altLow + ' ' + srcLow + ' ' + clsLow;
+          const _secClsLow = (sec.className || '').toLowerCase();
+          const _parentClsLow = (img.parentElement?.className || '').toLowerCase();
           let contentType = 'ui-mockup';
-          if (/dashboard|analytics|chart|graph|metric/.test(altLow + srcLow)) contentType = 'dashboard-ui';
-          else if (/table|list|data|cap.table|investor|share/.test(altLow + srcLow)) contentType = 'data-table-ui';
-          else if (/diagram|flow|process|architecture/.test(altLow + srcLow)) contentType = 'flow-diagram';
-          else if (/form|input|config|setting/.test(altLow + srcLow)) contentType = 'form-ui';
+          // Person/portrait photo detection — check before UI patterns
+          const _isPersonAlt = alt && /^[A-Z][a-z]+ [A-Z][a-z]+/.test(alt); // "FirstName LastName" pattern
+          const _isPersonCtx = /portrait|headshot|team|founder|person|people|member|speaker|author/i.test(_combined + _secClsLow + _parentClsLow);
+          const _aspectRatioImg = r.width / (r.height || 1);
+          const _isPortraitShape = _aspectRatioImg >= 0.6 && _aspectRatioImg <= 1.4; // square or slightly portrait
+          if (_isPersonAlt || (_isPersonCtx && _isPortraitShape)) contentType = 'person-photo';
+          else if (/dashboard|analytics|chart|graph|metric/.test(_combined)) contentType = 'dashboard-ui';
+          else if (/table|list|data|cap.table|investor|share/.test(_combined)) contentType = 'data-table-ui';
+          else if (/diagram|flow|process|architecture/.test(_combined)) contentType = 'flow-diagram';
+          else if (/form|input|config|setting/.test(_combined)) contentType = 'form-ui';
 
           // Container / frame analysis — full visual style capture
           const container = img.closest('div[class],figure,[class*="card"],[class*="frame"],[class*="mock"],[class*="visual"],[class*="hero"]');
@@ -2260,29 +2746,86 @@
       }
 
       // ── Canvas detection with size/placement and container styling ──
-      const canvases = sec.querySelectorAll('canvas');
-      for (const c of Array.from(canvases).slice(0, 2)) {
+      // Include both DOM-descendant canvases AND canvases that visually overlap (but are DOM-external)
+      const _domCanvases = Array.from(sec.querySelectorAll('canvas'));
+      const _secRectC = sec.getBoundingClientRect();
+      const _externalCanvases = Array.from(document.querySelectorAll('canvas')).filter(c => {
+        if (sec.contains(c)) return false;
+        const cr = c.getBoundingClientRect();
+        if (cr.width < 100 || cr.height < 100) return false;
+        const cs = window.getComputedStyle(c);
+        // Fixed full-viewport canvas (common WebGL setup): getBoundingClientRect() is viewport-relative,
+        // so it fails to overlap off-screen sections. Use document-offset comparison instead.
+        if (cs.position === 'fixed' && cr.width >= window.innerWidth * 0.7 && cr.height >= window.innerHeight * 0.5) {
+          // Limit each fixed canvas to at most 2 reports (hero + one more section) to avoid noise
+          const _count = _fixedCanvasReportCount.get(c) || 0;
+          if (_count >= 2) return false;
+          // Full-viewport fixed canvas — compute doc-relative section bounds
+          const _secDocTop = _secRectC.top + window.scrollY;
+          const _secDocBottom = _secRectC.bottom + window.scrollY;
+          const _canvasDocTop = cr.top + window.scrollY;
+          const _canvasDocBottom = cr.bottom + window.scrollY;
+          if (_canvasDocTop < _secDocBottom && _canvasDocBottom > _secDocTop) {
+            _fixedCanvasReportCount.set(c, _count + 1);
+            return true;
+          }
+          return false;
+        }
+        // Non-fixed canvas: standard viewport-relative overlap check
+        return cr.top < _secRectC.bottom && cr.bottom > _secRectC.top &&
+               cr.left < _secRectC.right && cr.right > _secRectC.left;
+      });
+      const canvases = [..._domCanvases, ..._externalCanvases];
+      for (const c of canvases.slice(0, 2)) {
         const cr = c.getBoundingClientRect();
         if (cr.width > 100 && cr.height > 100) {
           const secRect = sec.getBoundingClientRect();
           const isFullSection = cr.width > secRect.width * 0.7 && cr.height > secRect.height * 0.4;
-          const placement = isFullSection ? 'full-section-background' : `contained ${Math.round(cr.width)}×${Math.round(cr.height)}`;
+          const isFullViewport = cr.width >= window.innerWidth * 0.75 && cr.height >= window.innerHeight * 0.4;
+          const placement = (isFullSection || isFullViewport) ? 'full-section-background' : `contained ${Math.round(cr.width)}×${Math.round(cr.height)}`;
           let canvasDesc = `[canvas-animation] ${placement}`;
           // Infer what this canvas shows from context
           const canvasContext = inferVisualContext(c, headingText);
           if (canvasContext) canvasDesc += ` — ${canvasContext}`;
-          // Capture container styling
-          const container = c.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
-          if (container) {
-            const ccs = window.getComputedStyle(container);
-            const containerStyle = describeContainerStyle(ccs);
-            if (containerStyle) canvasDesc += `. Container: ${containerStyle}`;
+          // Cursor interaction: full-viewport canvas with pointer-events enabled = mouse-driven animation
+          // WebGL canvases often use pointer-events:none on the canvas itself,
+          // relying on a sibling/parent transparent overlay to capture mouse events.
+          // Also: full-viewport canvas in hero section = almost certainly mouse-interactive.
+          const cStyle = window.getComputedStyle(c);
+          const _cp = c.parentElement;
+          const _hasPointerOverlay = isFullViewport && _cp && Array.from(_cp.children).some(sib => {
+            if (sib === c) return false;
+            const ss = window.getComputedStyle(sib);
+            const sr = sib.getBoundingClientRect();
+            const crr = c.getBoundingClientRect();
+            return ss.pointerEvents !== 'none' &&
+                   sr.width >= crr.width * 0.5 &&
+                   sr.height >= crr.height * 0.5;
+          });
+          const _ancestorCursorNone = [_cp, _cp?.parentElement, _cp?.parentElement?.parentElement].some(el =>
+            el && window.getComputedStyle(el).cursor === 'none'
+          );
+          const isMouseDriven = isFullViewport && (
+            cStyle.pointerEvents !== 'none' ||
+            _hasPointerOverlay ||
+            _ancestorCursorNone ||
+            type === 'hero'
+          );
+          if (isMouseDriven) {
+            canvasDesc += '. Mouse-interactive — cursor movement drives animation (WebGL/canvas + mousemove). Recreate with: canvas mousemove/touchmove listener + requestAnimationFrame render loop + particle or glow effect that tracks cursor position.';
+          } else {
+            // Capture container styling
+            const container = c.closest('div[class],figure,[class*="card"],[class*="visual"],[class*="hero"]');
+            if (container) {
+              const ccs = window.getComputedStyle(container);
+              const containerStyle = describeContainerStyle(ccs);
+              if (containerStyle) canvasDesc += `. Container: ${containerStyle}`;
+            }
+            canvasDesc += '. Recreate as animated CSS gradient, SVG animation, or radial glow effect matching this description.';
           }
-          canvasDesc += '. Recreate as animated CSS gradient, SVG animation, or radial glow effect matching this description.';
           visualDescriptions.push(canvasDesc);
         }
       }
-      if (hasCanvas && canvases.length === 0) visualDescriptions.push('[canvas-animation] WebGL/canvas element');
 
       // ── Lottie animation detection ──
       const lotties = sec.querySelectorAll('[class*="lottie"], lottie-player, [data-animation-path], dotlottie-player, [data-lottie]');
@@ -2424,6 +2967,210 @@
         }
       }
 
+      // Detect scroll-triggered word-split typography animations
+      // (e.g. each word wrapped in <span> with opacity:0 + keyframe on scroll intersection)
+      let scrollRevealTypography = null;
+      const _srtHeadings = sec.querySelectorAll('h1, h2, h3');
+      for (const hEl of _srtHeadings) {
+        // Check data attributes first (AOS, ScrollTrigger, data-splitting, etc.)
+        if (hEl.dataset.aos || hEl.dataset.animate || hEl.dataset.scroll || hEl.dataset.splitting) {
+          scrollRevealTypography = {
+            element: hEl.tagName.toLowerCase(),
+            wordCount: null,
+            animName: hEl.dataset.aos || hEl.dataset.animate || null,
+            pattern: 'data-attribute'
+          };
+          break;
+        }
+        // Check for split-text spans (word/char-level spans, each animated independently)
+        const _srtSpans = Array.from(hEl.querySelectorAll('span'));
+        if (_srtSpans.length >= 3) {
+          const _hiddenOrAnimated = _srtSpans.filter(sp => {
+            const ss = window.getComputedStyle(sp);
+            return parseFloat(ss.opacity) < 0.1 ||
+                   (ss.animationName && ss.animationName !== 'none') ||
+                   (ss.transform !== 'none' && parseFloat(ss.opacity) < 0.5);
+          });
+          if (_hiddenOrAnimated.length >= 2 || _hiddenOrAnimated.length >= _srtSpans.length * 0.3) {
+            const _srtAnimName = _hiddenOrAnimated[0]
+              ? window.getComputedStyle(_hiddenOrAnimated[0]).animationName
+              : '';
+            scrollRevealTypography = {
+              element: hEl.tagName.toLowerCase(),
+              wordCount: _srtSpans.length,
+              animName: _srtAnimName && _srtAnimName !== 'none' ? _srtAnimName.split(',')[0].trim() : null,
+              pattern: 'word-split'
+            };
+            break;
+          }
+        }
+      }
+
+      // ── Hero-only: CTA button dimensions + floating illustration elements ──
+      let heroCtaStyle = null;
+      let floatingIllustrations = null;
+      if (isFirstSection) {
+        // Capture the LARGEST filled CTA in the hero (not the nav CTA)
+        const _heroBtnCandidates = Array.from(sec.querySelectorAll('a[href], button, [role="button"]'))
+          .map(el => {
+            try {
+              const cs = window.getComputedStyle(el);
+              const r = el.getBoundingClientRect();
+              const text = (el.innerText || '').trim();
+              if (!text || text.length < 2 || r.width < 80 || r.height < 28) return null;
+              if (el.closest('nav, header')) return null;
+              const hasBg = !isTransparent(cs.backgroundColor);
+              return { el, cs, r, text, hasBg, area: r.width * r.height };
+            } catch(e) { return null; }
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.area - a.area);
+        const _primaryHeroBtn = _heroBtnCandidates.find(b => b.hasBg);
+        if (_primaryHeroBtn) {
+          const { cs, r } = _primaryHeroBtn;
+          heroCtaStyle = {
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+            borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : '0px',
+            padding: cs.padding,
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            hasIcon: !!_primaryHeroBtn.el.querySelector('svg, img, [class*="icon"]'),
+          };
+        }
+
+        // Detect floating colored illustration cards (design token samples) scattered around hero
+        const _secRH = sec.getBoundingClientRect();
+        // Use a broader search — Framer renders floating elements outside the section subtree
+        const _coloredAbsEls = Array.from(document.querySelectorAll('div, span, [class*="framer"], [data-framer-component-type]')).filter(el => {
+          try {
+            const cs = window.getComputedStyle(el);
+            const r = el.getBoundingClientRect();
+            // Must be within ~300px vertical extension of hero area
+            if (r.top > _secRH.bottom + 300 || r.bottom < _secRH.top - 150) return false;
+            // Must be a reasonable card/chip size
+            if (r.width < 40 || r.height < 30 || r.width > 600 || r.height > 500) return false;
+            // Position must be absolute, fixed, or sticky (true floating element)
+            // OR element must NOT contain the section itself (to avoid whole-page containers)
+            const pos = cs.position;
+            const isAbsoluteish = pos === 'absolute' || pos === 'fixed';
+            // Check for colored bg — also accept gradient backgrounds
+            const bgColor = cs.backgroundColor;
+            const bgImage = cs.backgroundImage;
+            const hasSolidBg = !isTransparent(bgColor);
+            const hasGradientBg = bgImage && bgImage !== 'none' && bgImage.includes('gradient');
+            if (!hasSolidBg && !hasGradientBg) return false;
+            // For solid backgrounds, validate color is not near-white/near-black/near-gray
+            if (hasSolidBg) {
+              const bgHex = rgbToHex(bgColor);
+              if (!bgHex || bgHex.length < 6) return false;
+              const rC = parseInt(bgHex.slice(1,3),16), gC = parseInt(bgHex.slice(3,5),16), bC = parseInt(bgHex.slice(5,7),16);
+              const lum = (rC*0.299 + gC*0.587 + bC*0.114) / 255;
+              if (lum > 0.95 || lum < 0.05) return false; // truly white or truly black only skip
+              if (Math.max(rC,gC,bC) - Math.min(rC,gC,bC) < 20) return false; // near-gray (but allow light colors)
+            }
+            // Exclude nav, header, buttons
+            if (el.closest('nav, header, footer')) return false;
+            if (el.tagName === 'BUTTON' || el.tagName === 'A') return false;
+            // Don't include huge containers (parent of most content)
+            if (el.querySelectorAll('p, h1, h2, h3').length > 3) return false;
+            if ((el.innerText || '').trim().length > 150) return false;
+            // Must have visible area (not collapsed)
+            if (r.width * r.height < 1200) return false;
+            return true;
+          } catch(e) { return false; }
+        });
+        if (_coloredAbsEls.length >= 1) {
+          // Deduplicate by approximate bg+position — avoid counting nested divs with same color multiple times
+          const _seen = new Set();
+          const _deduped = _coloredAbsEls.filter(el => {
+            const r = el.getBoundingClientRect();
+            const cs = window.getComputedStyle(el);
+            const bgColor = cs.backgroundColor;
+            const hasSolidBg = !isTransparent(bgColor);
+            const bg = hasSolidBg ? rgbToHex(bgColor) : 'gradient';
+            const key = `${bg}_${Math.round(r.left/40)}_${Math.round(r.top/40)}_${Math.round(r.width/20)}`;
+            if (_seen.has(key)) return false;
+            _seen.add(key);
+            return true;
+          });
+          if (_deduped.length >= 1) {
+            floatingIllustrations = _deduped.slice(0, 8).map(el => {
+              const cs = window.getComputedStyle(el);
+              const r = el.getBoundingClientRect();
+              const hasSolidBg = !isTransparent(cs.backgroundColor);
+              const bgHex = hasSolidBg ? rgbToHex(cs.backgroundColor) : 'gradient';
+              const text = (el.innerText || '').trim().slice(0, 50) || null;
+              const transform = cs.transform;
+              const has3D = transform && transform !== 'none' && transform !== 'matrix(1, 0, 0, 1, 0, 0)' && transform.length > 20;
+              const relX = (r.left + r.width/2 - _secRH.left) / _secRH.width;
+              const relY = (r.top + r.height/2 - _secRH.top) / _secRH.height;
+              const isAbsoluteish = cs.position === 'absolute' || cs.position === 'fixed';
+              return {
+                bg: bgHex,
+                w: Math.round(r.width),
+                h: Math.round(r.height),
+                pos: `${relX < 0.25 ? 'left' : relX > 0.75 ? 'right' : 'center'}-${relY < 0 ? 'above-hero' : relY > 1 ? 'below-hero' : relY < 0.4 ? 'top' : relY > 0.7 ? 'bottom' : 'mid'}`,
+                has3D,
+                isFloating: isAbsoluteish,
+                radius: cs.borderRadius && cs.borderRadius !== '0px' ? cs.borderRadius.split(' ')[0] : null,
+                text: text && text.length > 2 ? text : null,
+              };
+            });
+          }
+        }
+      }
+
+      // Portfolio-split: extract logo grid structure + corner word labels + CTA
+      let portfolioGridInfo = null;
+      if (type === 'portfolio-split') {
+        // Find the grid container (left side — has logos)
+        const _logoImgs = Array.from(sec.querySelectorAll('img')).filter(img => {
+          const r = img.getBoundingClientRect();
+          return r.width > 20 && r.width < 250 && r.height > 10;
+        });
+        // Extract logo alt/src names
+        const _logoNames = _logoImgs
+          .map(img => (img.alt || img.src.split('/').pop()?.replace(/[_-]/g,' ').split('.')[0] || '').trim())
+          .filter(n => n.length > 1 && n.length < 40)
+          .slice(0, 9);
+        // Detect grid columns from the parent container
+        let _gridCols = 3, _gridRows = 2;
+        if (_logoImgs[0]) {
+          const _gridParent = _logoImgs[0].closest('[style*="grid"], [class*="grid"]') || _logoImgs[0].parentElement?.parentElement;
+          if (_gridParent) {
+            const _gcs = window.getComputedStyle(_gridParent);
+            const _colParts = (_gcs.gridTemplateColumns || '').split(' ').filter(Boolean);
+            const _rowParts = (_gcs.gridTemplateRows || '').split(' ').filter(Boolean);
+            if (_colParts.length >= 2) _gridCols = _colParts.length;
+            if (_rowParts.length >= 2) _gridRows = _rowParts.length;
+          }
+        }
+        // Detect cell border style
+        const _cellBorder = _logoImgs[0]
+          ? (() => { const cs = window.getComputedStyle(_logoImgs[0].closest('div, li, [class*="item"], [class*="cell"]') || _logoImgs[0]); return cs.border !== 'none' && cs.border !== '' ? cs.border.slice(0, 60) : null; })()
+          : null;
+        // Detect corner/scattered word labels on the right half
+        const _secR = sec.getBoundingClientRect();
+        const _rightThreshold = _secR.left + _secR.width * 0.5;
+        const _absLabels = Array.from(sec.querySelectorAll('span, p, div, [class*="label"], [class*="tag"]')).filter(el => {
+          const cs = window.getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          const txt = el.textContent.trim();
+          return (cs.position === 'absolute' || cs.position === 'fixed') &&
+                 txt.length >= 1 && txt.length <= 20 &&
+                 txt.split(/\s+/).length <= 2 &&
+                 r.left >= _rightThreshold;
+        }).map(el => el.textContent.trim()).filter(Boolean).slice(0, 6);
+        portfolioGridInfo = {
+          cols: _gridCols,
+          rows: _gridRows,
+          logoNames: _logoNames,
+          cellBorder: _cellBorder,
+          cornerLabels: _absLabels.length >= 2 ? _absLabels : null,
+        };
+      }
+
       const entry = {
         type,
         heading: headingText,
@@ -2441,6 +3188,10 @@
         headingToSubtitleGap: headingToSubtitleGap || null,
         headingColoredWords: headingColoredWords.length > 0 ? headingColoredWords : null,
         decorativeGradients: sectionDecorations.length > 0 ? sectionDecorations : null,
+        scrollRevealTypography: scrollRevealTypography || null,
+        portfolioGridInfo: portfolioGridInfo || null,
+        heroCtaStyle: heroCtaStyle || null,
+        floatingIllustrations: floatingIllustrations || null,
         entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
       };
 
@@ -2477,7 +3228,7 @@
           height: cs.height !== 'auto' ? cs.height : null,
           placeholderColor: null, // can't reliably extract ::placeholder
         };
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return null;
   }
@@ -2509,7 +3260,7 @@
             });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return gradients.slice(0, 4);
   }
@@ -2534,7 +3285,7 @@
         if (br !== '0px' || objectFit || filter || border || shadow) {
           styles.push({ borderRadius: br !== '0px' ? br : null, objectFit, filter, border, boxShadow: shadow, aspectRatio });
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     // Return the most representative pattern (prefer non-blurred images)
     if (styles.length === 0) return null;
@@ -2562,7 +3313,7 @@
           textUnderlineOffset: cs.textUnderlineOffset !== 'auto' ? cs.textUnderlineOffset : null,
           fontWeight: cs.fontWeight,
         };
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return null;
   }
@@ -2588,7 +3339,7 @@
         columns: cols > 1 ? cols : null,
         gap: cs.gap !== 'normal' ? cs.gap : null,
       };
-    } catch(e) {}
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
     return null;
   }
 
@@ -2602,7 +3353,7 @@
         if (rect.width === 0 || rect.height === 0) continue;
         const w = window.getComputedStyle(el).fontWeight;
         if (w) weights.add(w);
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return [...weights].sort((a, b) => parseInt(a) - parseInt(b));
   }
@@ -2648,13 +3399,13 @@
           const lum = colorLum(cs.color);
           // Only trust a clear signal (not mid-gray browser defaults)
           if (lum !== null && (lum < 0.2 || lum > 0.7)) return lum;
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
       // Fallback: body element color
       try {
         const lum = colorLum(window.getComputedStyle(document.body).color);
         if (lum !== null) return lum;
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
       return 0.5; // unknown
     }
 
@@ -2673,7 +3424,7 @@
         const bg = window.getComputedStyle(sec).backgroundColor;
         if (isTransparent(bg)) transparentSections++;
         else explicitBgSections++;
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // If most sections are transparent AND body text is dark → page is light (browser default white)
@@ -2710,7 +3461,7 @@
         if (area <= 0) continue;
 
         areaByColor[hex] = (areaByColor[hex] || 0) + area;
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     const sorted = Object.entries(areaByColor)
@@ -2880,7 +3631,7 @@
           const cCs = window.getComputedStyle(c);
           const mw = cCs.maxWidth;
           if (mw && mw !== 'none' && mw !== '0px') { containerMaxWidth = mw; break; }
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
 
       // Card gap — look for grid/flex containers with multiple card children
@@ -2891,7 +3642,7 @@
           const ccCs = window.getComputedStyle(cc);
           const g = parseInt(ccCs.gap);
           if (g > 0 && g < 100 && cc.children.length >= 2) { cardGap = g + 'px'; break; }
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
 
       profile.spacingSystem = {
@@ -2924,7 +3675,7 @@
           // Invert: dark text → page is light (lum ~0.9), light text → page is dark (lum ~0.1)
           return textLum < 0.3 ? 0.9 : textLum > 0.7 ? 0.1 : 0.5;
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
       return 0.9; // default light if unknown
     })();
 
@@ -3027,7 +3778,7 @@
             profile.gradientStyle = profile.gradientStyle || 'linear';
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // ── Nav style detection ──
@@ -3140,7 +3891,7 @@
               profile.hasNoiseTexture = true;
               break;
             }
-          } catch(e) {}
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
       }
     }
@@ -3225,22 +3976,37 @@
       }
     }
 
-    // ── Testimonial carousel ──
-    const carouselEl = document.querySelector(
-      '[class*="carousel"],[class*="swiper"],[class*="slider"],[class*="testimonial"],[class*="review"]'
-    );
-    if (carouselEl) patterns.hasTestimonialCarousel = true;
+    // ── Testimonial carousel — requires testimonial content INSIDE a real carousel wrapper ──
+    // Standalone testimonial panels (e.g. modal/tab content) do NOT trigger this
+    const _carouselWrappers = document.querySelectorAll('[class*="carousel"],[class*="swiper"],[class*="slider"]');
+    for (const wrapper of _carouselWrappers) {
+      const hasTestimonial = wrapper.querySelector(
+        '[class*="testimonial"], [class*="review"], blockquote, [class*="quote-card"], [class*="testimonial-card"]'
+      );
+      if (hasTestimonial) { patterns.hasTestimonialCarousel = true; break; }
+    }
+    // Also catch explicit testimonial-carousel class (not just any element with "testimonial")
+    if (!patterns.hasTestimonialCarousel) {
+      if (document.querySelector('[class*="testimonial-carousel"],[class*="testimonial-slider"],[class*="reviews-carousel"]')) {
+        patterns.hasTestimonialCarousel = true;
+      }
+    }
 
     // ── QR Code ──
     const qrEl = document.querySelector(
       'img[src*="qr"],[class*="qr"],[alt*="qr" i],[alt*="QR"],[alt*="scan"]'
     );
     if (qrEl) {
-      patterns.hasQRCode = true;
-      // Check if button is nearby (dual CTA)
-      const parent = qrEl.closest('section, div') || document.body;
-      const nearbyBtn = parent.querySelector('a[href], button');
-      if (nearbyBtn) patterns.hasDualCTA = true;
+      // Validate: QR codes are square (≥60px) — avoids matching CDN URLs that happen to contain "qr" in hash
+      const _qrRect = qrEl.getBoundingClientRect();
+      const _qrSquare = _qrRect.width >= 60 && _qrRect.height >= 60 &&
+        Math.abs(_qrRect.width - _qrRect.height) / Math.max(_qrRect.width, _qrRect.height) < 0.25;
+      if (_qrSquare) {
+        patterns.hasQRCode = true;
+        const parent = qrEl.closest('section, div') || document.body;
+        const nearbyBtn = parent.querySelector('a[href], button');
+        if (nearbyBtn) patterns.hasDualCTA = true;
+      }
     }
 
     // ── Sticky nav ──
@@ -3258,15 +4024,22 @@
     }
     if (iconListCount >= 3) patterns.hasFeatureList = true;
 
-    // ── Step indicator ──
-    const stepEls = document.querySelectorAll('[class*="step"],[class*="Step"]');
-    if (stepEls.length >= 2) {
+    // ── Step indicator — tightened detection (Fix 8A) ──
+    // Only detect genuine sequential step indicators, not any element with "step" in class
+    const _stepIndicatorEls = document.querySelectorAll(
+      '.steps-indicator, .step-indicator, .progress-steps, [class*="steps-indicator"], [class*="step-indicator"], [class*="progress-step"]'
+    );
+    if (_stepIndicatorEls.length >= 1) {
       patterns.hasStepIndicator = true;
     } else {
-      // Look for numbered circles (common in step indicators)
-      const numberedCircles = document.querySelectorAll('[class*="number"],[class*="circle"],[class*="badge"]');
-      const withNumbers = Array.from(numberedCircles).filter(el => /^[1-9]$/.test(el.innerText?.trim()));
-      if (withNumbers.length >= 3) patterns.hasStepIndicator = true;
+      // Look for numbered circles with border-radius:50% that are part of a sequential UI
+      const _circleNums = Array.from(document.querySelectorAll('[class*="step"] [class*="number"], [class*="step"] [class*="circle"], ol[class*="step"] > li'))
+        .filter(el => {
+          const cs = window.getComputedStyle(el);
+          const text = el.innerText?.trim();
+          return /^[1-9]$/.test(text) && (cs.borderRadius?.includes('50%') || cs.borderRadius === '9999px');
+        });
+      if (_circleNums.length >= 2) patterns.hasStepIndicator = true;
     }
 
     // ── Dark footer ──
@@ -3372,7 +4145,7 @@
             || parseInt(cs.zIndex) < 1 || el.closest('[class*="hero"],[class*="banner"]');
           const hasNoText = (el.innerText||'').trim().length < 10;
           if (isBig && hasNoText) blobCount++;
-        } catch(e) {}
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
       }
       // Also detect pseudo-element blobs via large border-radius on section ::before/::after
       const heroSec = document.querySelector('[class*="hero"], section');
@@ -3472,7 +4245,7 @@
                 if (gap > 0 && gap < 60) iconDetails.gapToText = Math.round(gap) + 'px';
               }
             }
-          } catch(e) {}
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
         if (sizes.length) iconDetails.size = sizes[Math.floor(sizes.length/2)] + 'px'; // median
         patterns.iconDetails = iconDetails;
@@ -3503,7 +4276,7 @@
                 if (!arrowLinkColor) arrowLinkColor = rgbToHex(color);
               }
             }
-          } catch(e) {}
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
       }
       // Also check for ::after arrow via font-content heuristic
@@ -4387,10 +5160,61 @@
       // Architecture diagram (dashed boundaries)
       const dashedEls = section.querySelectorAll('[style*="dashed"], [class*="dashed"], [class*="boundary"]');
       if (!illus.type && dashedEls.length > 0) {
-        const labels = Array.from(section.querySelectorAll('[class*="label"], small, [style*="monospace"]'))
-          .map(el => el.textContent?.trim().slice(0, 30)).filter(Boolean);
-        illus.type = 'architecture-diagram';
-        illus.details = { labels: labels.slice(0, 6), dashedBoundaries: dashedEls.length };
+        // Guard: skip if any dashed container holds a real <img> — likely a decorative card, not a diagram
+        const hasImgInside = Array.from(dashedEls).some(el => el.querySelector('img'));
+        if (!hasImgInside) {
+          // Guard: require monospace-font labels to confirm technical diagram context
+          const monoLabels = Array.from(section.querySelectorAll('[style*="monospace"], [class*="label"], small'))
+            .filter(el => {
+              const ff = window.getComputedStyle(el).fontFamily || '';
+              return ff.toLowerCase().includes('mono') || ff.toLowerCase().includes('courier') || el.style.fontFamily?.includes('monospace');
+            });
+          const allLabels = Array.from(section.querySelectorAll('[class*="label"], small, [style*="monospace"]'))
+            .map(el => el.textContent?.trim().slice(0, 30)).filter(Boolean);
+          // Only classify as architecture-diagram if we have monospace labels OR 3+ text labels (strong signal)
+          if (monoLabels.length > 0 || allLabels.length >= 3) {
+            illus.type = 'architecture-diagram';
+            illus.details = { labels: allLabels.slice(0, 6), dashedBoundaries: dashedEls.length };
+          }
+        }
+      }
+
+      // Fix 5: PNG/JPG illustration detection — inline SVG-only was missing raster illustrations
+      if (!illus.type) {
+        const imgs = section.querySelectorAll('img:not([class*="logo"]):not([class*="avatar"]):not([class*="icon"]):not([class*="profile"])');
+        for (const img of imgs) {
+          try {
+            const imgRect = img.getBoundingClientRect();
+            if (imgRect.width < 100 || imgRect.height < 100) continue;
+            const src = img.src || img.dataset.src || '';
+            const alt = (img.alt || '').toLowerCase();
+            const cls = (img.className || '').toLowerCase();
+            const combined = src + ' ' + alt + ' ' + cls;
+            const aspectRatio = imgRect.width / (imgRect.height || 1);
+
+            // UI mockup signals (screenshots, dashboards, product interfaces)
+            if (/mockup|screen|ui|dashboard|interface|preview|capture|app/i.test(combined)) {
+              illus.type = 'ui-mockup';
+              illus.details = {
+                url: src, width: Math.round(imgRect.width), height: Math.round(imgRect.height),
+                perspective: aspectRatio > 1.3 ? 'landscape' : aspectRatio < 0.8 ? 'portrait' : 'square',
+              };
+              break;
+            }
+            // Concentric ring / cap-table / wheel illustrations
+            if (/ring|circle|arc|donut|wheel|cap.?table|stakeholder|equity|concentric/i.test(combined)) {
+              illus.type = 'concentric-rings-image';
+              illus.details = { url: src, width: Math.round(imgRect.width), height: Math.round(imgRect.height) };
+              break;
+            }
+            // Large portrait images tend to be character/brand illustrations
+            if (aspectRatio < 0.7 && imgRect.height > 250 && !/photo|photo/i.test(combined)) {
+              illus.type = 'illustration-image';
+              illus.details = { url: src, width: Math.round(imgRect.width), height: Math.round(imgRect.height) };
+              break;
+            }
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
+        }
       }
 
       if (illus.type) {
@@ -4427,7 +5251,7 @@
             result.push({ type: 'svg-texture-overlay', opacity: svgCs.opacity, childCount: svg.querySelectorAll('*').length });
           }
         }
-      } catch(e) {}
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
     return result.length > 0 ? result.slice(0, 5) : null;
   }
@@ -4461,6 +5285,79 @@
         const hasNumbers = items.some(it => /^\d{2}/.test(it.textContent.trim()));
         results.push({ type: 'numbered-switcher', labels, hasNumbers, count: labels.length });
       });
+    }
+
+    // Pattern B2: sidebar list switcher (numbered labels, state-driven, not real <nav>)
+    // Runs unconditionally — sidebar-switcher can coexist with tab components on the same page
+    {
+      const _alreadyFound = new Set();
+
+      const _extractSidebarFromContainer = (container) => {
+        if (!container || _alreadyFound.has(container)) return false;
+        if (container.closest('nav, header, footer')) return false;
+        // Collect direct children — accept li, a, button, div, or any element with numbered text
+        const allChildren = Array.from(container.children);
+        const directItems = allChildren.filter(el => {
+          const tag = el.tagName.toLowerCase();
+          return tag === 'li' || tag === 'a' || tag === 'button' || tag === 'div' ||
+            el.getAttribute('role') === 'button' || el.getAttribute('role') === 'listitem';
+        });
+        // If direct children pass, use them; otherwise look one level deeper
+        const candidates = directItems.length >= 2 ? directItems
+          : Array.from(container.querySelectorAll(':scope > * > li, :scope > * > a, :scope > * > button, :scope > * > div'));
+        if (candidates.length < 2 || candidates.length > 8) return false;
+        const numberedCount = candidates.filter(it =>
+          /^\s*0[1-9]/.test(it.textContent.trim())
+        ).length;
+        if (numberedCount < 2) return false;
+        // Extract label text from inline nodes only — avoids nested block content
+        // (e.g. hidden testimonial panels inside the same <li>)
+        const _getInlineText = (el) => {
+          let t = '';
+          for (const node of el.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) t += node.textContent;
+            else if (/^(A|SPAN|BUTTON|STRONG|EM|B|I|LABEL|SMALL)$/.test(node.nodeName)) t += node.textContent;
+            if (t.trim().length > 60) break;
+          }
+          return t.trim() || el.textContent?.trim()?.split('\n')[0]?.trim() || '';
+        };
+        const labels = candidates
+          .map(it => _getInlineText(it).replace(/^0[1-9]\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 50))
+          .filter(l => l.length > 1);
+        if (labels.length < 2) return false;
+        _alreadyFound.add(container);
+        results.push({ type: 'sidebar-switcher', labels, hasNumbers: true, count: labels.length });
+        return true;
+      };
+
+      // Pass 1: explicit class-based selectors
+      document.querySelectorAll(
+        '[class*="sidebar-list"], [class*="sidebar-nav"], [class*="side-nav"], [class*="content-nav"]'
+      ).forEach(el => _extractSidebarFromContainer(el));
+
+      // Pass 2: direct container scan — check every ul/ol/div for numbered direct children.
+      // More reliable than TreeWalker: checks the CONTAINER level directly, so li-wrapped
+      // items (where each <a> has a different <li> parent) are handled correctly.
+      // Runs ALWAYS — _alreadyFound prevents duplicates.
+      {
+        const containerCandidates = Array.from(
+          document.querySelectorAll('ul, ol, div, section, [class*="list"], [class*="menu"], [class*="items"]')
+        ).slice(0, 800);
+        for (const el of containerCandidates) {
+          if (_alreadyFound.has(el)) continue;
+          if (el.closest('nav, header, footer, script, style')) continue;
+          const children = Array.from(el.children);
+          if (children.length < 2 || children.length > 10) continue;
+          // Count direct children whose text starts with a zero-padded number
+          const numberedChildren = children.filter(child => {
+            const txt = child.textContent?.trim() || '';
+            return /^\s*0[1-9]/.test(txt);
+          });
+          if (numberedChildren.length >= 2) {
+            _extractSidebarFromContainer(el);
+          }
+        }
+      }
     }
 
     // Pattern C: split-content panels (image left + bullets right, with optional testimonial)

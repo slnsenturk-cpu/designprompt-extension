@@ -18,110 +18,111 @@
   <!-- Header -->
   <header class="header">
     <div class="logo">
-      <img src="icons/logo-light.png" alt="vibedesign" class="logo-img" />
+      <img src="icons/logo-light.png" alt="VibeDesign" class="logo-img" />
     </div>
     <div class="header-right">
       <span class="version-badge" id="versionBadge"></span>
       <span class="mode-badge mode-badge--fallback" id="modeBadge">Rule-based</span>
-      <button class="icon-btn" id="historyToggle" title="Saved prompts">◷</button>
-      <button class="icon-btn" id="settingsToggle" title="API Settings">⚙</button>
+      <button class="icon-btn" id="historyToggle" title="Saved prompts" aria-label="Saved prompts">◷</button>
+      <button class="icon-btn" id="settingsToggle" title="API Settings" aria-label="API Settings">⚙</button>
     </div>
   </header>
 
   <!-- Settings Panel -->
-  <div class="settings-panel" id="settingsPanel">
+  <section class="settings-panel" id="settingsPanel" aria-label="AI Provider Settings">
     <div class="settings-title">AI Provider</div>
-    <div class="provider-tabs" id="providerTabs">
-      <button class="provider-tab active" data-provider="gemini">
-        <span class="provider-dot" style="background:#4285f4"></span>Gemini
+    <div class="provider-tabs" id="providerTabs" role="radiogroup" aria-label="Select AI provider">
+      <button class="provider-tab active" data-provider="gemini" role="radio" aria-checked="true">
+        <span class="provider-dot provider-dot--gemini"></span>Gemini
       </button>
-      <button class="provider-tab" data-provider="claude">
-        <span class="provider-dot" style="background:#d97706"></span>Claude
+      <button class="provider-tab" data-provider="claude" role="radio" aria-checked="false">
+        <span class="provider-dot provider-dot--claude"></span>Claude
       </button>
-      <button class="provider-tab" data-provider="openai">
-        <span class="provider-dot" style="background:#10a37f"></span>OpenAI
+      <button class="provider-tab" data-provider="openai" role="radio" aria-checked="false">
+        <span class="provider-dot provider-dot--openai"></span>OpenAI
       </button>
-      <button class="provider-tab" data-provider="none">
-        <span class="provider-dot" style="background:#555"></span>None
+      <button class="provider-tab" data-provider="none" role="radio" aria-checked="false">
+        <span class="provider-dot provider-dot--none"></span>None
       </button>
     </div>
     <div class="provider-info" id="providerInfo"></div>
     <div class="model-row" id="modelRow" style="display:none"></div>
     <div class="api-key-row" id="apiKeyRow">
-      <input type="password" id="apiKeyInput" class="input" placeholder="API key..." />
+      <label for="apiKeyInput" class="sr-only">API Key</label>
+      <input type="password" id="apiKeyInput" class="input" placeholder="API key..." autocomplete="off" />
       <button class="btn btn-sm" id="saveApiKey">Save</button>
     </div>
     <div class="settings-note" id="settingsNote"></div>
-  </div>
+  </section>
 
   <!-- History Panel -->
-  <div class="history-panel" id="historyPanel" style="display:none">
+  <section class="history-panel" id="historyPanel" style="display:none" aria-label="Saved Prompts">
     <div class="history-header">
       <span class="settings-title">Saved Prompts</span>
-      <button class="btn btn-sm btn-ghost danger-btn" id="clearHistoryBtn">Clear all</button>
+      <button class="btn btn-sm btn-ghost danger-btn" id="clearHistoryBtn" aria-label="Clear all saved prompts">Clear all</button>
     </div>
-    <div class="history-list" id="historyList">
+    <div class="history-list" id="historyList" role="list">
       <p class="empty-state">No saved prompts yet.</p>
     </div>
-  </div>
+  </section>
 
   <!-- Controls -->
   <div class="mode-section">
     <div class="focus-row" id="focusRow">
-      <span class="field-label">Focus</span>
-      <div class="focus-chips">
-        <button class="chip active" data-focus="all">All</button>
-        <button class="chip" data-focus="colors">Colors</button>
-        <button class="chip" data-focus="typography">Type</button>
-        <button class="chip" data-focus="shadows">Shadow</button>
-        <button class="chip" data-focus="motion">Motion</button>
-        <button class="chip" data-focus="layout">Layout</button>
-        <button class="chip" data-focus="components">Components</button>
+      <span class="field-label" id="focusLabel">Focus</span>
+      <div class="focus-chips" role="radiogroup" aria-labelledby="focusLabel">
+        <button class="chip active" data-focus="all" role="radio" aria-checked="true">All</button>
+        <button class="chip" data-focus="colors" role="radio" aria-checked="false">Colors</button>
+        <button class="chip" data-focus="typography" role="radio" aria-checked="false">Type</button>
+        <button class="chip" data-focus="shadows" role="radio" aria-checked="false">Shadow</button>
+        <button class="chip" data-focus="motion" role="radio" aria-checked="false">Motion</button>
+        <button class="chip" data-focus="layout" role="radio" aria-checked="false">Layout</button>
+        <button class="chip" data-focus="components" role="radio" aria-checked="false">Components</button>
       </div>
     </div>
 
     <!-- Content source (hidden textarea kept for JS compat) -->
-    <textarea id="customContentInput" class="custom-content-input" style="display:none"></textarea>
+    <textarea id="customContentInput" class="custom-content-input" style="display:none" aria-label="Custom content"></textarea>
   </div>
 
   <!-- Action -->
   <div class="action-section">
-    <button class="btn btn-primary btn-full" id="analyzeBtn">
-      <span id="analyzeBtnIcon">◫</span>
+    <button class="btn btn-primary btn-full" id="analyzeBtn" aria-label="Analyze page design">
+      <span id="analyzeBtnIcon" aria-hidden="true">◫</span>
       <span id="analyzeBtnText">Analyze Page</span>
     </button>
   </div>
 
   <!-- Result -->
-  <div class="result-section" id="resultSection" style="display:none">
-    <!-- Restored session banner — shown when prompt is auto-restored on open -->
-    <div class="restored-banner" id="restoredBanner" style="display:none">
-      <span class="restored-icon">⟳</span>
+  <section class="result-section" id="resultSection" style="display:none" aria-label="Analysis Result">
+    <!-- Restored session banner -->
+    <div class="restored-banner" id="restoredBanner" style="display:none" role="status">
+      <span class="restored-icon" aria-hidden="true">⟳</span>
       <span class="restored-text">Restored from last session</span>
       <button class="btn btn-sm btn-primary" id="newPromptBtn">New prompt</button>
     </div>
     <div class="result-header">
       <div class="result-meta" id="resultMeta"></div>
       <div class="result-actions">
-        <button class="btn btn-sm btn-ghost" id="copyBtn"><span id="copyIcon">⎘</span> Copy</button>
-        <button class="btn btn-sm btn-ghost" id="resetBtn">↺</button>
+        <button class="btn btn-sm btn-ghost" id="copyBtn" aria-label="Copy prompt to clipboard"><span id="copyIcon" aria-hidden="true">⎘</span> Copy</button>
+        <button class="btn btn-sm btn-ghost" id="resetBtn" aria-label="Reset and start over">↺</button>
       </div>
     </div>
-    <div class="save-indicator" id="saveIndicator" style="display:none">
-      <span class="save-dot">●</span> Auto-saved
+    <div class="save-indicator" id="saveIndicator" style="display:none" role="status">
+      <span class="save-dot" aria-hidden="true">●</span> Auto-saved
     </div>
-    <div class="output-tabs" id="outputTabs" style="display:none">
-      <button class="output-tab active" data-output="full">Full Page</button>
-      <button class="output-tab" data-output="system">Global Tokens</button>
+    <div class="output-tabs" id="outputTabs" style="display:none" role="tablist" aria-label="Output mode">
+      <button class="output-tab active" data-output="full" role="tab" aria-selected="true">Full Page</button>
+      <button class="output-tab" data-output="system" role="tab" aria-selected="false">Global Tokens</button>
     </div>
     <div class="prompt-container">
-      <pre class="prompt-output" id="promptOutput"></pre>
+      <pre class="prompt-output" id="promptOutput" tabindex="0" aria-label="Generated prompt"></pre>
     </div>
-  </div>
+  </section>
 
   <!-- Loading -->
-  <div class="loading-section" id="loadingSection" style="display:none">
-    <div class="loading-animation">
+  <div class="loading-section" id="loadingSection" style="display:none" role="status" aria-live="polite">
+    <div class="loading-animation" aria-hidden="true">
       <div class="loading-bar"></div>
       <div class="loading-bar"></div>
       <div class="loading-bar"></div>
@@ -130,8 +131,8 @@
   </div>
 
   <!-- Error -->
-  <div class="error-section" id="errorSection" style="display:none">
-    <span class="error-icon">⚠</span>
+  <div class="error-section" id="errorSection" style="display:none" role="alert">
+    <span class="error-icon" aria-hidden="true">⚠</span>
     <p class="error-text" id="errorText"></p>
     <button class="btn btn-sm" id="errorRetryBtn">Retry</button>
   </div>
@@ -139,6 +140,7 @@
 </div>
 <script src="lib/prompt-builder.js"></script>
 <script src="lib/ai-caller.js"></script>
+<script src="lib/ui-helpers.js"></script>
 <script src="sidepanel.js"></script>
 </body>
 </html>
