@@ -2356,15 +2356,43 @@
 
     // If no <section> tags found, detect sections from main > div or body > div > div
     if (sectionEls.length < 2) {
-      const mainEl = document.querySelector('main') || document.querySelector('#__next > div') || document.querySelector('#app > div') || document.querySelector('[class*="page"], [class*="content"], [class*="wrapper"]');
+      // Try multiple container patterns (Next.js, Nuxt, SvelteKit, Astro, generic)
+      const containerSelectors = [
+        'main', '#__next > div', '#app > div', '#root > div',
+        '[class*="page"]', '[class*="content"]', '[class*="wrapper"]',
+        '[class*="layout"]', '[class*="container"]',
+        'body > div > div', 'body > div',
+      ];
+      let mainEl = null;
+      for (const sel of containerSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.children.length >= 2) { mainEl = el; break; }
+      }
       if (mainEl) {
         const candidates = Array.from(mainEl.children).filter(el => {
-          if (el.tagName === 'NAV' || el.tagName === 'HEADER' || el.tagName === 'FOOTER') return false;
-          if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return false;
+          const tag = el.tagName;
+          if (tag === 'NAV' || tag === 'HEADER' || tag === 'FOOTER') return false;
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' || tag === 'NOSCRIPT') return false;
           const r = el.getBoundingClientRect();
-          return r.height > 200 && r.width > 300;
+          return r.height > 150 && r.width > 300;
         });
         if (candidates.length > sectionEls.length) sectionEls = candidates;
+      }
+      // Fallback 2: if still not enough, try direct children of the first deep container with multiple large divs
+      if (sectionEls.length < 2) {
+        const deepContainers = document.querySelectorAll('main > div, #__next > div > div, #app > div > div, body > div > div > div');
+        for (const container of deepContainers) {
+          const kids = Array.from(container.children).filter(el => {
+            const tag = el.tagName;
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NAV') return false;
+            const r = el.getBoundingClientRect();
+            return r.height > 150 && r.width > 300;
+          });
+          if (kids.length >= 3 && kids.length > sectionEls.length) {
+            sectionEls = kids;
+            break;
+          }
+        }
       }
     }
 
@@ -3860,8 +3888,16 @@
     }
 
     // ── Animation pattern detection ──
-    const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"]');
+    const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"],[class*="fadeIn"],[class*="slideIn"],[class*="slide-in"]');
     profile.hasScrollAnimation = dataAttribs.length > 0;
+
+    // Also detect scroll animation from keyframe names (reveal, fade, slide patterns)
+    if (!profile.hasScrollAnimation) {
+      const revealKeyframes = (tokens.animations || []).some(a =>
+        /fade.?in|slide.?in|reveal|fadeSlide|columnReveal|appear|enter/i.test(a.name)
+      );
+      if (revealKeyframes) profile.hasScrollAnimation = true;
+    }
 
     const allClasses = Array.from(document.querySelectorAll('[class]')).map(el => el.className.toString()).join(' ');
     if (allClasses.includes('is-visible') || allClasses.includes('in-view') || allClasses.includes('animated')) {
