@@ -1319,21 +1319,53 @@
     if (!hero) return null;
     const components = [];
     try {
-      // Terminal / CLI mockup: look for monospace text in a bordered/rounded container
-      const terminalCandidates = hero.querySelectorAll(
-        '[class*="terminal"],[class*="console"],[class*="cli"],[class*="command"],[class*="code"],' +
-        'pre, code, [class*="shell"],[class*="prompt"],[class*="editor"]'
-      );
+      // Terminal / CLI mockup: class-based + content-based detection
+      // Strategy 1: Look for explicit terminal/code class names
+      const termSelectors = '[class*="terminal"],[class*="console"],[class*="cli"],[class*="command"],[class*="code"],' +
+        'pre, code, [class*="shell"],[class*="prompt"],[class*="editor"]';
+      // Strategy 2: Content-based — scan all hero containers for monospace + command-like text
+      const allHeroContainers = hero.querySelectorAll('div, span, p, pre, code');
+      const terminalCandidates = new Set([
+        ...Array.from(hero.querySelectorAll(termSelectors)),
+      ]);
+      // Content scan: find elements with command text patterns, then walk up to find container
+      for (const el of Array.from(allHeroContainers).slice(0, 80)) {
+        const text = (el.innerText || '').trim();
+        if (text.length < 5 || text.length > 200) continue;
+        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost|\.run|\.dev|model\s|--tier/i.test(text);
+        if (!hasCommand) continue;
+        // Walk up to find the visual container (the "card" wrapping the terminal)
+        let container = el;
+        for (let d = 0; d < 4; d++) {
+          const p = container.parentElement;
+          if (!p || p === hero) break;
+          const pCs = window.getComputedStyle(p);
+          const pRect = p.getBoundingClientRect();
+          // Stop at a container that has bg, border, or is large enough
+          if (pRect.width > 250 && (pCs.borderRadius !== '0px' || !(/rgba\(0,\s*0,\s*0,\s*0\)|transparent/).test(pCs.backgroundColor))) {
+            container = p;
+            break;
+          }
+          container = p;
+        }
+        terminalCandidates.add(container);
+      }
+
       for (const el of Array.from(terminalCandidates).slice(0, 5)) {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
         if (rect.width < 150 || rect.height < 40) continue;
         const text = (el.innerText || '').trim().slice(0, 120);
         if (!text) continue;
-        // Check if it looks like a terminal (has command-like text or monospace font)
         const isMono = /mono|code|consolas|jetbrains|fira code/i.test(cs.fontFamily);
-        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost/i.test(text);
+        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost|\.run|\.dev|model\s|--tier/i.test(text);
         if (isMono || hasCommand) {
+          // Check for progress bars: also scan for colored thin divs (Tailwind progress pattern)
+          const _progressEls = el.querySelectorAll('[class*="progress"],[role="progressbar"],div[style*="width:"]');
+          const _thinBars = Array.from(el.querySelectorAll('div')).filter(d => {
+            const r = d.getBoundingClientRect();
+            return r.height >= 2 && r.height <= 8 && r.width > 30;
+          });
           components.push({
             type: 'terminal-mockup',
             text: text.slice(0, 80),
@@ -1342,9 +1374,7 @@
             radius: cs.borderRadius,
             border: cs.border !== 'none' ? cs.borderColor : null,
             fontFamily: cs.fontFamily.split(',')[0].replace(/"/g, '').trim(),
-            // Check for progress bars inside
-            hasProgressBar: !!el.querySelector('[class*="progress"],[role="progressbar"],div[style*="width:"]'),
-            // Check for keyboard shortcut badges
+            hasProgressBar: _progressEls.length > 0 || _thinBars.length >= 2,
             hasKbd: !!el.querySelector('kbd,[class*="kbd"],[class*="shortcut"],[class*="key"]'),
           });
         }
@@ -1485,20 +1515,33 @@
         const sizes = children.map(c => {
           const r = c.getBoundingClientRect();
           const childCs = window.getComputedStyle(c);
-          return {
-            w: Math.round(r.width),
-            h: Math.round(r.height),
-            colSpan: childCs.gridColumnEnd === 'auto' ? 1 : parseInt(childCs.gridColumnEnd) - parseInt(childCs.gridColumnStart) || 1,
-            rowSpan: childCs.gridRowEnd === 'auto' ? 1 : parseInt(childCs.gridRowEnd) - parseInt(childCs.gridRowStart) || 1,
-          };
+          // Detect col-span via computed grid position OR Tailwind class
+          const clsStr = (c.className || '').toString();
+          const twColSpan = clsStr.match(/col-span-(\d+)/)?.[1];
+          const twRowSpan = clsStr.match(/row-span-(\d+)/)?.[1];
+          let colSpan = twColSpan ? parseInt(twColSpan) : 1;
+          let rowSpan = twRowSpan ? parseInt(twRowSpan) : 1;
+          // Fallback to computed grid position
+          if (colSpan === 1 && childCs.gridColumnEnd !== 'auto' && childCs.gridColumnStart) {
+            const end = parseInt(childCs.gridColumnEnd), start = parseInt(childCs.gridColumnStart);
+            if (!isNaN(end) && !isNaN(start) && end - start > 1) colSpan = end - start;
+          }
+          if (rowSpan === 1 && childCs.gridRowEnd !== 'auto' && childCs.gridRowStart) {
+            const end = parseInt(childCs.gridRowEnd), start = parseInt(childCs.gridRowStart);
+            if (!isNaN(end) && !isNaN(start) && end - start > 1) rowSpan = end - start;
+          }
+          return { w: Math.round(r.width), h: Math.round(r.height), colSpan, rowSpan };
         });
-        // Bento = at least one child spans more than 1 col or 1 row, OR children have significantly different widths
+        // Bento detection: spans > 1, OR significantly different widths, OR significantly different heights
         const hasSpanning = sizes.some(s => s.colSpan > 1 || s.rowSpan > 1);
         const widths = sizes.map(s => s.w);
+        const heights = sizes.map(s => s.h);
         const maxW = Math.max(...widths), minW = Math.min(...widths);
-        const hasVaryingWidths = maxW > minW * 1.4; // 40% difference = asymmetric
+        const maxH = Math.max(...heights), minH = Math.min(...heights);
+        const hasVaryingWidths = maxW > minW * 1.4;
+        const hasVaryingHeights = maxH > minH * 1.3 && children.length >= 4;
 
-        if (hasSpanning || hasVaryingWidths) {
+        if (hasSpanning || hasVaryingWidths || hasVaryingHeights) {
           return {
             type: 'bento',
             columns: cs.gridTemplateColumns,
