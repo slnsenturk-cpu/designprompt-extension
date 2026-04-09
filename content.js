@@ -5232,8 +5232,15 @@
     const firstSec = document.querySelector('section:first-of-type, main > div:first-child, main > section:first-child');
     if (firstSec) {
       const hasH1 = !!firstSec.querySelector('h1');
-      const hasCTA = !!firstSec.querySelector('a[class*="btn"], a[class*="button"], a[class*="cta"], button[class*="btn"], button[class*="cta"], [role="button"]');
+      // Broader CTA detection: any styled button/link in first section
+      const hasCTA = !!firstSec.querySelector(
+        'a[class*="btn"], a[class*="button"], a[class*="cta"], button[class*="btn"], button[class*="cta"], [role="button"],' +
+        'a[class*="bg-"], button[class*="bg-"], a[class*="rounded"], button[class*="rounded"]'
+      );
       if (hasH1 && hasCTA) return 'landing page';
+      // Also: h1 + multiple sections = landing page (even without CTA class match)
+      const sectionCount = document.querySelectorAll('section').length;
+      if (hasH1 && sectionCount >= 3) return 'landing page';
     }
     // Stricter blog check: requires article + blog URL or blog-specific class
     const hasArticle = !!document.querySelector('article');
