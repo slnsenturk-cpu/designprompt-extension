@@ -1066,6 +1066,16 @@ body {
   font-size: 10px;
 }
 
+/* ─── Fusion mode toggle (Auto/Manual) ─── */
+.fusion-mode-row {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.fusion-mode-btn { font-size: 11px; }
+
 /* ─── Fusion generate button ─── */
 .fusion-generate-btn {
   margin-top: 4px;
