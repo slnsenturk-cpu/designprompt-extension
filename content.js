@@ -612,6 +612,7 @@
     tokens.heroInteractiveComponents = detectHeroInteractiveComponents();
     tokens.gradientText = detectGradientText();
     tokens.navStructure = detectNavStructure();
+    tokens.backgroundPatterns = detectBackgroundPatterns();
 
     // ── 15. Extended animation detectors ──
     tokens.parallaxLayers = detectParallaxLayers();
@@ -1666,6 +1667,91 @@
 
       return result;
     } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
+  }
+
+  /**
+   * Detect page-level background patterns: grid lines, scanlines, grain/noise, dot patterns
+   * These are typically position:fixed overlays with low opacity
+   */
+  function detectBackgroundPatterns() {
+    const patterns = [];
+    try {
+      // Strategy 1: Find fixed/absolute overlays with background patterns
+      const overlayEls = document.querySelectorAll(
+        '[class*="grain"],[class*="noise"],[class*="texture"],[class*="scanline"],[class*="grid-bg"],' +
+        '[class*="overlay"],[class*="pattern"],[style*="position: fixed"][style*="pointer-events"],' +
+        '[style*="position:fixed"][style*="pointer-events"]'
+      );
+      for (const el of Array.from(overlayEls).slice(0, 10)) {
+        const cs = window.getComputedStyle(el);
+        const isOverlay = cs.position === 'fixed' || cs.position === 'absolute';
+        const isPassive = cs.pointerEvents === 'none';
+        if (!isOverlay && !isPassive) continue;
+
+        const bgImage = cs.backgroundImage;
+        const filter = cs.filter;
+        const opacity = parseFloat(cs.opacity);
+
+        if (bgImage && bgImage !== 'none' && bgImage.includes('gradient')) {
+          patterns.push({
+            type: bgImage.includes('repeating') ? 'scanlines' : 'grid-lines',
+            css: bgImage.slice(0, 200),
+            opacity: opacity,
+            zIndex: cs.zIndex,
+          });
+        }
+        if (filter && filter.includes('url(')) {
+          patterns.push({ type: 'grain-filter', css: filter.slice(0, 100), opacity });
+        }
+      }
+
+      // Strategy 2: Scan stylesheets for background pattern definitions
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules || [])) {
+            if (!rule.style) continue;
+            const bg = rule.style.backgroundImage || '';
+            const pos = rule.style.position;
+            // Grid lines: cross-hatch pattern via two linear-gradients
+            if (bg.includes('linear-gradient') && bg.includes('1px') && bg.includes('transparent') &&
+                bg.includes('90deg') && (pos === 'fixed' || pos === 'absolute' || pos === 'relative')) {
+              const sel = (rule.selectorText || '').slice(0, 40);
+              if (!patterns.some(p => p.type === 'grid-lines')) {
+                patterns.push({
+                  type: 'grid-lines',
+                  css: _truncateGradient(bg, 200),
+                  selector: sel,
+                  backgroundSize: rule.style.backgroundSize || null,
+                });
+              }
+            }
+            // Scanlines: repeating-linear-gradient with thin lines
+            if (bg.includes('repeating-linear-gradient')) {
+              const sel = (rule.selectorText || '').slice(0, 40);
+              if (!patterns.some(p => p.type === 'scanlines')) {
+                patterns.push({
+                  type: 'scanlines',
+                  css: _truncateGradient(bg, 200),
+                  selector: sel,
+                });
+              }
+            }
+          }
+        } catch(e) { /* cross-origin */ }
+      }
+
+      // Strategy 3: Check for SVG feTurbulence grain (inline or referenced)
+      const turbulence = document.querySelector('feTurbulence');
+      if (turbulence) {
+        patterns.push({
+          type: 'svg-grain',
+          baseFrequency: turbulence.getAttribute('baseFrequency') || '0.65',
+          numOctaves: turbulence.getAttribute('numOctaves') || '3',
+          seed: turbulence.getAttribute('seed') || '0',
+        });
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return patterns.length > 0 ? patterns : null;
   }
 
   // ─── Asset extraction: fonts, background images, icons ───────────────────
