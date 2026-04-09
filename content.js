@@ -153,6 +153,21 @@
     return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
   }
 
+  // Truncate gradient strings at a parenthesis-safe boundary to avoid unclosed parens
+  function _truncateGradient(str, maxLen) {
+    if (!str || str.length <= maxLen) return str;
+    // Find the last complete gradient function before maxLen
+    let depth = 0, cutAt = maxLen;
+    for (let i = 0; i < str.length && i < maxLen; i++) {
+      if (str[i] === '(') depth++;
+      else if (str[i] === ')') { depth--; if (depth === 0) cutAt = i + 1; }
+    }
+    // If we found a balanced cut point, use it; otherwise cut at last comma before maxLen
+    if (cutAt < maxLen) return str.slice(0, cutAt);
+    const lastComma = str.lastIndexOf(',', maxLen);
+    return lastComma > maxLen * 0.5 ? str.slice(0, lastComma) : str.slice(0, maxLen);
+  }
+
   function dedupeColors(colors) {
     const result = [];
     for (const c of colors) {
@@ -264,14 +279,35 @@
             if (/^Toastify|^hot-toast|^sonner|^nprogress|^vjs-|^plyr-|^mux-|^video-|^swiper-/i.test(name)) continue;
             // Skip very long generated names (likely hashed)
             if (name.length > 40) continue;
-            // Extract first and last keyframe content for from→to description
+            // Extract structured keyframe steps with animation-relevant properties
             try {
               const frames = Array.from(rule.cssRules || []);
-              const first = frames[0]?.cssText?.replace(/\s+/g, ' ').slice(0, 150);
-              const last = frames.length > 1 ? frames[frames.length-1]?.cssText?.replace(/\s+/g, ' ').slice(0, 150) : null;
-              tokens.animations.push({ name, from: first || null, to: last || null });
+              const ANIM_PROPS = ['opacity','transform','clip-path','filter','box-shadow',
+                'background','background-color','color','border-radius','width','height',
+                'stroke-dasharray','stroke-dashoffset','scale','translate','rotate'];
+              const steps = [];
+              // Sample first, middle (if 3+), and last frame
+              const indices = frames.length <= 3
+                ? frames.map((_, i) => i)
+                : [0, Math.floor(frames.length / 2), frames.length - 1];
+              for (const idx of indices) {
+                const frame = frames[idx];
+                if (!frame) continue;
+                const step = { offset: frame.keyText };
+                for (const prop of ANIM_PROPS) {
+                  const val = frame.style?.getPropertyValue(prop);
+                  if (val && val !== 'initial' && val !== 'none' && val !== 'auto') {
+                    step[prop] = val.trim();
+                  }
+                }
+                if (Object.keys(step).length > 1) steps.push(step);
+              }
+              // Also keep legacy from/to text for backward compat (but full, not truncated)
+              const first = frames[0]?.cssText?.replace(/\s+/g, ' ');
+              const last = frames.length > 1 ? frames[frames.length-1]?.cssText?.replace(/\s+/g, ' ') : null;
+              tokens.animations.push({ name, steps, from: first || null, to: last || null });
             } catch(e) {
-              tokens.animations.push({ name, from: null, to: null });
+              tokens.animations.push({ name, steps: [], from: null, to: null });
             }
           }
         }
@@ -564,7 +600,20 @@
     // ── 13. Rive / Lottie detection ──
     tokens.riveAndLottie = detectRiveAndLottie();
 
-    // ── 14. Tabbed content components ──
+    // ── 14. Component-level extraction ──
+    tokens.heroInteractiveComponents = detectHeroInteractiveComponents();
+    tokens.gradientText = detectGradientText();
+    tokens.navStructure = detectNavStructure();
+
+    // ── 15. Extended animation detectors ──
+    tokens.parallaxLayers = detectParallaxLayers();
+    tokens.numberCounters = detectNumberCounters();
+    tokens.svgPathDrawing = detectSVGPathDrawing();
+    tokens.spline3D = detectSpline3D();
+    tokens.particleSystems = detectParticleSystems();
+    tokens.scrollSnap = detectScrollSnap();
+
+    // ── 15. Tabbed content components ──
     tokens.tabbedComponents = detectTabbedContentComponents();
 
     // ── 15. Fixed / sticky UI chrome ──
@@ -703,6 +752,57 @@
     const scrollDrivenEls = document.querySelectorAll('[style*="animation-timeline"],[style*="view-timeline"]');
     if (hasScrollTimeline || scrollDrivenEls.length > 0) profile.scrollParadigm = 'scroll-scrub';
 
+    // 1b. CSS scroll-timeline full parameter extraction
+    const scrollTimelineRules = [];
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules || [])) {
+          if (!rule.style) continue;
+          const at = rule.style.animationTimeline;
+          const vt = rule.style.getPropertyValue('view-timeline-name');
+          const ar = rule.style.getPropertyValue('animation-range');
+          if (at && at !== 'auto' && at !== 'none') {
+            scrollTimelineRules.push({
+              selector: (rule.selectorText || '').slice(0, 80),
+              timeline: at,
+              range: ar || null,
+              viewTimeline: vt || null,
+            });
+          }
+        }
+      } catch(e) { /* cross-origin */ }
+    }
+    if (scrollTimelineRules.length > 0) profile.scrollTimelineRules = scrollTimelineRules.slice(0, 6);
+
+    // 1c. Scroll-pinned sections (CSS sticky with tall height)
+    const pinnedSections = [];
+    try {
+      for (const sec of document.querySelectorAll('section, [class*="section"], [class*="panel"]')) {
+        const rect = sec.getBoundingClientRect();
+        if (rect.height > window.innerHeight * 1.5) {
+          const stickyChildren = Array.from(sec.querySelectorAll('*')).slice(0, 100).filter(el => {
+            return window.getComputedStyle(el).position === 'sticky';
+          });
+          if (stickyChildren.length > 0) {
+            // Find animated children within
+            const animChildren = Array.from(sec.querySelectorAll('[data-aos],[class*="animate"],[class*="reveal"],[style*="animation"]'))
+              .slice(0, 8).map(el => ({
+                element: _selectorHint(el),
+                animation: el.dataset.aos || window.getComputedStyle(el).animationName || 'reveal',
+              }));
+            pinnedSections.push({
+              type: 'css-sticky',
+              element: _selectorHint(sec),
+              heightRatio: Math.round(rect.height / window.innerHeight * 10) / 10,
+              stickyCount: stickyChildren.length,
+              animatedChildren: animChildren.length > 0 ? animChildren : null,
+            });
+          }
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    if (pinnedSections.length > 0) profile.pinnedSections = pinnedSections.slice(0, 4);
+
     // 2. Classify reveal style from @keyframes
     const revealKeyframes = [];
     for (const sheet of Array.from(document.styleSheets)) {
@@ -828,17 +928,39 @@
       }
     }
 
-    // 5. GSAP ScrollTrigger live config
+    // 5. GSAP ScrollTrigger live config (enhanced)
     try {
       if (window.ScrollTrigger && window.ScrollTrigger.getAll) {
         const triggers = window.ScrollTrigger.getAll().slice(0, 8);
-        profile.gsapScrollTriggers = triggers.map(t => ({
-          trigger: (t.vars?.trigger?.className || t.trigger?.className || 'unknown').toString().trim().slice(0, 40),
-          start: t.vars?.start || t.start || null,
-          end: t.vars?.end || null,
-          scrub: !!(t.vars?.scrub),
-          pin: !!(t.vars?.pin),
-        }));
+        profile.gsapScrollTriggers = triggers.map(t => {
+          const entry = {
+            trigger: (t.vars?.trigger?.className || t.trigger?.className || 'unknown').toString().trim().slice(0, 40),
+            start: t.vars?.start || t.start || null,
+            end: t.vars?.end || null,
+            scrub: t.vars?.scrub === true ? 1 : (t.vars?.scrub || false),
+            pin: !!(t.vars?.pin),
+            pinSpacing: t.vars?.pinSpacing !== false,
+            snap: t.vars?.snap || null,
+          };
+          // Extract timeline children for pinned sections
+          if (entry.pin && t.animation && typeof t.animation.getChildren === 'function') {
+            try {
+              entry.timelineChildren = t.animation.getChildren().slice(0, 8).map(child => ({
+                target: _selectorHint(child.targets?.()?.[0]),
+                props: (() => {
+                  const v = child.vars || {};
+                  const p = {};
+                  for (const k of ['opacity','x','y','scale','rotation','clipPath','filter']) {
+                    if (v[k] !== undefined) p[k] = v[k];
+                  }
+                  return Object.keys(p).length > 0 ? p : null;
+                })(),
+                startPct: t.animation.duration() > 0 ? Math.round(child.startTime() / t.animation.duration() * 100) : null,
+              })).filter(c => c.props);
+            } catch(e) { /* GSAP version may not support getChildren */ }
+          }
+          return entry;
+        });
         if (profile.gsapScrollTriggers.some(t => t.scrub)) profile.scrollParadigm = 'scroll-scrub';
         else if (!profile.scrollParadigm) profile.scrollParadigm = 'trigger-based';
       }
@@ -859,8 +981,8 @@
     if (!hero) return null;
 
     const sequence = [];
-    const children = hero.querySelectorAll('h1,h2,h3,h4,p,[class*="subtitle"],[class*="cta"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
-    for (const el of Array.from(children).slice(0, 12)) {
+    const children = hero.querySelectorAll('h1,h2,h3,h4,p,img,video,canvas,[class*="subtitle"],[class*="cta"],[class*="visual"],[class*="animation"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
+    for (const el of Array.from(children).slice(0, 16)) {
       try {
         const cs = window.getComputedStyle(el);
         const animName = cs.animationName;
@@ -876,9 +998,11 @@
         const aosType = el.dataset?.aos || el.closest('[data-aos]')?.dataset?.aos || null;
         const aosDelay = el.dataset?.aosDelay || el.closest('[data-aos]')?.dataset?.aosDelay || null;
 
-        // Transform/filter details
+        // Transform/filter details (expanded)
         const filter = cs.filter !== 'none' ? cs.filter : null;
         const hasBlur = filter && /blur\(([^)]+)\)/.test(filter);
+        const transform = cs.transform !== 'none' ? cs.transform : null;
+        const clipPath = cs.clipPath !== 'none' ? cs.clipPath : null;
 
         const entry = {
           tag: el.tagName.toLowerCase(),
@@ -889,10 +1013,13 @@
           opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible',
           blur: hasBlur ? filter.match(/blur\(([^)]+)\)/)[1] : null,
           aosType: aosType,
+          initialTransform: transform ? transform.slice(0, 80) : null,
+          initialClipPath: clipPath ? clipPath.slice(0, 60) : null,
         };
 
-        if (entry.animName || aosType || parseFloat(cs.opacity) < 0.2) {
+        if (entry.animName || aosType || parseFloat(cs.opacity) < 0.2 || entry.initialClipPath) {
           if (!entry.animName && parseFloat(cs.opacity) < 0.2) entry.animName = 'js-triggered-entrance';
+          if (!entry.animName && entry.initialClipPath) entry.animName = 'clip-path-reveal';
           sequence.push(entry);
         }
       } catch(e) { console.debug('[VibeDesign]', e.message); }
@@ -1023,6 +1150,471 @@
     } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     return [...found];
+  }
+
+  // ─── P1: New animation detectors ─────────────────────────────────────────
+
+  function detectParallaxLayers() {
+    const layers = [];
+    try {
+      // Pattern 1: background-attachment: fixed
+      const allEls = document.querySelectorAll('section, div, [class*="parallax"], [class*="hero"]');
+      for (const el of Array.from(allEls).slice(0, 60)) {
+        const cs = window.getComputedStyle(el);
+        if (cs.backgroundAttachment === 'fixed') {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 200 && rect.height > 100) {
+            layers.push({ type: 'bg-fixed', element: _selectorHint(el), bgImage: (cs.backgroundImage || '').slice(0, 80) });
+          }
+        }
+        // Pattern 2: data-speed / data-parallax attributes (Locomotive, custom)
+        const speed = el.dataset.speed || el.dataset.scrollSpeed || el.dataset.parallax || el.dataset.rellax;
+        if (speed) {
+          layers.push({ type: 'data-speed', element: _selectorHint(el), speed });
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return layers.length > 0 ? layers.slice(0, 6) : null;
+  }
+
+  function detectNumberCounters() {
+    const counters = [];
+    try {
+      const candidates = document.querySelectorAll(
+        '[class*="counter"],[class*="count"],[class*="stat"],[class*="number"],[class*="metric"],[data-count],[data-target]'
+      );
+      for (const el of Array.from(candidates).slice(0, 20)) {
+        const text = (el.textContent || '').trim();
+        if (/^[$€£]?[\d,]+\.?\d*[%+KkMmBb]?$/.test(text) && text.length < 20) {
+          const cs = window.getComputedStyle(el);
+          counters.push({
+            targetValue: text,
+            element: _selectorHint(el),
+            fontSize: cs.fontSize,
+            fontWeight: cs.fontWeight,
+            dataTarget: el.dataset.count || el.dataset.target || null,
+          });
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return counters.length > 0 ? counters.slice(0, 8) : null;
+  }
+
+  function detectSVGPathDrawing() {
+    const drawings = [];
+    try {
+      const svgPaths = document.querySelectorAll('svg path, svg circle, svg line, svg polyline');
+      for (const path of Array.from(svgPaths).slice(0, 50)) {
+        const cs = window.getComputedStyle(path);
+        const dasharray = cs.strokeDasharray;
+        const dashoffset = cs.strokeDashoffset;
+        if (dasharray && dasharray !== 'none' && dashoffset && dashoffset !== '0px') {
+          const svg = path.ownerSVGElement;
+          const rect = svg?.getBoundingClientRect();
+          if (rect && rect.width > 30 && rect.height > 30) {
+            drawings.push({
+              element: path.tagName.toLowerCase(),
+              svgSize: { w: Math.round(rect.width), h: Math.round(rect.height) },
+              dasharray: dasharray.slice(0, 40),
+              dashoffset: dashoffset,
+              stroke: cs.stroke,
+              strokeWidth: cs.strokeWidth,
+              animated: cs.animationName !== 'none',
+              pathLength: (typeof path.getTotalLength === 'function') ? Math.round(path.getTotalLength()) : null,
+            });
+          }
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return drawings.length > 0 ? drawings.slice(0, 4) : null;
+  }
+
+  function detectSpline3D() {
+    try {
+      const viewers = document.querySelectorAll('spline-viewer, [class*="spline"], iframe[src*="spline"]');
+      if (viewers.length === 0) return null;
+      const results = [];
+      for (const v of Array.from(viewers).slice(0, 3)) {
+        const rect = v.getBoundingClientRect();
+        results.push({
+          location: rect.top < window.innerHeight ? 'above-fold' : 'below-fold',
+          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
+          url: v.getAttribute('url') || v.getAttribute('src') || null,
+          interactive: v.hasAttribute('events-target') || v.hasAttribute('mouse-target'),
+        });
+      }
+      return results.length > 0 ? results : null;
+    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
+  }
+
+  function detectParticleSystems() {
+    try {
+      const hasTsParticles = !!window.tsParticles;
+      const hasParticlesJS = !!window.pJSDom || !!window.particlesJS;
+      let library = null;
+      for (const s of document.querySelectorAll('script[src]')) {
+        const src = (s.src || '').toLowerCase();
+        if (src.includes('tsparticles')) library = 'tsparticles';
+        else if (src.includes('particles')) library = 'particles.js';
+      }
+      const containers = document.querySelectorAll(
+        '#particles-js, #tsparticles, [id*="particles"], [class*="particles"]'
+      );
+      if (!hasTsParticles && !hasParticlesJS && !library && containers.length === 0) return null;
+      const container = containers[0];
+      const rect = container?.getBoundingClientRect();
+      return {
+        library: library || (hasTsParticles ? 'tsparticles' : hasParticlesJS ? 'particles.js' : 'unknown'),
+        container: container ? _selectorHint(container) : null,
+        fullViewport: rect ? rect.width >= window.innerWidth * 0.8 && rect.height >= window.innerHeight * 0.5 : false,
+        size: rect ? { w: Math.round(rect.width), h: Math.round(rect.height) } : null,
+      };
+    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
+  }
+
+  function detectScrollSnap() {
+    const results = [];
+    try {
+      for (const el of document.querySelectorAll('*')) {
+        const cs = window.getComputedStyle(el);
+        if (cs.scrollSnapType && cs.scrollSnapType !== 'none') {
+          const rect = el.getBoundingClientRect();
+          if (rect.width > 200 && rect.height > 200) {
+            const children = Array.from(el.children).filter(c => {
+              return window.getComputedStyle(c).scrollSnapAlign !== 'none';
+            });
+            if (children.length > 1) {
+              results.push({
+                element: _selectorHint(el),
+                snapType: cs.scrollSnapType,
+                childCount: children.length,
+                direction: cs.scrollSnapType.includes('x') ? 'horizontal' : 'vertical',
+              });
+            }
+          }
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return results.length > 0 ? results.slice(0, 3) : null;
+  }
+
+  function _selectorHint(el) {
+    if (!el || !el.tagName) return 'unknown';
+    const tag = el.tagName.toLowerCase();
+    const cls = (el.className || '').toString().split(/\s+/)
+      .filter(c => c.length > 2 && c.length < 30 && !/^_|^css-|^tw-|^[a-z]{20,}/.test(c))
+      .slice(0, 2).join('.');
+    return cls ? `${tag}.${cls}` : tag;
+  }
+
+  // ─── Component-level extraction: hero components, card content, bento, gradient text, nav structure ───
+
+  /**
+   * Detect interactive hero components: terminal/CLI mockups, code editors, search bars, command palettes
+   */
+  function detectHeroInteractiveComponents() {
+    const hero = document.querySelector(
+      '[class*="hero"],[class*="Hero"],main > section:first-child,section:first-of-type,header + section,.hero,#hero'
+    );
+    if (!hero) return null;
+    const components = [];
+    try {
+      // Terminal / CLI mockup: look for monospace text in a bordered/rounded container
+      const terminalCandidates = hero.querySelectorAll(
+        '[class*="terminal"],[class*="console"],[class*="cli"],[class*="command"],[class*="code"],' +
+        'pre, code, [class*="shell"],[class*="prompt"],[class*="editor"]'
+      );
+      for (const el of Array.from(terminalCandidates).slice(0, 5)) {
+        const cs = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 150 || rect.height < 40) continue;
+        const text = (el.innerText || '').trim().slice(0, 120);
+        if (!text) continue;
+        // Check if it looks like a terminal (has command-like text or monospace font)
+        const isMono = /mono|code|consolas|jetbrains|fira code/i.test(cs.fontFamily);
+        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost/i.test(text);
+        if (isMono || hasCommand) {
+          components.push({
+            type: 'terminal-mockup',
+            text: text.slice(0, 80),
+            size: { w: Math.round(rect.width), h: Math.round(rect.height) },
+            bg: cs.backgroundColor,
+            radius: cs.borderRadius,
+            border: cs.border !== 'none' ? cs.borderColor : null,
+            fontFamily: cs.fontFamily.split(',')[0].replace(/"/g, '').trim(),
+            // Check for progress bars inside
+            hasProgressBar: !!el.querySelector('[class*="progress"],[role="progressbar"],div[style*="width:"]'),
+            // Check for keyboard shortcut badges
+            hasKbd: !!el.querySelector('kbd,[class*="kbd"],[class*="shortcut"],[class*="key"]'),
+          });
+        }
+      }
+
+      // Search bar / command palette
+      const searchCandidates = hero.querySelectorAll(
+        'input[type="search"],[class*="search"],[class*="command-palette"],[role="combobox"],' +
+        '[class*="searchbar"],[class*="search-input"]'
+      );
+      for (const el of Array.from(searchCandidates).slice(0, 2)) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 150) continue;
+        const cs = window.getComputedStyle(el);
+        components.push({
+          type: 'search-bar',
+          placeholder: el.getAttribute('placeholder') || '',
+          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
+          radius: cs.borderRadius,
+        });
+      }
+
+      // Generic glassmorphic UI panel in hero (not a card, not a nav)
+      const panels = hero.querySelectorAll('[class*="glass"],[class*="panel"],[class*="mockup"],[class*="preview"]');
+      for (const el of Array.from(panels).slice(0, 3)) {
+        const cs = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 200 || rect.height < 100) continue;
+        if (components.some(c => c.type === 'terminal-mockup')) continue; // Don't duplicate
+        const hasBackdrop = cs.backdropFilter && cs.backdropFilter !== 'none';
+        if (!hasBackdrop) continue;
+        components.push({
+          type: 'glass-panel',
+          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
+          blur: cs.backdropFilter,
+          childCount: el.children.length,
+        });
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return components.length > 0 ? components : null;
+  }
+
+  /**
+   * Classify content inside cards: charts, code snippets, maps, icon patterns
+   */
+  function classifyCardContent(cardEl) {
+    if (!cardEl) return null;
+    const content = [];
+    try {
+      // Line chart / area chart (SVG path or canvas)
+      const svgs = cardEl.querySelectorAll('svg');
+      for (const svg of Array.from(svgs).slice(0, 2)) {
+        const paths = svg.querySelectorAll('path, polyline, line');
+        const rect = svg.getBoundingClientRect();
+        if (paths.length > 0 && rect.width > 80 && rect.height > 40) {
+          const strokeColors = [...new Set(Array.from(paths).map(p => window.getComputedStyle(p).stroke).filter(s => s && s !== 'none'))];
+          content.push({
+            type: 'chart',
+            chartType: paths.length > 5 ? 'area-chart' : 'line-chart',
+            size: { w: Math.round(rect.width), h: Math.round(rect.height) },
+            colors: strokeColors.slice(0, 3),
+          });
+        }
+      }
+
+      // Code snippet
+      const codeEls = cardEl.querySelectorAll('pre, code, [class*="code"], [class*="syntax"]');
+      for (const el of Array.from(codeEls).slice(0, 1)) {
+        const text = (el.innerText || '').trim();
+        if (text.length > 10) {
+          content.push({
+            type: 'code-snippet',
+            preview: text.slice(0, 60),
+            language: el.className.toString().match(/language-(\w+)/)?.[1] || null,
+          });
+        }
+      }
+
+      // Map / location dots
+      const mapEls = cardEl.querySelectorAll('[class*="map"],[class*="globe"],[class*="location"],[class*="dot"]');
+      if (mapEls.length >= 2) {
+        const labels = Array.from(cardEl.querySelectorAll('span, div'))
+          .map(el => (el.innerText || '').trim())
+          .filter(t => /^[A-Z]{2,4}-\d|[A-Z]{2,3}\s+\d/i.test(t))
+          .slice(0, 4);
+        content.push({
+          type: 'location-map',
+          dotCount: mapEls.length,
+          labels: labels.length > 0 ? labels : null,
+        });
+      }
+
+      // Badge / tag inside card
+      const badges = cardEl.querySelectorAll('[class*="badge"],[class*="tag"],[class*="chip"],[class*="label"]');
+      for (const badge of Array.from(badges).slice(0, 2)) {
+        const text = (badge.innerText || '').trim();
+        if (text.length > 1 && text.length < 30) {
+          const cs = window.getComputedStyle(badge);
+          content.push({
+            type: 'badge',
+            text,
+            bg: cs.backgroundColor,
+            color: cs.color,
+          });
+        }
+      }
+
+      // Icon (prominent, not inline)
+      const icons = cardEl.querySelectorAll('svg, [class*="icon"], img[src*="icon"]');
+      const prominentIcon = Array.from(icons).find(ic => {
+        const r = ic.getBoundingClientRect();
+        return r.width >= 24 && r.height >= 24 && r.width <= 64;
+      });
+      if (prominentIcon && content.length === 0) {
+        content.push({ type: 'icon', size: Math.round(prominentIcon.getBoundingClientRect().width) });
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return content.length > 0 ? content : null;
+  }
+
+  /**
+   * Detect bento grid layouts (asymmetric card sizing with col-span/row-span)
+   */
+  function detectBentoGrid(sectionEl) {
+    if (!sectionEl) return null;
+    try {
+      const grids = sectionEl.querySelectorAll('[class*="grid"], [style*="display: grid"], [style*="display:grid"]');
+      for (const grid of Array.from(grids).slice(0, 3)) {
+        const cs = window.getComputedStyle(grid);
+        if (cs.display !== 'grid') continue;
+        const children = Array.from(grid.children).filter(c => {
+          const r = c.getBoundingClientRect();
+          return r.width > 50 && r.height > 50;
+        });
+        if (children.length < 3) continue;
+
+        // Check if children have different spans (bento indicator)
+        const sizes = children.map(c => {
+          const r = c.getBoundingClientRect();
+          const childCs = window.getComputedStyle(c);
+          return {
+            w: Math.round(r.width),
+            h: Math.round(r.height),
+            colSpan: childCs.gridColumnEnd === 'auto' ? 1 : parseInt(childCs.gridColumnEnd) - parseInt(childCs.gridColumnStart) || 1,
+            rowSpan: childCs.gridRowEnd === 'auto' ? 1 : parseInt(childCs.gridRowEnd) - parseInt(childCs.gridRowStart) || 1,
+          };
+        });
+        // Bento = at least one child spans more than 1 col or 1 row, OR children have significantly different widths
+        const hasSpanning = sizes.some(s => s.colSpan > 1 || s.rowSpan > 1);
+        const widths = sizes.map(s => s.w);
+        const maxW = Math.max(...widths), minW = Math.min(...widths);
+        const hasVaryingWidths = maxW > minW * 1.4; // 40% difference = asymmetric
+
+        if (hasSpanning || hasVaryingWidths) {
+          return {
+            type: 'bento',
+            columns: cs.gridTemplateColumns,
+            rows: cs.gridTemplateRows,
+            itemCount: children.length,
+            items: sizes.slice(0, 6).map((s, i) => ({
+              size: `${s.w}×${s.h}`,
+              span: s.colSpan > 1 || s.rowSpan > 1 ? `col:${s.colSpan} row:${s.rowSpan}` : null,
+              heading: children[i]?.querySelector('h3,h4')?.innerText?.trim()?.slice(0, 30) || null,
+              content: classifyCardContent(children[i]),
+            })),
+          };
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return null;
+  }
+
+  /**
+   * Detect gradient text (-webkit-background-clip: text patterns)
+   */
+  function detectGradientText() {
+    const results = [];
+    try {
+      // Check headings for gradient text
+      const headings = document.querySelectorAll('h1, h2, h3, h1 *, h2 *, h3 *');
+      for (const el of Array.from(headings).slice(0, 30)) {
+        const cs = window.getComputedStyle(el);
+        const bgClip = cs.webkitBackgroundClip || cs.backgroundClip;
+        if (bgClip === 'text') {
+          const text = (el.innerText || '').trim().slice(0, 40);
+          if (!text) continue;
+          results.push({
+            text,
+            gradient: cs.backgroundImage?.slice(0, 120) || null,
+            tag: el.tagName.toLowerCase(),
+          });
+        }
+        // Also detect transparent text color with background-image (another gradient text pattern)
+        if (cs.color === 'rgba(0, 0, 0, 0)' || cs.color === 'transparent') {
+          const bgImg = cs.backgroundImage;
+          if (bgImg && bgImg.includes('gradient')) {
+            const text = (el.innerText || '').trim().slice(0, 40);
+            if (text) {
+              results.push({ text, gradient: bgImg.slice(0, 120), tag: el.tagName.toLowerCase() });
+            }
+          }
+        }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return results.length > 0 ? results.slice(0, 4) : null;
+  }
+
+  /**
+   * Detect nav pill grouping: nav links enclosed in a glass/bordered container separate from logo/CTA
+   */
+  function detectNavStructure() {
+    const nav = document.querySelector('nav, header, [role="navigation"]');
+    if (!nav) return null;
+    try {
+      const result = { layout: 'standard', pillGroup: null, scrollTransition: null };
+
+      // Find the link container — a child of nav that contains multiple links but NOT the logo/CTA
+      const allLinks = Array.from(nav.querySelectorAll('a, button')).filter(el => {
+        const text = (el.innerText || '').trim();
+        return text.length > 1 && text.length < 30;
+      });
+      if (allLinks.length < 3) return result;
+
+      // Check if nav links are inside a grouped container (pill/glass)
+      const linkParents = new Map();
+      for (const link of allLinks) {
+        const parent = link.parentElement;
+        if (parent && parent !== nav) {
+          linkParents.set(parent, (linkParents.get(parent) || 0) + 1);
+        }
+      }
+      // Find the container with the most links
+      let bestContainer = null, bestCount = 0;
+      for (const [parent, count] of linkParents) {
+        if (count > bestCount && count >= 3) {
+          bestContainer = parent;
+          bestCount = count;
+        }
+      }
+      if (bestContainer) {
+        const cs = window.getComputedStyle(bestContainer);
+        const hasBorder = cs.border && !cs.border.includes('0px');
+        const hasRadius = cs.borderRadius && cs.borderRadius !== '0px';
+        const hasBackdrop = cs.backdropFilter && cs.backdropFilter !== 'none';
+        const hasBg = !isTransparent(cs.backgroundColor);
+        if ((hasBorder || hasBackdrop || hasBg) && hasRadius) {
+          result.layout = 'pill-group';
+          result.pillGroup = {
+            linkCount: bestCount,
+            radius: cs.borderRadius,
+            bg: cs.backgroundColor,
+            border: hasBorder ? cs.borderColor : null,
+            backdrop: hasBackdrop ? cs.backdropFilter : null,
+            gap: cs.gap || cs.columnGap || null,
+          };
+        }
+      }
+
+      // Detect scroll-triggered nav transition
+      // Check if nav has transition properties suggesting it changes on scroll
+      const navCs = window.getComputedStyle(nav);
+      if (navCs.transition && navCs.transition.includes('background')) {
+        result.scrollTransition = {
+          startBg: navCs.backgroundColor,
+          hasBackdrop: navCs.backdropFilter !== 'none',
+        };
+      }
+
+      return result;
+    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
   }
 
   // ─── Asset extraction: fonts, background images, icons ───────────────────
@@ -2159,7 +2751,7 @@
     }
     // Background gradient
     if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
-      parts.push(`gradient: ${cs.backgroundImage.slice(0, 100)}`);
+      parts.push(`gradient: ${_truncateGradient(cs.backgroundImage, 160)}`);
     }
     // Background color
     if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) {
@@ -2563,7 +3155,7 @@
           if (isDecorative || !hasText) {
             sectionDecorations.push({
               size: `${Math.round(r.width)}×${Math.round(r.height)}`,
-              gradient: bgImg.slice(0, 120),
+              gradient: _truncateGradient(bgImg, 160),
               transform: cs.transform !== 'none' ? cs.transform.slice(0,40) : null
             });
           }
@@ -2617,7 +3209,11 @@
         if (stepItems.length === 0) stepItems = null;
       }
 
-      const hasStats = /\d+[KkMm+%]|\$\d/.test(sec.innerText);
+      // Stats detection: require MULTIPLE stat-like values (not just one number)
+      // and look for dedicated stat containers (not just any section with a number)
+      const statCandidates = sec.querySelectorAll('[class*="stat"],[class*="metric"],[class*="counter"],[class*="number"],[class*="kpi"]');
+      const statNumbers = (sec.innerText || '').match(/\b\d{1,3}[,.]?\d*[KkMmBb+%]+\b|\$[\d,.]+[KkMmBb]?/g) || [];
+      const hasStats = statCandidates.length >= 2 || (statNumbers.length >= 3 && !sec.querySelector('[class*="price"],[class*="pricing"],[class*="plan"]'));
       const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
       const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
 
@@ -2648,6 +3244,67 @@
           || (firstAnimEl.className.match(/fade-?(up|down|left|right|in)/i)?.[0])
           || 'fade-in';
       }
+
+      // ── Per-section animation bindings (element → animation mapping) ──
+      let animationBindings = null;
+      try {
+        const animSelectors = '[data-aos],[class*="animate"],[class*="reveal"],[class*="fade"],[class*="motion"],[style*="animation"]';
+        const animEls = sec.querySelectorAll(animSelectors);
+        if (animEls.length > 0) {
+          animationBindings = [];
+          for (const el of Array.from(animEls).slice(0, 8)) {
+            const cs = window.getComputedStyle(el);
+            const binding = { element: null, animation: null, trigger: null };
+            // Describe element: tag + meaningful class or role
+            const tag = el.tagName.toLowerCase();
+            const meaningfulCls = (el.className || '').toString().split(/\s+/)
+              .filter(c => c.length > 2 && c.length < 30 && !/^_|^css-|^tw-|^[a-z]{20,}/.test(c))
+              .slice(0, 2).join('.');
+            const siblings = el.parentElement ? Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName).length : 1;
+            binding.element = meaningfulCls ? `${tag}.${meaningfulCls}` : tag;
+            if (siblings > 1) binding.element += ` (×${siblings})`;
+            // AOS binding
+            if (el.dataset.aos) {
+              binding.animation = {
+                type: 'aos',
+                effect: el.dataset.aos,
+                duration: el.dataset.aosDuration || '400',
+                delay: el.dataset.aosDelay || '0',
+              };
+              binding.trigger = 'scroll-viewport-entry';
+            }
+            // CSS animation binding
+            else if (cs.animationName && cs.animationName !== 'none') {
+              binding.animation = {
+                type: 'css-keyframe',
+                name: cs.animationName.split(',')[0].trim(),
+                duration: cs.animationDuration,
+                delay: cs.animationDelay,
+                easing: cs.animationTimingFunction,
+                fillMode: cs.animationFillMode,
+              };
+              // Detect trigger type
+              if (cs.animationTimeline && cs.animationTimeline !== 'auto') {
+                binding.trigger = 'scroll-timeline';
+              } else if (el.dataset.scroll || el.closest('[data-scroll-container]')) {
+                binding.trigger = 'scroll-library';
+              } else {
+                binding.trigger = parseFloat(cs.animationDelay) > 0 ? 'delayed-entrance' : 'on-load';
+              }
+            }
+            // Class-based animation (Tailwind animate-*, custom reveal classes)
+            else {
+              const animClass = (el.className || '').toString().match(/animate-([a-z-]+)|reveal-?([a-z]*)|fade-?(in|up|down|left|right)/i);
+              if (animClass) {
+                binding.animation = { type: 'class-based', effect: animClass[0] };
+                binding.trigger = 'scroll-viewport-entry';
+              }
+            }
+            if (binding.animation) animationBindings.push(binding);
+          }
+          if (animationBindings.length === 0) animationBindings = null;
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
 
       // Layout detection
       let layout = 'stacked'; // default
@@ -2683,6 +3340,13 @@
             break;
           }
         }
+      }
+
+      // Bento grid detection + card content classification
+      let bentoGrid = null;
+      if (layout === 'multi-column-grid' || layout === 'stacked') {
+        bentoGrid = detectBentoGrid(sec);
+        if (bentoGrid) layout = 'bento-grid';
       }
 
       // CTA elements — wider selector to catch styled <a> tags and buttons
@@ -2775,13 +3439,20 @@
       else if (hasSwiper) type = 'slider/carousel';
       else if (hasAccordion) type = 'faq/accordion';
       else if (hasVideo && !isFirstSection) type = 'video-showcase';
-      else if (hasStats) type = 'stats/metrics';
+      // Pricing: detect by heading keyword or pricing-specific classes
+      else if (sec.querySelector('[class*="pricing"],[class*="price"],[class*="plan"]') ||
+               (headingText && /pric/i.test(headingText))) type = 'pricing';
+      // Feature layouts: split-columns with visuals = feature-split
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
       else if (layout === 'multi-column-grid') type = 'feature-grid';
+      // Stats: only if clearly stat-focused (multiple stat elements or 3+ stat numbers)
+      else if (hasStats) type = 'stats/metrics';
+      // Testimonials / social proof
+      else if (sec.querySelector('blockquote, [class*="testimonial"], [class*="quote"]') ||
+               (headingText && /trust|partner|client|customer|engineer|team/i.test(headingText))) type = 'testimonial';
       // Additional classification for generic "content" sections
       else if (hasForm || sec.querySelector('input[type="email"], input[type="text"][placeholder*="mail"]')) type = 'newsletter';
-      else if (sec.querySelector('blockquote, [class*="testimonial"], [class*="quote"]')) type = 'testimonial';
       else if (sec.querySelector('address, [class*="footer"], [class*="contact"]') && sec.querySelector('a[href*="mailto:"], a[href*="tel:"]')) type = 'footer-contact';
       else if (ctaButtons.length >= 2) type = 'cta-section';
       else if (headingText && imgCount === 0 && layout === 'stacked') type = 'text-block';
@@ -3093,7 +3764,8 @@
           secBgHex = rgbToHex(bg);
         }
         if (!secGradient && bgImg && bgImg.includes('gradient')) {
-          secGradient = (bgImg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/)||[])[0]?.slice(0, 200) || null;
+          const _gradMatch = (bgImg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/)||[])[0];
+          secGradient = _gradMatch ? _truncateGradient(_gradMatch, 200) : null;
         }
         if (secBgHex || secGradient) break;
         bgEl = bgEl.parentElement;
@@ -3366,6 +4038,8 @@
         eyebrow: eyebrowText || null,
         aosConfig: aosConfig || null,
         animationType: sectionAnimType || null,
+        animationBindings: animationBindings || null,
+        bentoGrid: bentoGrid || null,
         gridCols: gridCols || null,
         heroColumns: heroColumns || null,
         headingToSubtitleGap: headingToSubtitleGap || null,

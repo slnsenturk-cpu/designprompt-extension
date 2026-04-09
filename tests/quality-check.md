@@ -33,6 +33,24 @@ Run before every PR or major change.
 - [ ] No URL produces a `[truncated]` marker
 - [ ] lottiefiles.com: prompt is under 160 lines
 
+## I. Animation Extraction Quality
+- [ ] Keyframes are full CSS blocks (not truncated to 150 chars)
+- [ ] Per-section animation bindings exist (element → animation mapping)
+- [ ] Motion System CSS block contains `.reveal-on-scroll` pattern when scroll animations detected
+- [ ] Interaction Paradigm section is preserved in trimmed output (not cut by priority budget)
+- [ ] AOS sections show stagger delays with element bindings
+- [ ] GSAP ScrollTrigger sites show pin/scrub data with timeline children
+- [ ] V0/Lovable output includes `@layer base` CSS override block with HSL values
+- [ ] Dark mode sites include explicit "DARK-MODE-ONLY" warning for V0
+
+## J. New Detector Coverage
+- [ ] parallaxLayers detected on sites with background-attachment:fixed
+- [ ] numberCounters detected on sites with animated stat sections
+- [ ] svgPathDrawing detected on sites with stroke-dasharray animations
+- [ ] spline3D detected on sites with <spline-viewer> embeds
+- [ ] particleSystems detected on sites with tsparticles/particles.js
+- [ ] scrollSnap detected on sites with scroll-snap-type containers
+
 ---
 
 Acceptance: all A–E items checked. F–H: 75%+.

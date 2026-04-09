@@ -8,3 +8,9 @@ https://linear.app/          | dark, glassmorphism, smooth scroll | glassmorphis
 https://stripe.com/          | light, gradient, complex UI        | gradient extracted
 https://lottiefiles.com/     | lottie animations                  | lottie deduplicated (1x only)
 https://framer.com/          | framer-motion                      | framer-motion in animLibs
+
+# Animation-specific benchmarks (added for motion extraction upgrade)
+https://www.apple.com/airpods-pro/ | GSAP scroll-pinned sections   | pinnedSections detected, scrub timeline
+https://gsap.com/             | GSAP ScrollTrigger showcase        | gsapScrollTriggers with pin + scrub
+https://locomotive.ca/        | locomotive-scroll, parallax        | parallaxLayers detected
+https://spline.design/        | Spline 3D embeds                   | spline3D detected
