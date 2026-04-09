@@ -239,8 +239,16 @@
   async function extractPageTokens() {
     // Trigger scroll-reveal animations before extracting
     await triggerScrollReveals();
+    // Resolve URL: prefer actual location, but in iframes try referrer or top origin
+    let _resolvedUrl = window.location.href;
+    if (!_resolvedUrl || _resolvedUrl === 'about:blank' || _resolvedUrl === 'about:srcdoc') {
+      try { _resolvedUrl = window.top.location.href; } catch(e) { /* cross-origin top */ }
+    }
+    if (!_resolvedUrl || _resolvedUrl === 'about:blank') {
+      _resolvedUrl = document.referrer || '';
+    }
     const tokens = {
-      url: window.location.href,
+      url: _resolvedUrl,
       title: document.title,
       colors: [],
       accentColors: [],
