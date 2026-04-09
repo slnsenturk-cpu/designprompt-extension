@@ -2352,7 +2352,14 @@
 
   function extractSectionContentMap() {
     // Try semantic <section> first, then fall back to structural detection
+    // Collect sections: <section> tags + <main> if it acts as a hero (no child sections)
     let sectionEls = Array.from(document.querySelectorAll('section, main > section, [class*="section"]'));
+    // If <main> exists but has no <section> children, treat <main> itself as the hero section
+    const mainEl = document.querySelector('main');
+    if (mainEl && !mainEl.querySelector('section') && !sectionEls.includes(mainEl)) {
+      const mainRect = mainEl.getBoundingClientRect();
+      if (mainRect.height > 200) sectionEls.unshift(mainEl); // hero goes first
+    }
 
     // If no <section> tags found, detect sections from main > div or body > div > div
     if (sectionEls.length < 2) {
