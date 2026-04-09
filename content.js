@@ -351,6 +351,26 @@
         if (cs.transform && cs.transform !== 'none') before.transform = cs.transform;
         if (cs.boxShadow && cs.boxShadow !== 'none') before.boxShadow = cs.boxShadow;
         if (cs.opacity && cs.opacity !== '1') before.opacity = cs.opacity;
+        // Parse transform detail (translate, scale values)
+        if (h.transform) {
+          const translateY = h.transform.match(/translateY\(([^)]+)\)/)?.[1];
+          const translateX = h.transform.match(/translateX\(([^)]+)\)/)?.[1];
+          const scale = h.transform.match(/scale[XY]?\(([^)]+)\)/)?.[1];
+          h.transformDetail = {
+            translateY: translateY || null,
+            translateX: translateX || null,
+            scale: scale || null,
+            type: scale ? 'scale' : (translateY || translateX) ? 'translate' : 'other',
+          };
+        }
+        // Parse shadow progression (before → after blur change)
+        if (h['box-shadow'] && before.boxShadow) {
+          const beforeBlurs = before.boxShadow.match(/\d+px/g) || [];
+          const afterBlurs = (h['box-shadow'] || '').match(/\d+px/g) || [];
+          if (beforeBlurs.length >= 3 && afterBlurs.length >= 3) {
+            h.shadowProgression = `blur ${beforeBlurs[2]}→${afterBlurs[2]}`;
+          }
+        }
         return Object.keys(before).length > 0 ? { ...h, before } : h;
       } catch(e) { return h; }
     });
@@ -839,7 +859,7 @@
     if (!hero) return null;
 
     const sequence = [];
-    const children = hero.querySelectorAll('h1,h2,p,[class*="subtitle"],[class*="cta"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
+    const children = hero.querySelectorAll('h1,h2,h3,h4,p,[class*="subtitle"],[class*="cta"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
     for (const el of Array.from(children).slice(0, 12)) {
       try {
         const cs = window.getComputedStyle(el);
@@ -847,16 +867,43 @@
         const animDelay = cs.animationDelay;
         const animDuration = cs.animationDuration;
         const rect = el.getBoundingClientRect();
-        if (rect.bottom < -100) continue;
+        if (rect.bottom < -100 || rect.width === 0) continue;
+
         const delayMs = animDelay && animDelay !== '0s' ? Math.round(parseFloat(animDelay) * (animDelay.includes('ms') ? 1 : 1000)) : null;
         const durationMs = animDuration && animDuration !== '0s' ? Math.round(parseFloat(animDuration) * (animDuration.includes('ms') ? 1 : 1000)) : null;
-        if (animName && animName !== 'none') {
-          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName, delay: delayMs !== null ? delayMs + 'ms' : null, duration: durationMs !== null ? durationMs + 'ms' : null, opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible' });
-        } else if (parseFloat(cs.opacity) < 0.2 && rect.width > 0) {
-          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName: 'js-triggered-entrance', delay: null, duration: null, opacity: 'starts-invisible' });
+
+        // AOS data attributes
+        const aosType = el.dataset?.aos || el.closest('[data-aos]')?.dataset?.aos || null;
+        const aosDelay = el.dataset?.aosDelay || el.closest('[data-aos]')?.dataset?.aosDelay || null;
+
+        // Transform/filter details
+        const filter = cs.filter !== 'none' ? cs.filter : null;
+        const hasBlur = filter && /blur\(([^)]+)\)/.test(filter);
+
+        const entry = {
+          tag: el.tagName.toLowerCase(),
+          text: (el.textContent || '').trim().slice(0, 40),
+          animName: animName !== 'none' ? animName : (aosType ? 'aos-' + aosType : null),
+          delay: aosDelay ? aosDelay + 'ms' : (delayMs !== null ? delayMs + 'ms' : null),
+          duration: durationMs !== null ? durationMs + 'ms' : null,
+          opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible',
+          blur: hasBlur ? filter.match(/blur\(([^)]+)\)/)[1] : null,
+          aosType: aosType,
+        };
+
+        if (entry.animName || aosType || parseFloat(cs.opacity) < 0.2) {
+          if (!entry.animName && parseFloat(cs.opacity) < 0.2) entry.animName = 'js-triggered-entrance';
+          sequence.push(entry);
         }
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
+
+    // Sort by delay (earliest first) for proper sequence timeline
+    sequence.sort((a, b) => {
+      const da = parseInt(a.delay) || 0;
+      const db = parseInt(b.delay) || 0;
+      return da - db;
+    });
 
     const heroCanvas = hero.querySelector('canvas');
     const heroVideo = hero.querySelector('video');
@@ -2574,6 +2621,34 @@
       const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
       const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
 
+      // ── AOS parameter extraction ──
+      let aosConfig = null;
+      const aosEls = sec.querySelectorAll('[data-aos]');
+      if (aosEls.length > 0) {
+        const first = aosEls[0];
+        aosConfig = {
+          type: first.dataset.aos || 'fade-up',
+          duration: first.dataset.aosDuration || '400',
+          delay: first.dataset.aosDelay || '0',
+          offset: first.dataset.aosOffset || '120',
+          easing: first.dataset.aosEasing || 'ease',
+          once: first.dataset.aosOnce !== 'false',
+          count: aosEls.length,
+        };
+        // Detect stagger: collect unique delays across AOS elements
+        const delays = [...new Set(Array.from(aosEls).map(el => el.dataset.aosDelay).filter(Boolean))];
+        if (delays.length > 1) aosConfig.staggerDelays = delays.sort((a, b) => a - b);
+      }
+
+      // ── Per-section animation type ──
+      let sectionAnimType = null;
+      const firstAnimEl = sec.querySelector('[data-aos], [class*="animate-"], [class*="reveal"], [class*="fade-in"]');
+      if (firstAnimEl) {
+        sectionAnimType = firstAnimEl.dataset?.aos
+          || (firstAnimEl.className.match(/fade-?(up|down|left|right|in)/i)?.[0])
+          || 'fade-in';
+      }
+
       // Layout detection
       let layout = 'stacked'; // default
       let gridCols = null;
@@ -3289,6 +3364,8 @@
         hasNumberedItems,
         steps: stepItems || null,
         eyebrow: eyebrowText || null,
+        aosConfig: aosConfig || null,
+        animationType: sectionAnimType || null,
         gridCols: gridCols || null,
         heroColumns: heroColumns || null,
         headingToSubtitleGap: headingToSubtitleGap || null,
