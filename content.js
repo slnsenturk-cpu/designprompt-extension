@@ -2378,7 +2378,7 @@
         });
         if (candidates.length > sectionEls.length) sectionEls = candidates;
       }
-      // Fallback 2: if still not enough, try direct children of the first deep container with multiple large divs
+      // Fallback 2: try direct children of any deep container with multiple large divs
       if (sectionEls.length < 2) {
         const deepContainers = document.querySelectorAll('main > div, #__next > div > div, #app > div > div, body > div > div > div');
         for (const container of deepContainers) {
@@ -2393,6 +2393,35 @@
             break;
           }
         }
+      }
+
+      // Fallback 3 (last resort): use h1/h2 headings as section boundaries.
+      // Each heading marks the start of a virtual "section" — the heading's closest
+      // ancestor block-level container that is large enough becomes the section element.
+      if (sectionEls.length < 2) {
+        const headings = document.querySelectorAll('h1, h2');
+        const headingSections = [];
+        const usedParents = new Set();
+        for (const h of headings) {
+          try {
+            let parent = h.parentElement;
+            // Walk up to find a meaningful container (> 300px wide, > 150px tall)
+            for (let depth = 0; depth < 6 && parent && parent !== document.body; depth++) {
+              const r = parent.getBoundingClientRect();
+              if (r.width > 300 && r.height > 150 && !usedParents.has(parent)) {
+                // Check this isn't a tiny inline element
+                const cs = window.getComputedStyle(parent);
+                if (cs.display !== 'inline' && cs.display !== 'none') {
+                  headingSections.push(parent);
+                  usedParents.add(parent);
+                  break;
+                }
+              }
+              parent = parent.parentElement;
+            }
+          } catch(e) { console.debug('[VibeDesign]', e.message); }
+        }
+        if (headingSections.length > sectionEls.length) sectionEls = headingSections;
       }
     }
 
