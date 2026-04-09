@@ -3891,12 +3891,23 @@
     const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"],[class*="fadeIn"],[class*="slideIn"],[class*="slide-in"]');
     profile.hasScrollAnimation = dataAttribs.length > 0;
 
-    // Also detect scroll animation from keyframe names (reveal, fade, slide patterns)
+    // Also detect scroll animation from keyframe names in stylesheets
     if (!profile.hasScrollAnimation) {
-      const revealKeyframes = (tokens.animations || []).some(a =>
-        /fade.?in|slide.?in|reveal|fadeSlide|columnReveal|appear|enter/i.test(a.name)
-      );
-      if (revealKeyframes) profile.hasScrollAnimation = true;
+      try {
+        const sheets = Array.from(document.styleSheets);
+        for (const sheet of sheets) {
+          try {
+            for (const rule of Array.from(sheet.cssRules || [])) {
+              if (rule.type === CSSRule.KEYFRAMES_RULE &&
+                  /fade.?in|slide.?in|reveal|fadeSlide|columnReveal|appear|enter/i.test(rule.name)) {
+                profile.hasScrollAnimation = true;
+                break;
+              }
+            }
+          } catch(e) { /* cross-origin sheet */ }
+          if (profile.hasScrollAnimation) break;
+        }
+      } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     const allClasses = Array.from(document.querySelectorAll('[class]')).map(el => el.className.toString()).join(' ');
