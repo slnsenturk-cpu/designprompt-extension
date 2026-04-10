@@ -153,21 +153,6 @@
     return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
   }
 
-  // Truncate gradient strings at a parenthesis-safe boundary to avoid unclosed parens
-  function _truncateGradient(str, maxLen) {
-    if (!str || str.length <= maxLen) return str;
-    // Find the last complete gradient function before maxLen
-    let depth = 0, cutAt = maxLen;
-    for (let i = 0; i < str.length && i < maxLen; i++) {
-      if (str[i] === '(') depth++;
-      else if (str[i] === ')') { depth--; if (depth === 0) cutAt = i + 1; }
-    }
-    // If we found a balanced cut point, use it; otherwise cut at last comma before maxLen
-    if (cutAt < maxLen) return str.slice(0, cutAt);
-    const lastComma = str.lastIndexOf(',', maxLen);
-    return lastComma > maxLen * 0.5 ? str.slice(0, lastComma) : str.slice(0, maxLen);
-  }
-
   function dedupeColors(colors) {
     const result = [];
     for (const c of colors) {
@@ -239,16 +224,8 @@
   async function extractPageTokens() {
     // Trigger scroll-reveal animations before extracting
     await triggerScrollReveals();
-    // Resolve URL: prefer actual location, but in iframes try referrer or top origin
-    let _resolvedUrl = window.location.href;
-    if (!_resolvedUrl || _resolvedUrl === 'about:blank' || _resolvedUrl === 'about:srcdoc') {
-      try { _resolvedUrl = window.top.location.href; } catch(e) { /* cross-origin top */ }
-    }
-    if (!_resolvedUrl || _resolvedUrl === 'about:blank') {
-      _resolvedUrl = document.referrer || '';
-    }
     const tokens = {
-      url: _resolvedUrl,
+      url: window.location.href,
       title: document.title,
       colors: [],
       accentColors: [],
@@ -287,35 +264,14 @@
             if (/^Toastify|^hot-toast|^sonner|^nprogress|^vjs-|^plyr-|^mux-|^video-|^swiper-/i.test(name)) continue;
             // Skip very long generated names (likely hashed)
             if (name.length > 40) continue;
-            // Extract structured keyframe steps with animation-relevant properties
+            // Extract first and last keyframe content for from→to description
             try {
               const frames = Array.from(rule.cssRules || []);
-              const ANIM_PROPS = ['opacity','transform','clip-path','filter','box-shadow',
-                'background','background-color','color','border-radius','width','height',
-                'stroke-dasharray','stroke-dashoffset','scale','translate','rotate'];
-              const steps = [];
-              // Sample first, middle (if 3+), and last frame
-              const indices = frames.length <= 3
-                ? frames.map((_, i) => i)
-                : [0, Math.floor(frames.length / 2), frames.length - 1];
-              for (const idx of indices) {
-                const frame = frames[idx];
-                if (!frame) continue;
-                const step = { offset: frame.keyText };
-                for (const prop of ANIM_PROPS) {
-                  const val = frame.style?.getPropertyValue(prop);
-                  if (val && val !== 'initial' && val !== 'none' && val !== 'auto') {
-                    step[prop] = val.trim();
-                  }
-                }
-                if (Object.keys(step).length > 1) steps.push(step);
-              }
-              // Also keep legacy from/to text for backward compat (but full, not truncated)
-              const first = frames[0]?.cssText?.replace(/\s+/g, ' ');
-              const last = frames.length > 1 ? frames[frames.length-1]?.cssText?.replace(/\s+/g, ' ') : null;
-              tokens.animations.push({ name, steps, from: first || null, to: last || null });
+              const first = frames[0]?.cssText?.replace(/\s+/g, ' ').slice(0, 150);
+              const last = frames.length > 1 ? frames[frames.length-1]?.cssText?.replace(/\s+/g, ' ').slice(0, 150) : null;
+              tokens.animations.push({ name, from: first || null, to: last || null });
             } catch(e) {
-              tokens.animations.push({ name, steps: [], from: null, to: null });
+              tokens.animations.push({ name, from: null, to: null });
             }
           }
         }
@@ -395,26 +351,6 @@
         if (cs.transform && cs.transform !== 'none') before.transform = cs.transform;
         if (cs.boxShadow && cs.boxShadow !== 'none') before.boxShadow = cs.boxShadow;
         if (cs.opacity && cs.opacity !== '1') before.opacity = cs.opacity;
-        // Parse transform detail (translate, scale values)
-        if (h.transform) {
-          const translateY = h.transform.match(/translateY\(([^)]+)\)/)?.[1];
-          const translateX = h.transform.match(/translateX\(([^)]+)\)/)?.[1];
-          const scale = h.transform.match(/scale[XY]?\(([^)]+)\)/)?.[1];
-          h.transformDetail = {
-            translateY: translateY || null,
-            translateX: translateX || null,
-            scale: scale || null,
-            type: scale ? 'scale' : (translateY || translateX) ? 'translate' : 'other',
-          };
-        }
-        // Parse shadow progression (before → after blur change)
-        if (h['box-shadow'] && before.boxShadow) {
-          const beforeBlurs = before.boxShadow.match(/\d+px/g) || [];
-          const afterBlurs = (h['box-shadow'] || '').match(/\d+px/g) || [];
-          if (beforeBlurs.length >= 3 && afterBlurs.length >= 3) {
-            h.shadowProgression = `blur ${beforeBlurs[2]}→${afterBlurs[2]}`;
-          }
-        }
         return Object.keys(before).length > 0 ? { ...h, before } : h;
       } catch(e) { return h; }
     });
@@ -533,6 +469,54 @@
     });
     tokens.animationDetails = [...animDetailSet].slice(0, 16);
 
+    // ── 3b-2. Ambient / always-on animations (infinite loops) ──
+    {
+      const AMBIENT_SKIP = '.swiper, .swiper-wrapper, .swiper-slide, [class*="splide__"], [class*="glide__"], [class*="embla__"], [class*="keen-slider"], [class*="marquee"], [class*="ticker"]';
+      let ambientSkipEls;
+      try { ambientSkipEls = new Set(Array.from(document.querySelectorAll(AMBIENT_SKIP))); } catch(e) { ambientSkipEls = new Set(); }
+
+      const ambientAnims = [];
+      const seenNames = new Set();
+      const foldY = window.innerHeight;
+
+      const candidates = document.querySelectorAll(
+        '[style*="animation"], [class*="animate"], [class*="float"], [class*="pulse"], ' +
+        '[class*="glow"], [class*="rotate"], [class*="drift"], [class*="shimmer"], ' +
+        '[class*="bounce"], [class*="spin"], section, header, [class*="hero"], [class*="bg-"]'
+      );
+
+      for (const el of Array.from(candidates).slice(0, 200)) {
+        if (ambientSkipEls.has(el)) continue;
+        try {
+          const closest = el.closest?.('.swiper, [class*="splide"], [class*="embla"], [class*="marquee"], [class*="ticker"]');
+          if (closest) continue;
+        } catch(e) { /* skip */ }
+
+        try {
+          const cs = window.getComputedStyle(el);
+          if (cs.animationIterationCount !== 'infinite') continue;
+          if (cs.animationName === 'none' || !cs.animationName) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) continue;
+
+          const name = cs.animationName;
+          if (seenNames.has(name)) continue;
+          seenNames.add(name);
+
+          ambientAnims.push({
+            name: name,
+            duration: cs.animationDuration,
+            tag: el.tagName.toLowerCase(),
+            class: (el.className?.toString() || '').slice(0, 40),
+            location: rect.top < foldY ? 'above-fold' : 'below-fold',
+          });
+
+          if (ambientAnims.length >= 8) break;
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
+      }
+      tokens.ambientAnimations = ambientAnims.length > 0 ? ambientAnims : null;
+    }
+
     // ── 3c. Button style extraction ──
     tokens.buttonStyles = extractButtonStyles();
 
@@ -608,21 +592,7 @@
     // ── 13. Rive / Lottie detection ──
     tokens.riveAndLottie = detectRiveAndLottie();
 
-    // ── 14. Component-level extraction ──
-    tokens.heroInteractiveComponents = detectHeroInteractiveComponents();
-    tokens.gradientText = detectGradientText();
-    tokens.navStructure = detectNavStructure();
-    tokens.backgroundPatterns = detectBackgroundPatterns();
-
-    // ── 15. Extended animation detectors ──
-    tokens.parallaxLayers = detectParallaxLayers();
-    tokens.numberCounters = detectNumberCounters();
-    tokens.svgPathDrawing = detectSVGPathDrawing();
-    tokens.spline3D = detectSpline3D();
-    tokens.particleSystems = detectParticleSystems();
-    tokens.scrollSnap = detectScrollSnap();
-
-    // ── 15. Tabbed content components ──
+    // ── 14. Tabbed content components ──
     tokens.tabbedComponents = detectTabbedContentComponents();
 
     // ── 15. Fixed / sticky UI chrome ──
@@ -761,57 +731,6 @@
     const scrollDrivenEls = document.querySelectorAll('[style*="animation-timeline"],[style*="view-timeline"]');
     if (hasScrollTimeline || scrollDrivenEls.length > 0) profile.scrollParadigm = 'scroll-scrub';
 
-    // 1b. CSS scroll-timeline full parameter extraction
-    const scrollTimelineRules = [];
-    for (const sheet of Array.from(document.styleSheets)) {
-      try {
-        for (const rule of Array.from(sheet.cssRules || [])) {
-          if (!rule.style) continue;
-          const at = rule.style.animationTimeline;
-          const vt = rule.style.getPropertyValue('view-timeline-name');
-          const ar = rule.style.getPropertyValue('animation-range');
-          if (at && at !== 'auto' && at !== 'none') {
-            scrollTimelineRules.push({
-              selector: (rule.selectorText || '').slice(0, 80),
-              timeline: at,
-              range: ar || null,
-              viewTimeline: vt || null,
-            });
-          }
-        }
-      } catch(e) { /* cross-origin */ }
-    }
-    if (scrollTimelineRules.length > 0) profile.scrollTimelineRules = scrollTimelineRules.slice(0, 6);
-
-    // 1c. Scroll-pinned sections (CSS sticky with tall height)
-    const pinnedSections = [];
-    try {
-      for (const sec of document.querySelectorAll('section, [class*="section"], [class*="panel"]')) {
-        const rect = sec.getBoundingClientRect();
-        if (rect.height > window.innerHeight * 1.5) {
-          const stickyChildren = Array.from(sec.querySelectorAll('*')).slice(0, 100).filter(el => {
-            return window.getComputedStyle(el).position === 'sticky';
-          });
-          if (stickyChildren.length > 0) {
-            // Find animated children within
-            const animChildren = Array.from(sec.querySelectorAll('[data-aos],[class*="animate"],[class*="reveal"],[style*="animation"]'))
-              .slice(0, 8).map(el => ({
-                element: _selectorHint(el),
-                animation: el.dataset.aos || window.getComputedStyle(el).animationName || 'reveal',
-              }));
-            pinnedSections.push({
-              type: 'css-sticky',
-              element: _selectorHint(sec),
-              heightRatio: Math.round(rect.height / window.innerHeight * 10) / 10,
-              stickyCount: stickyChildren.length,
-              animatedChildren: animChildren.length > 0 ? animChildren : null,
-            });
-          }
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    if (pinnedSections.length > 0) profile.pinnedSections = pinnedSections.slice(0, 4);
-
     // 2. Classify reveal style from @keyframes
     const revealKeyframes = [];
     for (const sheet of Array.from(document.styleSheets)) {
@@ -937,39 +856,17 @@
       }
     }
 
-    // 5. GSAP ScrollTrigger live config (enhanced)
+    // 5. GSAP ScrollTrigger live config
     try {
       if (window.ScrollTrigger && window.ScrollTrigger.getAll) {
         const triggers = window.ScrollTrigger.getAll().slice(0, 8);
-        profile.gsapScrollTriggers = triggers.map(t => {
-          const entry = {
-            trigger: (t.vars?.trigger?.className || t.trigger?.className || 'unknown').toString().trim().slice(0, 40),
-            start: t.vars?.start || t.start || null,
-            end: t.vars?.end || null,
-            scrub: t.vars?.scrub === true ? 1 : (t.vars?.scrub || false),
-            pin: !!(t.vars?.pin),
-            pinSpacing: t.vars?.pinSpacing !== false,
-            snap: t.vars?.snap || null,
-          };
-          // Extract timeline children for pinned sections
-          if (entry.pin && t.animation && typeof t.animation.getChildren === 'function') {
-            try {
-              entry.timelineChildren = t.animation.getChildren().slice(0, 8).map(child => ({
-                target: _selectorHint(child.targets?.()?.[0]),
-                props: (() => {
-                  const v = child.vars || {};
-                  const p = {};
-                  for (const k of ['opacity','x','y','scale','rotation','clipPath','filter']) {
-                    if (v[k] !== undefined) p[k] = v[k];
-                  }
-                  return Object.keys(p).length > 0 ? p : null;
-                })(),
-                startPct: t.animation.duration() > 0 ? Math.round(child.startTime() / t.animation.duration() * 100) : null,
-              })).filter(c => c.props);
-            } catch(e) { /* GSAP version may not support getChildren */ }
-          }
-          return entry;
-        });
+        profile.gsapScrollTriggers = triggers.map(t => ({
+          trigger: (t.vars?.trigger?.className || t.trigger?.className || 'unknown').toString().trim().slice(0, 40),
+          start: t.vars?.start || t.start || null,
+          end: t.vars?.end || null,
+          scrub: !!(t.vars?.scrub),
+          pin: !!(t.vars?.pin),
+        }));
         if (profile.gsapScrollTriggers.some(t => t.scrub)) profile.scrollParadigm = 'scroll-scrub';
         else if (!profile.scrollParadigm) profile.scrollParadigm = 'trigger-based';
       }
@@ -990,56 +887,24 @@
     if (!hero) return null;
 
     const sequence = [];
-    const children = hero.querySelectorAll('h1,h2,h3,h4,p,img,video,canvas,[class*="subtitle"],[class*="cta"],[class*="visual"],[class*="animation"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
-    for (const el of Array.from(children).slice(0, 16)) {
+    const children = hero.querySelectorAll('h1,h2,p,[class*="subtitle"],[class*="cta"],button,a,[class*="badge"],[class*="tag"],[class*="label"]');
+    for (const el of Array.from(children).slice(0, 12)) {
       try {
         const cs = window.getComputedStyle(el);
         const animName = cs.animationName;
         const animDelay = cs.animationDelay;
         const animDuration = cs.animationDuration;
         const rect = el.getBoundingClientRect();
-        if (rect.bottom < -100 || rect.width === 0) continue;
-
+        if (rect.bottom < -100) continue;
         const delayMs = animDelay && animDelay !== '0s' ? Math.round(parseFloat(animDelay) * (animDelay.includes('ms') ? 1 : 1000)) : null;
         const durationMs = animDuration && animDuration !== '0s' ? Math.round(parseFloat(animDuration) * (animDuration.includes('ms') ? 1 : 1000)) : null;
-
-        // AOS data attributes
-        const aosType = el.dataset?.aos || el.closest('[data-aos]')?.dataset?.aos || null;
-        const aosDelay = el.dataset?.aosDelay || el.closest('[data-aos]')?.dataset?.aosDelay || null;
-
-        // Transform/filter details (expanded)
-        const filter = cs.filter !== 'none' ? cs.filter : null;
-        const hasBlur = filter && /blur\(([^)]+)\)/.test(filter);
-        const transform = cs.transform !== 'none' ? cs.transform : null;
-        const clipPath = cs.clipPath !== 'none' ? cs.clipPath : null;
-
-        const entry = {
-          tag: el.tagName.toLowerCase(),
-          text: (el.textContent || '').trim().slice(0, 40),
-          animName: animName !== 'none' ? animName : (aosType ? 'aos-' + aosType : null),
-          delay: aosDelay ? aosDelay + 'ms' : (delayMs !== null ? delayMs + 'ms' : null),
-          duration: durationMs !== null ? durationMs + 'ms' : null,
-          opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible',
-          blur: hasBlur ? filter.match(/blur\(([^)]+)\)/)[1] : null,
-          aosType: aosType,
-          initialTransform: transform ? transform.slice(0, 80) : null,
-          initialClipPath: clipPath ? clipPath.slice(0, 60) : null,
-        };
-
-        if (entry.animName || aosType || parseFloat(cs.opacity) < 0.2 || entry.initialClipPath) {
-          if (!entry.animName && parseFloat(cs.opacity) < 0.2) entry.animName = 'js-triggered-entrance';
-          if (!entry.animName && entry.initialClipPath) entry.animName = 'clip-path-reveal';
-          sequence.push(entry);
+        if (animName && animName !== 'none') {
+          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName, delay: delayMs !== null ? delayMs + 'ms' : null, duration: durationMs !== null ? durationMs + 'ms' : null, opacity: parseFloat(cs.opacity) < 0.5 ? 'starts-invisible' : 'visible' });
+        } else if (parseFloat(cs.opacity) < 0.2 && rect.width > 0) {
+          sequence.push({ tag: el.tagName.toLowerCase(), text: (el.textContent||'').trim().slice(0,40), animName: 'js-triggered-entrance', delay: null, duration: null, opacity: 'starts-invisible' });
         }
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
-
-    // Sort by delay (earliest first) for proper sequence timeline
-    sequence.sort((a, b) => {
-      const da = parseInt(a.delay) || 0;
-      const db = parseInt(b.delay) || 0;
-      return da - db;
-    });
 
     const heroCanvas = hero.querySelector('canvas');
     const heroVideo = hero.querySelector('video');
@@ -1159,599 +1024,6 @@
     } catch(e) { console.debug('[VibeDesign]', e.message); }
 
     return [...found];
-  }
-
-  // ─── P1: New animation detectors ─────────────────────────────────────────
-
-  function detectParallaxLayers() {
-    const layers = [];
-    try {
-      // Pattern 1: background-attachment: fixed
-      const allEls = document.querySelectorAll('section, div, [class*="parallax"], [class*="hero"]');
-      for (const el of Array.from(allEls).slice(0, 60)) {
-        const cs = window.getComputedStyle(el);
-        if (cs.backgroundAttachment === 'fixed') {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 200 && rect.height > 100) {
-            layers.push({ type: 'bg-fixed', element: _selectorHint(el), bgImage: (cs.backgroundImage || '').slice(0, 80) });
-          }
-        }
-        // Pattern 2: data-speed / data-parallax attributes (Locomotive, custom)
-        const speed = el.dataset.speed || el.dataset.scrollSpeed || el.dataset.parallax || el.dataset.rellax;
-        if (speed) {
-          layers.push({ type: 'data-speed', element: _selectorHint(el), speed });
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return layers.length > 0 ? layers.slice(0, 6) : null;
-  }
-
-  function detectNumberCounters() {
-    const counters = [];
-    try {
-      const candidates = document.querySelectorAll(
-        '[class*="counter"],[class*="count"],[class*="stat"],[class*="number"],[class*="metric"],[data-count],[data-target]'
-      );
-      for (const el of Array.from(candidates).slice(0, 20)) {
-        const text = (el.textContent || '').trim();
-        if (/^[$€£]?[\d,]+\.?\d*[%+KkMmBb]?$/.test(text) && text.length < 20) {
-          const cs = window.getComputedStyle(el);
-          counters.push({
-            targetValue: text,
-            element: _selectorHint(el),
-            fontSize: cs.fontSize,
-            fontWeight: cs.fontWeight,
-            dataTarget: el.dataset.count || el.dataset.target || null,
-          });
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return counters.length > 0 ? counters.slice(0, 8) : null;
-  }
-
-  function detectSVGPathDrawing() {
-    const drawings = [];
-    try {
-      const svgPaths = document.querySelectorAll('svg path, svg circle, svg line, svg polyline');
-      for (const path of Array.from(svgPaths).slice(0, 50)) {
-        const cs = window.getComputedStyle(path);
-        const dasharray = cs.strokeDasharray;
-        const dashoffset = cs.strokeDashoffset;
-        if (dasharray && dasharray !== 'none' && dashoffset && dashoffset !== '0px') {
-          const svg = path.ownerSVGElement;
-          const rect = svg?.getBoundingClientRect();
-          if (rect && rect.width > 30 && rect.height > 30) {
-            drawings.push({
-              element: path.tagName.toLowerCase(),
-              svgSize: { w: Math.round(rect.width), h: Math.round(rect.height) },
-              dasharray: dasharray.slice(0, 40),
-              dashoffset: dashoffset,
-              stroke: cs.stroke,
-              strokeWidth: cs.strokeWidth,
-              animated: cs.animationName !== 'none',
-              pathLength: (typeof path.getTotalLength === 'function') ? Math.round(path.getTotalLength()) : null,
-            });
-          }
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return drawings.length > 0 ? drawings.slice(0, 4) : null;
-  }
-
-  function detectSpline3D() {
-    try {
-      const viewers = document.querySelectorAll('spline-viewer, [class*="spline"], iframe[src*="spline"]');
-      if (viewers.length === 0) return null;
-      const results = [];
-      for (const v of Array.from(viewers).slice(0, 3)) {
-        const rect = v.getBoundingClientRect();
-        results.push({
-          location: rect.top < window.innerHeight ? 'above-fold' : 'below-fold',
-          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
-          url: v.getAttribute('url') || v.getAttribute('src') || null,
-          interactive: v.hasAttribute('events-target') || v.hasAttribute('mouse-target'),
-        });
-      }
-      return results.length > 0 ? results : null;
-    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
-  }
-
-  function detectParticleSystems() {
-    try {
-      const hasTsParticles = !!window.tsParticles;
-      const hasParticlesJS = !!window.pJSDom || !!window.particlesJS;
-      let library = null;
-      for (const s of document.querySelectorAll('script[src]')) {
-        const src = (s.src || '').toLowerCase();
-        if (src.includes('tsparticles')) library = 'tsparticles';
-        else if (src.includes('particles')) library = 'particles.js';
-      }
-      const containers = document.querySelectorAll(
-        '#particles-js, #tsparticles, [id*="particles"], [class*="particles"]'
-      );
-      if (!hasTsParticles && !hasParticlesJS && !library && containers.length === 0) return null;
-      const container = containers[0];
-      const rect = container?.getBoundingClientRect();
-      return {
-        library: library || (hasTsParticles ? 'tsparticles' : hasParticlesJS ? 'particles.js' : 'unknown'),
-        container: container ? _selectorHint(container) : null,
-        fullViewport: rect ? rect.width >= window.innerWidth * 0.8 && rect.height >= window.innerHeight * 0.5 : false,
-        size: rect ? { w: Math.round(rect.width), h: Math.round(rect.height) } : null,
-      };
-    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
-  }
-
-  function detectScrollSnap() {
-    const results = [];
-    try {
-      for (const el of document.querySelectorAll('*')) {
-        const cs = window.getComputedStyle(el);
-        if (cs.scrollSnapType && cs.scrollSnapType !== 'none') {
-          const rect = el.getBoundingClientRect();
-          if (rect.width > 200 && rect.height > 200) {
-            const children = Array.from(el.children).filter(c => {
-              return window.getComputedStyle(c).scrollSnapAlign !== 'none';
-            });
-            if (children.length > 1) {
-              results.push({
-                element: _selectorHint(el),
-                snapType: cs.scrollSnapType,
-                childCount: children.length,
-                direction: cs.scrollSnapType.includes('x') ? 'horizontal' : 'vertical',
-              });
-            }
-          }
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return results.length > 0 ? results.slice(0, 3) : null;
-  }
-
-  function _selectorHint(el) {
-    if (!el || !el.tagName) return 'unknown';
-    const tag = el.tagName.toLowerCase();
-    const cls = (el.className || '').toString().split(/\s+/)
-      .filter(c => c.length > 2 && c.length < 30 && !/^_|^css-|^tw-|^[a-z]{20,}/.test(c))
-      .slice(0, 2).join('.');
-    return cls ? `${tag}.${cls}` : tag;
-  }
-
-  // ─── Component-level extraction: hero components, card content, bento, gradient text, nav structure ───
-
-  /**
-   * Detect interactive hero components: terminal/CLI mockups, code editors, search bars, command palettes
-   */
-  function detectHeroInteractiveComponents() {
-    const hero = document.querySelector(
-      '[class*="hero"],[class*="Hero"],main > section:first-child,section:first-of-type,header + section,.hero,#hero'
-    );
-    if (!hero) return null;
-    const components = [];
-    try {
-      // Terminal / CLI mockup: class-based + content-based detection
-      // Strategy 1: Look for explicit terminal/code class names
-      const termSelectors = '[class*="terminal"],[class*="console"],[class*="cli"],[class*="command"],[class*="code"],' +
-        'pre, code, [class*="shell"],[class*="prompt"],[class*="editor"]';
-      // Strategy 2: Content-based — scan all hero containers for monospace + command-like text
-      const allHeroContainers = hero.querySelectorAll('div, span, p, pre, code');
-      const terminalCandidates = new Set([
-        ...Array.from(hero.querySelectorAll(termSelectors)),
-      ]);
-      // Content scan: find elements with command text patterns, then walk up to find container
-      for (const el of Array.from(allHeroContainers).slice(0, 80)) {
-        const text = (el.innerText || '').trim();
-        if (text.length < 5 || text.length > 200) continue;
-        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost|\.run|\.dev|model\s|--tier/i.test(text);
-        if (!hasCommand) continue;
-        // Walk up to find the visual container (the "card" wrapping the terminal)
-        let container = el;
-        for (let d = 0; d < 4; d++) {
-          const p = container.parentElement;
-          if (!p || p === hero) break;
-          const pCs = window.getComputedStyle(p);
-          const pRect = p.getBoundingClientRect();
-          // Stop at a container that has bg, border, or is large enough
-          if (pRect.width > 250 && (pCs.borderRadius !== '0px' || !(/rgba\(0,\s*0,\s*0,\s*0\)|transparent/).test(pCs.backgroundColor))) {
-            container = p;
-            break;
-          }
-          container = p;
-        }
-        terminalCandidates.add(container);
-      }
-
-      for (const el of Array.from(terminalCandidates).slice(0, 5)) {
-        const cs = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 150 || rect.height < 40) continue;
-        const text = (el.innerText || '').trim().slice(0, 120);
-        if (!text) continue;
-        const isMono = /mono|code|consolas|jetbrains|fira code/i.test(cs.fontFamily);
-        const hasCommand = /[$>→⌘#]\s|--\w|npm |git |deploy|install|curl |api\.|localhost|\.run|\.dev|model\s|--tier/i.test(text);
-        if (isMono || hasCommand) {
-          // Check for progress bars: also scan for colored thin divs (Tailwind progress pattern)
-          const _progressEls = el.querySelectorAll('[class*="progress"],[role="progressbar"],div[style*="width:"]');
-          const _thinBars = Array.from(el.querySelectorAll('div')).filter(d => {
-            const r = d.getBoundingClientRect();
-            return r.height >= 2 && r.height <= 8 && r.width > 30;
-          });
-          components.push({
-            type: 'terminal-mockup',
-            text: text.slice(0, 80),
-            size: { w: Math.round(rect.width), h: Math.round(rect.height) },
-            bg: cs.backgroundColor,
-            radius: cs.borderRadius,
-            border: cs.border !== 'none' ? cs.borderColor : null,
-            fontFamily: cs.fontFamily.split(',')[0].replace(/"/g, '').trim(),
-            hasProgressBar: _progressEls.length > 0 || _thinBars.length >= 2,
-            hasKbd: !!el.querySelector('kbd,[class*="kbd"],[class*="shortcut"],[class*="key"]'),
-          });
-        }
-      }
-
-      // Search bar / command palette
-      const searchCandidates = hero.querySelectorAll(
-        'input[type="search"],[class*="search"],[class*="command-palette"],[role="combobox"],' +
-        '[class*="searchbar"],[class*="search-input"]'
-      );
-      for (const el of Array.from(searchCandidates).slice(0, 2)) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 150) continue;
-        const cs = window.getComputedStyle(el);
-        components.push({
-          type: 'search-bar',
-          placeholder: el.getAttribute('placeholder') || '',
-          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
-          radius: cs.borderRadius,
-        });
-      }
-
-      // Generic glassmorphic UI panel in hero (not a card, not a nav)
-      const panels = hero.querySelectorAll('[class*="glass"],[class*="panel"],[class*="mockup"],[class*="preview"]');
-      for (const el of Array.from(panels).slice(0, 3)) {
-        const cs = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-        if (rect.width < 200 || rect.height < 100) continue;
-        if (components.some(c => c.type === 'terminal-mockup')) continue; // Don't duplicate
-        const hasBackdrop = cs.backdropFilter && cs.backdropFilter !== 'none';
-        if (!hasBackdrop) continue;
-        components.push({
-          type: 'glass-panel',
-          size: { w: Math.round(rect.width), h: Math.round(rect.height) },
-          blur: cs.backdropFilter,
-          childCount: el.children.length,
-        });
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return components.length > 0 ? components : null;
-  }
-
-  /**
-   * Classify content inside cards: charts, code snippets, maps, icon patterns
-   */
-  function classifyCardContent(cardEl) {
-    if (!cardEl) return null;
-    const content = [];
-    try {
-      // Line chart / area chart (SVG path or canvas)
-      const svgs = cardEl.querySelectorAll('svg');
-      for (const svg of Array.from(svgs).slice(0, 2)) {
-        const paths = svg.querySelectorAll('path, polyline, line');
-        const rect = svg.getBoundingClientRect();
-        if (paths.length > 0 && rect.width > 80 && rect.height > 40) {
-          const strokeColors = [...new Set(Array.from(paths).map(p => window.getComputedStyle(p).stroke).filter(s => s && s !== 'none'))];
-          content.push({
-            type: 'chart',
-            chartType: paths.length > 5 ? 'area-chart' : 'line-chart',
-            size: { w: Math.round(rect.width), h: Math.round(rect.height) },
-            colors: strokeColors.slice(0, 3),
-          });
-        }
-      }
-
-      // Code snippet
-      const codeEls = cardEl.querySelectorAll('pre, code, [class*="code"], [class*="syntax"]');
-      for (const el of Array.from(codeEls).slice(0, 1)) {
-        const text = (el.innerText || '').trim();
-        if (text.length > 10) {
-          content.push({
-            type: 'code-snippet',
-            preview: text.slice(0, 60),
-            language: el.className.toString().match(/language-(\w+)/)?.[1] || null,
-          });
-        }
-      }
-
-      // Map / location dots
-      const mapEls = cardEl.querySelectorAll('[class*="map"],[class*="globe"],[class*="location"],[class*="dot"]');
-      if (mapEls.length >= 2) {
-        const labels = Array.from(cardEl.querySelectorAll('span, div'))
-          .map(el => (el.innerText || '').trim())
-          .filter(t => /^[A-Z]{2,4}-\d|[A-Z]{2,3}\s+\d/i.test(t))
-          .slice(0, 4);
-        content.push({
-          type: 'location-map',
-          dotCount: mapEls.length,
-          labels: labels.length > 0 ? labels : null,
-        });
-      }
-
-      // Badge / tag inside card
-      const badges = cardEl.querySelectorAll('[class*="badge"],[class*="tag"],[class*="chip"],[class*="label"]');
-      for (const badge of Array.from(badges).slice(0, 2)) {
-        const text = (badge.innerText || '').trim();
-        if (text.length > 1 && text.length < 30) {
-          const cs = window.getComputedStyle(badge);
-          content.push({
-            type: 'badge',
-            text,
-            bg: cs.backgroundColor,
-            color: cs.color,
-          });
-        }
-      }
-
-      // Icon (prominent, not inline)
-      const icons = cardEl.querySelectorAll('svg, [class*="icon"], img[src*="icon"]');
-      const prominentIcon = Array.from(icons).find(ic => {
-        const r = ic.getBoundingClientRect();
-        return r.width >= 24 && r.height >= 24 && r.width <= 64;
-      });
-      if (prominentIcon && content.length === 0) {
-        content.push({ type: 'icon', size: Math.round(prominentIcon.getBoundingClientRect().width) });
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return content.length > 0 ? content : null;
-  }
-
-  /**
-   * Detect bento grid layouts (asymmetric card sizing with col-span/row-span)
-   */
-  function detectBentoGrid(sectionEl) {
-    if (!sectionEl) return null;
-    try {
-      const grids = sectionEl.querySelectorAll('[class*="grid"], [style*="display: grid"], [style*="display:grid"]');
-      for (const grid of Array.from(grids).slice(0, 3)) {
-        const cs = window.getComputedStyle(grid);
-        if (cs.display !== 'grid') continue;
-        const children = Array.from(grid.children).filter(c => {
-          const r = c.getBoundingClientRect();
-          return r.width > 50 && r.height > 50;
-        });
-        if (children.length < 3) continue;
-
-        // Check if children have different spans (bento indicator)
-        const sizes = children.map(c => {
-          const r = c.getBoundingClientRect();
-          const childCs = window.getComputedStyle(c);
-          // Detect col-span via computed grid position OR Tailwind class
-          const clsStr = (c.className || '').toString();
-          const twColSpan = clsStr.match(/col-span-(\d+)/)?.[1];
-          const twRowSpan = clsStr.match(/row-span-(\d+)/)?.[1];
-          let colSpan = twColSpan ? parseInt(twColSpan) : 1;
-          let rowSpan = twRowSpan ? parseInt(twRowSpan) : 1;
-          // Fallback to computed grid position
-          if (colSpan === 1 && childCs.gridColumnEnd !== 'auto' && childCs.gridColumnStart) {
-            const end = parseInt(childCs.gridColumnEnd), start = parseInt(childCs.gridColumnStart);
-            if (!isNaN(end) && !isNaN(start) && end - start > 1) colSpan = end - start;
-          }
-          if (rowSpan === 1 && childCs.gridRowEnd !== 'auto' && childCs.gridRowStart) {
-            const end = parseInt(childCs.gridRowEnd), start = parseInt(childCs.gridRowStart);
-            if (!isNaN(end) && !isNaN(start) && end - start > 1) rowSpan = end - start;
-          }
-          return { w: Math.round(r.width), h: Math.round(r.height), colSpan, rowSpan };
-        });
-        // Bento detection: spans > 1, OR significantly different widths, OR significantly different heights
-        const hasSpanning = sizes.some(s => s.colSpan > 1 || s.rowSpan > 1);
-        const widths = sizes.map(s => s.w);
-        const heights = sizes.map(s => s.h);
-        const maxW = Math.max(...widths), minW = Math.min(...widths);
-        const maxH = Math.max(...heights), minH = Math.min(...heights);
-        const hasVaryingWidths = maxW > minW * 1.4;
-        const hasVaryingHeights = maxH > minH * 1.3 && children.length >= 4;
-
-        if (hasSpanning || hasVaryingWidths || hasVaryingHeights) {
-          return {
-            type: 'bento',
-            columns: cs.gridTemplateColumns,
-            rows: cs.gridTemplateRows,
-            itemCount: children.length,
-            items: sizes.slice(0, 6).map((s, i) => ({
-              size: `${s.w}×${s.h}`,
-              span: s.colSpan > 1 || s.rowSpan > 1 ? `col:${s.colSpan} row:${s.rowSpan}` : null,
-              heading: children[i]?.querySelector('h3,h4')?.innerText?.trim()?.slice(0, 30) || null,
-              content: classifyCardContent(children[i]),
-            })),
-          };
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return null;
-  }
-
-  /**
-   * Detect gradient text (-webkit-background-clip: text patterns)
-   */
-  function detectGradientText() {
-    const results = [];
-    try {
-      // Check headings for gradient text
-      const headings = document.querySelectorAll('h1, h2, h3, h1 *, h2 *, h3 *');
-      for (const el of Array.from(headings).slice(0, 30)) {
-        const cs = window.getComputedStyle(el);
-        const bgClip = cs.webkitBackgroundClip || cs.backgroundClip;
-        if (bgClip === 'text') {
-          const text = (el.innerText || '').trim().slice(0, 40);
-          if (!text) continue;
-          results.push({
-            text,
-            gradient: cs.backgroundImage?.slice(0, 120) || null,
-            tag: el.tagName.toLowerCase(),
-          });
-        }
-        // Also detect transparent text color with background-image (another gradient text pattern)
-        if (cs.color === 'rgba(0, 0, 0, 0)' || cs.color === 'transparent') {
-          const bgImg = cs.backgroundImage;
-          if (bgImg && bgImg.includes('gradient')) {
-            const text = (el.innerText || '').trim().slice(0, 40);
-            if (text) {
-              results.push({ text, gradient: bgImg.slice(0, 120), tag: el.tagName.toLowerCase() });
-            }
-          }
-        }
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return results.length > 0 ? results.slice(0, 4) : null;
-  }
-
-  /**
-   * Detect nav pill grouping: nav links enclosed in a glass/bordered container separate from logo/CTA
-   */
-  function detectNavStructure() {
-    const nav = document.querySelector('nav, header, [role="navigation"]');
-    if (!nav) return null;
-    try {
-      const result = { layout: 'standard', pillGroup: null, scrollTransition: null };
-
-      // Find the link container — a child of nav that contains multiple links but NOT the logo/CTA
-      const allLinks = Array.from(nav.querySelectorAll('a, button')).filter(el => {
-        const text = (el.innerText || '').trim();
-        return text.length > 1 && text.length < 30;
-      });
-      if (allLinks.length < 3) return result;
-
-      // Check if nav links are inside a grouped container (pill/glass)
-      const linkParents = new Map();
-      for (const link of allLinks) {
-        const parent = link.parentElement;
-        if (parent && parent !== nav) {
-          linkParents.set(parent, (linkParents.get(parent) || 0) + 1);
-        }
-      }
-      // Find the container with the most links
-      let bestContainer = null, bestCount = 0;
-      for (const [parent, count] of linkParents) {
-        if (count > bestCount && count >= 3) {
-          bestContainer = parent;
-          bestCount = count;
-        }
-      }
-      if (bestContainer) {
-        const cs = window.getComputedStyle(bestContainer);
-        const hasBorder = cs.border && !cs.border.includes('0px');
-        const hasRadius = cs.borderRadius && cs.borderRadius !== '0px';
-        const hasBackdrop = cs.backdropFilter && cs.backdropFilter !== 'none';
-        const hasBg = !isTransparent(cs.backgroundColor);
-        if ((hasBorder || hasBackdrop || hasBg) && hasRadius) {
-          result.layout = 'pill-group';
-          result.pillGroup = {
-            linkCount: bestCount,
-            radius: cs.borderRadius,
-            bg: cs.backgroundColor,
-            border: hasBorder ? cs.borderColor : null,
-            backdrop: hasBackdrop ? cs.backdropFilter : null,
-            gap: cs.gap || cs.columnGap || null,
-          };
-        }
-      }
-
-      // Detect scroll-triggered nav transition
-      // Check if nav has transition properties suggesting it changes on scroll
-      const navCs = window.getComputedStyle(nav);
-      if (navCs.transition && navCs.transition.includes('background')) {
-        result.scrollTransition = {
-          startBg: navCs.backgroundColor,
-          hasBackdrop: navCs.backdropFilter !== 'none',
-        };
-      }
-
-      return result;
-    } catch(e) { console.debug('[VibeDesign]', e.message); return null; }
-  }
-
-  /**
-   * Detect page-level background patterns: grid lines, scanlines, grain/noise, dot patterns
-   * These are typically position:fixed overlays with low opacity
-   */
-  function detectBackgroundPatterns() {
-    const patterns = [];
-    try {
-      // Strategy 1: Find fixed/absolute overlays with background patterns
-      const overlayEls = document.querySelectorAll(
-        '[class*="grain"],[class*="noise"],[class*="texture"],[class*="scanline"],[class*="grid-bg"],' +
-        '[class*="overlay"],[class*="pattern"],[style*="position: fixed"][style*="pointer-events"],' +
-        '[style*="position:fixed"][style*="pointer-events"]'
-      );
-      for (const el of Array.from(overlayEls).slice(0, 10)) {
-        const cs = window.getComputedStyle(el);
-        const isOverlay = cs.position === 'fixed' || cs.position === 'absolute';
-        const isPassive = cs.pointerEvents === 'none';
-        if (!isOverlay && !isPassive) continue;
-
-        const bgImage = cs.backgroundImage;
-        const filter = cs.filter;
-        const opacity = parseFloat(cs.opacity);
-
-        if (bgImage && bgImage !== 'none' && bgImage.includes('gradient')) {
-          patterns.push({
-            type: bgImage.includes('repeating') ? 'scanlines' : 'grid-lines',
-            css: bgImage.slice(0, 200),
-            opacity: opacity,
-            zIndex: cs.zIndex,
-          });
-        }
-        if (filter && filter.includes('url(')) {
-          patterns.push({ type: 'grain-filter', css: filter.slice(0, 100), opacity });
-        }
-      }
-
-      // Strategy 2: Scan stylesheets for background pattern definitions
-      for (const sheet of Array.from(document.styleSheets)) {
-        try {
-          for (const rule of Array.from(sheet.cssRules || [])) {
-            if (!rule.style) continue;
-            const bg = rule.style.backgroundImage || '';
-            const pos = rule.style.position;
-            // Grid lines: cross-hatch pattern via two linear-gradients
-            if (bg.includes('linear-gradient') && bg.includes('1px') && bg.includes('transparent') &&
-                bg.includes('90deg') && (pos === 'fixed' || pos === 'absolute' || pos === 'relative')) {
-              const sel = (rule.selectorText || '').slice(0, 40);
-              if (!patterns.some(p => p.type === 'grid-lines')) {
-                patterns.push({
-                  type: 'grid-lines',
-                  css: _truncateGradient(bg, 200),
-                  selector: sel,
-                  backgroundSize: rule.style.backgroundSize || null,
-                });
-              }
-            }
-            // Scanlines: repeating-linear-gradient with thin lines
-            if (bg.includes('repeating-linear-gradient')) {
-              const sel = (rule.selectorText || '').slice(0, 40);
-              if (!patterns.some(p => p.type === 'scanlines')) {
-                patterns.push({
-                  type: 'scanlines',
-                  css: _truncateGradient(bg, 200),
-                  selector: sel,
-                });
-              }
-            }
-          }
-        } catch(e) { /* cross-origin */ }
-      }
-
-      // Strategy 3: Check for SVG feTurbulence grain (inline or referenced)
-      const turbulence = document.querySelector('feTurbulence');
-      if (turbulence) {
-        patterns.push({
-          type: 'svg-grain',
-          baseFrequency: turbulence.getAttribute('baseFrequency') || '0.65',
-          numOctaves: turbulence.getAttribute('numOctaves') || '3',
-          seed: turbulence.getAttribute('seed') || '0',
-        });
-      }
-    } catch(e) { console.debug('[VibeDesign]', e.message); }
-    return patterns.length > 0 ? patterns : null;
   }
 
   // ─── Asset extraction: fonts, background images, icons ───────────────────
@@ -2047,7 +1319,16 @@
       if (cs.position === 'fixed' && cs.pointerEvents === 'none') {
         result.hasCustomCursor = true;
         result.type = 'js-cursor-follower';
-        result.details = { class: el.className?.slice(0, 40), width: el.getBoundingClientRect().width, height: el.getBoundingClientRect().height };
+        const rect = el.getBoundingClientRect();
+        const blendMode = cs.mixBlendMode !== 'normal' ? cs.mixBlendMode : null;
+        const lerpDuration = cs.transitionDuration !== '0s' ? cs.transitionDuration : null;
+        result.details = {
+          class: el.className?.slice(0, 40),
+          width: rect.width,
+          height: rect.height,
+          mixBlendMode: blendMode,
+          transitionDuration: lerpDuration,
+        };
         return result;
       }
     }
@@ -2072,7 +1353,16 @@
       }
     }
 
-    return result.hasCustomCursor ? result : null;
+    // Magnetic button detection (independent of cursor type)
+    const magneticEls = document.querySelectorAll(
+      '[class*="magnetic"], [class*="mag-"], [data-magnetic], [class*="attract"]'
+    );
+    if (magneticEls.length > 0) {
+      result.hasMagneticElements = true;
+      result.magneticCount = magneticEls.length;
+    }
+
+    return (result.hasCustomCursor || result.hasMagneticElements) ? result : null;
   }
 
   // ─── Masonry / Pinterest grid layout detection ───────────────────────────
@@ -2888,7 +2178,7 @@
     }
     // Background gradient
     if (cs.backgroundImage && cs.backgroundImage.includes('gradient')) {
-      parts.push(`gradient: ${_truncateGradient(cs.backgroundImage, 160)}`);
+      parts.push(`gradient: ${cs.backgroundImage.slice(0, 100)}`);
     }
     // Background color
     if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) {
@@ -3128,84 +2418,19 @@
 
   function extractSectionContentMap() {
     // Try semantic <section> first, then fall back to structural detection
-    // Collect sections: <section> tags + <main> as hero when it contains primary content
     let sectionEls = Array.from(document.querySelectorAll('section, main > section, [class*="section"]'));
-    // If <main> has a heading (h1/h2), treat it as the hero section regardless of child sections
-    const mainEl = document.querySelector('main');
-    if (mainEl && !sectionEls.includes(mainEl)) {
-      const hasHeading = mainEl.querySelector(':scope > div h1, :scope > div h2, :scope > h1, :scope > h2');
-      const mainRect = mainEl.getBoundingClientRect();
-      if (hasHeading && mainRect.height > 200) sectionEls.unshift(mainEl);
-    }
 
     // If no <section> tags found, detect sections from main > div or body > div > div
     if (sectionEls.length < 2) {
-      // Try multiple container patterns (Next.js, Nuxt, SvelteKit, Astro, generic)
-      const containerSelectors = [
-        'main', '#__next > div', '#app > div', '#root > div',
-        '[class*="page"]', '[class*="content"]', '[class*="wrapper"]',
-        '[class*="layout"]', '[class*="container"]',
-        'body > div > div', 'body > div',
-      ];
-      let mainEl = null;
-      for (const sel of containerSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.children.length >= 2) { mainEl = el; break; }
-      }
+      const mainEl = document.querySelector('main') || document.querySelector('#__next > div') || document.querySelector('#app > div') || document.querySelector('[class*="page"], [class*="content"], [class*="wrapper"]');
       if (mainEl) {
         const candidates = Array.from(mainEl.children).filter(el => {
-          const tag = el.tagName;
-          if (tag === 'NAV' || tag === 'HEADER' || tag === 'FOOTER') return false;
-          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' || tag === 'NOSCRIPT') return false;
+          if (el.tagName === 'NAV' || el.tagName === 'HEADER' || el.tagName === 'FOOTER') return false;
+          if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'LINK') return false;
           const r = el.getBoundingClientRect();
-          return r.height > 150 && r.width > 300;
+          return r.height > 200 && r.width > 300;
         });
         if (candidates.length > sectionEls.length) sectionEls = candidates;
-      }
-      // Fallback 2: try direct children of any deep container with multiple large divs
-      if (sectionEls.length < 2) {
-        const deepContainers = document.querySelectorAll('main > div, #__next > div > div, #app > div > div, body > div > div > div');
-        for (const container of deepContainers) {
-          const kids = Array.from(container.children).filter(el => {
-            const tag = el.tagName;
-            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NAV') return false;
-            const r = el.getBoundingClientRect();
-            return r.height > 150 && r.width > 300;
-          });
-          if (kids.length >= 3 && kids.length > sectionEls.length) {
-            sectionEls = kids;
-            break;
-          }
-        }
-      }
-
-      // Fallback 3 (last resort): use h1/h2 headings as section boundaries.
-      // Each heading marks the start of a virtual "section" — the heading's closest
-      // ancestor block-level container that is large enough becomes the section element.
-      if (sectionEls.length < 2) {
-        const headings = document.querySelectorAll('h1, h2');
-        const headingSections = [];
-        const usedParents = new Set();
-        for (const h of headings) {
-          try {
-            let parent = h.parentElement;
-            // Walk up to find a meaningful container (> 300px wide, > 150px tall)
-            for (let depth = 0; depth < 6 && parent && parent !== document.body; depth++) {
-              const r = parent.getBoundingClientRect();
-              if (r.width > 300 && r.height > 150 && !usedParents.has(parent)) {
-                // Check this isn't a tiny inline element
-                const cs = window.getComputedStyle(parent);
-                if (cs.display !== 'inline' && cs.display !== 'none') {
-                  headingSections.push(parent);
-                  usedParents.add(parent);
-                  break;
-                }
-              }
-              parent = parent.parentElement;
-            }
-          } catch(e) { console.debug('[VibeDesign]', e.message); }
-        }
-        if (headingSections.length > sectionEls.length) sectionEls = headingSections;
       }
     }
 
@@ -3292,7 +2517,7 @@
           if (isDecorative || !hasText) {
             sectionDecorations.push({
               size: `${Math.round(r.width)}×${Math.round(r.height)}`,
-              gradient: _truncateGradient(bgImg, 160),
+              gradient: bgImg.slice(0, 120),
               transform: cs.transform !== 'none' ? cs.transform.slice(0,40) : null
             });
           }
@@ -3346,102 +2571,9 @@
         if (stepItems.length === 0) stepItems = null;
       }
 
-      // Stats detection: require MULTIPLE stat-like values (not just one number)
-      // and look for dedicated stat containers (not just any section with a number)
-      const statCandidates = sec.querySelectorAll('[class*="stat"],[class*="metric"],[class*="counter"],[class*="number"],[class*="kpi"]');
-      const statNumbers = (sec.innerText || '').match(/\b\d{1,3}[,.]?\d*[KkMmBb+%]+\b|\$[\d,.]+[KkMmBb]?/g) || [];
-      const hasStats = statCandidates.length >= 2 || (statNumbers.length >= 3 && !sec.querySelector('[class*="price"],[class*="pricing"],[class*="plan"]'));
+      const hasStats = /\d+[KkMm+%]|\$\d/.test(sec.innerText);
       const hasAccordion = !!sec.querySelector('[class*="accordion"],[class*="faq"],[class*="collapse"],[open]');
       const hasTabNav = !!sec.querySelector('[role="tablist"],[class*="tab-nav"],[class*="tabs"]');
-
-      // ── AOS parameter extraction ──
-      let aosConfig = null;
-      const aosEls = sec.querySelectorAll('[data-aos]');
-      if (aosEls.length > 0) {
-        const first = aosEls[0];
-        aosConfig = {
-          type: first.dataset.aos || 'fade-up',
-          duration: first.dataset.aosDuration || '400',
-          delay: first.dataset.aosDelay || '0',
-          offset: first.dataset.aosOffset || '120',
-          easing: first.dataset.aosEasing || 'ease',
-          once: first.dataset.aosOnce !== 'false',
-          count: aosEls.length,
-        };
-        // Detect stagger: collect unique delays across AOS elements
-        const delays = [...new Set(Array.from(aosEls).map(el => el.dataset.aosDelay).filter(Boolean))];
-        if (delays.length > 1) aosConfig.staggerDelays = delays.sort((a, b) => a - b);
-      }
-
-      // ── Per-section animation type ──
-      let sectionAnimType = null;
-      const firstAnimEl = sec.querySelector('[data-aos], [class*="animate-"], [class*="reveal"], [class*="fade-in"]');
-      if (firstAnimEl) {
-        sectionAnimType = firstAnimEl.dataset?.aos
-          || (firstAnimEl.className.match(/fade-?(up|down|left|right|in)/i)?.[0])
-          || 'fade-in';
-      }
-
-      // ── Per-section animation bindings (element → animation mapping) ──
-      let animationBindings = null;
-      try {
-        const animSelectors = '[data-aos],[class*="animate"],[class*="reveal"],[class*="fade"],[class*="motion"],[style*="animation"]';
-        const animEls = sec.querySelectorAll(animSelectors);
-        if (animEls.length > 0) {
-          animationBindings = [];
-          for (const el of Array.from(animEls).slice(0, 8)) {
-            const cs = window.getComputedStyle(el);
-            const binding = { element: null, animation: null, trigger: null };
-            // Describe element: tag + meaningful class or role
-            const tag = el.tagName.toLowerCase();
-            const meaningfulCls = (el.className || '').toString().split(/\s+/)
-              .filter(c => c.length > 2 && c.length < 30 && !/^_|^css-|^tw-|^[a-z]{20,}/.test(c))
-              .slice(0, 2).join('.');
-            const siblings = el.parentElement ? Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName).length : 1;
-            binding.element = meaningfulCls ? `${tag}.${meaningfulCls}` : tag;
-            if (siblings > 1) binding.element += ` (×${siblings})`;
-            // AOS binding
-            if (el.dataset.aos) {
-              binding.animation = {
-                type: 'aos',
-                effect: el.dataset.aos,
-                duration: el.dataset.aosDuration || '400',
-                delay: el.dataset.aosDelay || '0',
-              };
-              binding.trigger = 'scroll-viewport-entry';
-            }
-            // CSS animation binding
-            else if (cs.animationName && cs.animationName !== 'none') {
-              binding.animation = {
-                type: 'css-keyframe',
-                name: cs.animationName.split(',')[0].trim(),
-                duration: cs.animationDuration,
-                delay: cs.animationDelay,
-                easing: cs.animationTimingFunction,
-                fillMode: cs.animationFillMode,
-              };
-              // Detect trigger type
-              if (cs.animationTimeline && cs.animationTimeline !== 'auto') {
-                binding.trigger = 'scroll-timeline';
-              } else if (el.dataset.scroll || el.closest('[data-scroll-container]')) {
-                binding.trigger = 'scroll-library';
-              } else {
-                binding.trigger = parseFloat(cs.animationDelay) > 0 ? 'delayed-entrance' : 'on-load';
-              }
-            }
-            // Class-based animation (Tailwind animate-*, custom reveal classes)
-            else {
-              const animClass = (el.className || '').toString().match(/animate-([a-z-]+)|reveal-?([a-z]*)|fade-?(in|up|down|left|right)/i);
-              if (animClass) {
-                binding.animation = { type: 'class-based', effect: animClass[0] };
-                binding.trigger = 'scroll-viewport-entry';
-              }
-            }
-            if (binding.animation) animationBindings.push(binding);
-          }
-          if (animationBindings.length === 0) animationBindings = null;
-        }
-      } catch(e) { console.debug('[VibeDesign]', e.message); }
 
       // Layout detection
       let layout = 'stacked'; // default
@@ -3477,13 +2609,6 @@
             break;
           }
         }
-      }
-
-      // Bento grid detection + card content classification
-      let bentoGrid = null;
-      if (layout === 'multi-column-grid' || layout === 'stacked') {
-        bentoGrid = detectBentoGrid(sec);
-        if (bentoGrid) layout = 'bento-grid';
       }
 
       // CTA elements — wider selector to catch styled <a> tags and buttons
@@ -3576,20 +2701,13 @@
       else if (hasSwiper) type = 'slider/carousel';
       else if (hasAccordion) type = 'faq/accordion';
       else if (hasVideo && !isFirstSection) type = 'video-showcase';
-      // Pricing: detect by heading keyword or pricing-specific classes
-      else if (sec.querySelector('[class*="pricing"],[class*="price"],[class*="plan"]') ||
-               (headingText && /pric/i.test(headingText))) type = 'pricing';
-      // Feature layouts: split-columns with visuals = feature-split
+      else if (hasStats) type = 'stats/metrics';
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
       else if (layout === 'multi-column-grid') type = 'feature-grid';
-      // Stats: only if clearly stat-focused (multiple stat elements or 3+ stat numbers)
-      else if (hasStats) type = 'stats/metrics';
-      // Testimonials / social proof
-      else if (sec.querySelector('blockquote, [class*="testimonial"], [class*="quote"]') ||
-               (headingText && /trust|partner|client|customer|engineer|team/i.test(headingText))) type = 'testimonial';
       // Additional classification for generic "content" sections
       else if (hasForm || sec.querySelector('input[type="email"], input[type="text"][placeholder*="mail"]')) type = 'newsletter';
+      else if (sec.querySelector('blockquote, [class*="testimonial"], [class*="quote"]')) type = 'testimonial';
       else if (sec.querySelector('address, [class*="footer"], [class*="contact"]') && sec.querySelector('a[href*="mailto:"], a[href*="tel:"]')) type = 'footer-contact';
       else if (ctaButtons.length >= 2) type = 'cta-section';
       else if (headingText && imgCount === 0 && layout === 'stacked') type = 'text-block';
@@ -3901,8 +3019,7 @@
           secBgHex = rgbToHex(bg);
         }
         if (!secGradient && bgImg && bgImg.includes('gradient')) {
-          const _gradMatch = (bgImg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/)||[])[0];
-          secGradient = _gradMatch ? _truncateGradient(_gradMatch, 200) : null;
+          secGradient = (bgImg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/)||[])[0]?.slice(0, 200) || null;
         }
         if (secBgHex || secGradient) break;
         bgEl = bgEl.parentElement;
@@ -4173,10 +3290,6 @@
         hasNumberedItems,
         steps: stepItems || null,
         eyebrow: eyebrowText || null,
-        aosConfig: aosConfig || null,
-        animationType: sectionAnimType || null,
-        animationBindings: animationBindings || null,
-        bentoGrid: bentoGrid || null,
         gridCols: gridCols || null,
         heroColumns: heroColumns || null,
         headingToSubtitleGap: headingToSubtitleGap || null,
@@ -4234,7 +3347,8 @@
     const candidates = document.querySelectorAll('section, [class*="hero"], [class*="gradient"], [class*="bg-"], header, footer, main > div');
     for (const el of Array.from(candidates).slice(0, 30)) {
       try {
-        const bg = window.getComputedStyle(el).backgroundImage;
+        const elCs = window.getComputedStyle(el);
+        const bg = elCs.backgroundImage;
         if (!bg || bg === 'none') continue;
         // Extract gradient functions only
         const matches = bg.match(/(linear-gradient|radial-gradient|conic-gradient)\([^)]+(?:\([^)]*\))*[^)]*\)/g);
@@ -4245,12 +3359,19 @@
             seen.add(g);
             const rect = el.getBoundingClientRect();
             const gradientColors = (g.match(/#[0-9a-fA-F]{3,8}|rgb\([^)]+\)|rgba\([^)]+\)/g) || []).slice(0, 5);
+            // Check for animated gradient pattern (oversized background-size + animation)
+            const bgSize = elCs.backgroundSize;
+            const hasOversizedBg = bgSize && (/\d{3,}%/.test(bgSize) || parseInt(bgSize) >= 200);
+            const hasAnim = elCs.animationName && elCs.animationName !== 'none';
+            const isAnimated = !!(hasOversizedBg && hasAnim);
             gradients.push({
               value: g.length > 200 ? g.slice(0, 200) + '...' : g,
               element: el.tagName.toLowerCase(),
               colors: gradientColors,
               width: Math.round(rect.width),
               height: Math.round(rect.height),
+              isAnimated: isAnimated,
+              animationDuration: isAnimated ? elCs.animationDuration : null,
             });
           }
         }
@@ -4813,27 +3934,8 @@
     }
 
     // ── Animation pattern detection ──
-    const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"],[class*="fadeIn"],[class*="slideIn"],[class*="slide-in"]');
+    const dataAttribs = document.querySelectorAll('[data-aos],[data-animate],[data-scroll],[class*="animate"],[class*="reveal"],[class*="fade-in"]');
     profile.hasScrollAnimation = dataAttribs.length > 0;
-
-    // Also detect scroll animation from keyframe names in stylesheets
-    if (!profile.hasScrollAnimation) {
-      try {
-        const sheets = Array.from(document.styleSheets);
-        for (const sheet of sheets) {
-          try {
-            for (const rule of Array.from(sheet.cssRules || [])) {
-              if (rule.type === CSSRule.KEYFRAMES_RULE &&
-                  /fade.?in|slide.?in|reveal|fadeSlide|columnReveal|appear|enter/i.test(rule.name)) {
-                profile.hasScrollAnimation = true;
-                break;
-              }
-            }
-          } catch(e) { /* cross-origin sheet */ }
-          if (profile.hasScrollAnimation) break;
-        }
-      } catch(e) { console.debug('[VibeDesign]', e.message); }
-    }
 
     const allClasses = Array.from(document.querySelectorAll('[class]')).map(el => el.className.toString()).join(' ');
     if (allClasses.includes('is-visible') || allClasses.includes('in-view') || allClasses.includes('animated')) {
@@ -4906,6 +4008,59 @@
             }
           } catch(e) { console.debug('[VibeDesign]', e.message); }
         }
+      }
+    }
+
+    // ── Parallax detection ──
+    {
+      let parallaxFound = false;
+      const parallaxDetails = [];
+
+      // 1. background-attachment: fixed
+      const bgFixedCandidates = document.querySelectorAll('section, div, [class*="hero"], [class*="banner"]');
+      for (const el of Array.from(bgFixedCandidates).slice(0, 30)) {
+        try {
+          if (window.getComputedStyle(el).backgroundAttachment === 'fixed') {
+            parallaxFound = true;
+            parallaxDetails.push({ method: 'background-attachment-fixed', element: el.tagName.toLowerCase() });
+            break;
+          }
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
+      }
+
+      // 2. data-scroll-speed / data-rellax-speed attributes
+      const speedEls = document.querySelectorAll('[data-scroll-speed], [data-rellax-speed], [data-speed]');
+      if (speedEls.length > 0) {
+        parallaxFound = true;
+        for (const el of Array.from(speedEls).slice(0, 5)) {
+          const speed = el.getAttribute('data-scroll-speed') || el.getAttribute('data-rellax-speed') || el.getAttribute('data-speed');
+          parallaxDetails.push({ method: 'data-attribute', speed: speed, element: el.tagName.toLowerCase() });
+        }
+      }
+
+      // 3. Class-based parallax indicators
+      const parallaxClassEls = document.querySelectorAll('[class*="parallax"], [class*="Parallax"]');
+      if (parallaxClassEls.length > 0) {
+        parallaxFound = true;
+        parallaxDetails.push({ method: 'class-based', count: parallaxClassEls.length });
+      }
+
+      // 4. perspective / translateZ usage on layers
+      const transformCandidates = document.querySelectorAll('section, div, [class*="layer"], [class*="bg"]');
+      for (const el of Array.from(transformCandidates).slice(0, 30)) {
+        try {
+          const cs = window.getComputedStyle(el);
+          if (cs.perspective !== 'none' || (cs.transform && cs.transform.includes('matrix3d'))) {
+            parallaxFound = true;
+            parallaxDetails.push({ method: 'transform-3d', element: el.tagName.toLowerCase() });
+            break;
+          }
+        } catch(e) { console.debug('[VibeDesign]', e.message); }
+      }
+
+      if (parallaxFound) {
+        profile.hasParallaxHint = true;
+        profile.parallaxDetails = parallaxDetails.slice(0, 4);
       }
     }
 
@@ -5369,15 +4524,8 @@
     const firstSec = document.querySelector('section:first-of-type, main > div:first-child, main > section:first-child');
     if (firstSec) {
       const hasH1 = !!firstSec.querySelector('h1');
-      // Broader CTA detection: any styled button/link in first section
-      const hasCTA = !!firstSec.querySelector(
-        'a[class*="btn"], a[class*="button"], a[class*="cta"], button[class*="btn"], button[class*="cta"], [role="button"],' +
-        'a[class*="bg-"], button[class*="bg-"], a[class*="rounded"], button[class*="rounded"]'
-      );
+      const hasCTA = !!firstSec.querySelector('a[class*="btn"], a[class*="button"], a[class*="cta"], button[class*="btn"], button[class*="cta"], [role="button"]');
       if (hasH1 && hasCTA) return 'landing page';
-      // Also: h1 + multiple sections = landing page (even without CTA class match)
-      const sectionCount = document.querySelectorAll('section').length;
-      if (hasH1 && sectionCount >= 3) return 'landing page';
     }
     // Stricter blog check: requires article + blog URL or blog-specific class
     const hasArticle = !!document.querySelector('article');
