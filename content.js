@@ -3140,6 +3140,7 @@
       // ── Hero-only: CTA button dimensions + floating illustration elements ──
       let heroCtaStyle = null;
       let floatingIllustrations = null;
+      let entry_floatingPattern = null;
       if (isFirstSection) {
         // Capture the LARGEST filled CTA in the hero (not the nav CTA)
         const _heroBtnCandidates = Array.from(sec.querySelectorAll('a[href], button, [role="button"]'))
@@ -3237,10 +3238,14 @@
               const relX = (r.left + r.width/2 - _secRH.left) / _secRH.width;
               const relY = (r.top + r.height/2 - _secRH.top) / _secRH.height;
               const isAbsoluteish = cs.position === 'absolute' || cs.position === 'fixed';
+              const _w = Math.round(r.width), _h = Math.round(r.height);
               return {
                 bg: bgHex,
-                w: Math.round(r.width),
-                h: Math.round(r.height),
+                bgGradient: (!hasSolidBg && cs.backgroundImage !== 'none') ? cs.backgroundImage.slice(0, 120) : null,
+                w: _w,
+                h: _h,
+                aspectRatio: Math.round((_w / (_h || 1)) * 100) / 100,
+                transform: (has3D && transform) ? transform.slice(0, 80) : null,
                 pos: `${relX < 0.25 ? 'left' : relX > 0.75 ? 'right' : 'center'}-${relY < 0 ? 'above-hero' : relY > 1 ? 'below-hero' : relY < 0.4 ? 'top' : relY > 0.7 ? 'bottom' : 'mid'}`,
                 has3D,
                 isFloating: isAbsoluteish,
@@ -3248,6 +3253,23 @@
                 text: text && text.length > 2 ? text : null,
               };
             });
+
+            // Pattern classification — detect radiating lines vs content cards vs decorative shapes
+            if (floatingIllustrations.length >= 3) {
+              const _allNarrow = floatingIllustrations.every(il => il.aspectRatio < 0.35 || il.aspectRatio > 3);
+              const _allGradient = floatingIllustrations.every(il => il.bg === 'gradient');
+              const _heights = floatingIllustrations.map(il => il.h);
+              const _maxH = Math.max(..._heights), _minH = Math.min(..._heights);
+              const _allSimilarHeight = (_maxH - _minH) / _maxH < 0.15;
+
+              if (_allNarrow && _allGradient && _allSimilarHeight) {
+                entry_floatingPattern = 'radiating-lines';
+              } else if (floatingIllustrations.length >= 4 && floatingIllustrations.some(il => il.text)) {
+                entry_floatingPattern = 'content-cards';
+              } else {
+                entry_floatingPattern = 'decorative-shapes';
+              }
+            }
           }
         }
       }
@@ -3326,6 +3348,7 @@
         heroCtaStyle: heroCtaStyle || null,
         canvasLayout: canvasLayout || null,
         floatingIllustrations: floatingIllustrations || null,
+        floatingPattern: entry_floatingPattern || null,
         entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
       };
 
