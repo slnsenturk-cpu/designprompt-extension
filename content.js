@@ -742,21 +742,26 @@
           const first = frames[0];
           const last = frames[frames.length - 1];
           const fromProps = {}, toProps = {};
-          const props = ['opacity','transform','clip-path','filter'];
+          const props = ['opacity','transform','clip-path','filter','translate'];
           if (first?.style) props.forEach(p => { const v = first.style.getPropertyValue(p); if (v) fromProps[p] = v; });
           if (last?.style) props.forEach(p => { const v = last.style.getPropertyValue(p); if (v) toProps[p] = v; });
           let revealType = null;
           const fromClip = fromProps['clip-path'];
           const toClip = toProps['clip-path'];
+          // Check both transform and standalone translate property (modern CSS)
+          const hasTranslateX = fromProps.transform?.includes('translateX') || (fromProps.translate && /^-?\d/.test(fromProps.translate));
+          const hasTranslateY = fromProps.transform?.includes('translateY') || (fromProps.translate && /\s-?\d/.test(fromProps.translate));
           if (fromClip && fromClip !== toClip) {
             revealType = 'clip-path-reveal';
           } else if (fromProps.transform && fromProps.transform.includes('scaleY(0)')) {
             revealType = 'mask-reveal';
-          } else if (fromProps.opacity === '0' && fromProps.transform?.includes('translateY')) {
+          } else if (fromProps.opacity === '0' && (fromProps.transform?.includes('translateY') || (fromProps.translate && !hasTranslateX))) {
+            // translateY in transform OR standalone translate with only Y component
             revealType = 'fade-up';
-          } else if (fromProps.opacity === '0' && fromProps.transform?.includes('translateX')) {
+          } else if (fromProps.opacity === '0' && hasTranslateX) {
+            // translateX in transform OR standalone translate with X component (e.g. translate: -100%)
             revealType = 'fade-left-or-right';
-          } else if (fromProps.opacity === '0' && !fromProps.transform) {
+          } else if (fromProps.opacity === '0' && !fromProps.transform && !fromProps.translate) {
             revealType = 'fade-only';
           } else if (fromProps.transform?.includes('scale(0') || fromProps.transform?.includes('scale(0.8')) {
             revealType = 'scale-in';
