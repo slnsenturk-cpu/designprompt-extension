@@ -3377,13 +3377,22 @@
       if (!stickyCol) continue;
       const scrollCol = children.find(c => c !== stickyCol);
       if (!scrollCol) continue;
-      const blocks = Array.from(scrollCol.querySelectorAll('h2,h3,[class*="block"],[class*="item"],[class*="card"]'));
+      // Count content blocks — use multiple strategies for broader detection
+      let blocks = Array.from(scrollCol.querySelectorAll('h2,h3,h4,[class*="block"],[class*="item"],[class*="card"],[class*="feature"],[class*="step"],[class*="benefit"],article'));
+      // Fallback: if no semantic blocks found, count direct children with significant height
+      if (blocks.length === 0) {
+        blocks = Array.from(scrollCol.children).filter(c => {
+          const r = c.getBoundingClientRect();
+          return r.height > 60 && r.width > 100;
+        });
+      }
       results.push({
         type: 'sticky-scroll-panel',
         stickyColHasCanvas: !!stickyCol.querySelector('canvas'),
         stickyColHasSvg: !!stickyCol.querySelector('svg'),
+        stickyColHasImg: !!stickyCol.querySelector('img'),
         scrollBlockCount: blocks.length,
-        scrollBlockHeadings: blocks.slice(0, 5).map(b => b.textContent.trim().slice(0, 40)),
+        scrollBlockHeadings: blocks.slice(0, 5).map(b => (b.querySelector('h2,h3,h4')?.textContent || b.textContent || '').trim().slice(0, 40)),
       });
     }
     return results.length > 0 ? results : null;
