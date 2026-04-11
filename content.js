@@ -560,6 +560,9 @@
 
     // ── 5. Section content map ──
     tokens.sectionContentMap = extractSectionContentMap();
+    tokens.footerContentMap = extractFooterContentMap();
+    tokens.contactSection = detectContactSection();
+    tokens.stickySections = detectStickyScrollSections();
 
     // ── 6. Deep visual analysis ──
     tokens.visualProfile = extractVisualProfile();
@@ -3057,6 +3060,24 @@
         }
       }
 
+      // Hero canvas layout detection — full-viewport overlay vs column element
+      let canvasLayout = null;
+      if (type === 'hero') {
+        const _heroCanvases = [..._domCanvases, ..._externalCanvases];
+        for (const c of _heroCanvases) {
+          const cr = c.getBoundingClientRect();
+          const ccs = window.getComputedStyle(c);
+          const isFullVP = (ccs.position === 'absolute' || ccs.position === 'fixed') &&
+            cr.width >= window.innerWidth * 0.75 && cr.height >= window.innerHeight * 0.4;
+          if (isFullVP) { canvasLayout = 'full-viewport-overlay'; break; }
+          else if (cr.width > 100 && cr.height > 100) { canvasLayout = 'column'; }
+        }
+        // If canvas is full-viewport overlay, hero layout is centered, not split
+        if (canvasLayout === 'full-viewport-overlay' && layout === 'split-columns') {
+          layout = 'full-viewport-centered';
+        }
+      }
+
       // Hero column analysis — tells LLM which side is text, which is visual
       let heroColumns = null;
       if (type === 'hero' && layout === 'split-columns' && _splitContainer) {
@@ -3303,6 +3324,7 @@
         scrollRevealTypography: scrollRevealTypography || null,
         portfolioGridInfo: portfolioGridInfo || null,
         heroCtaStyle: heroCtaStyle || null,
+        canvasLayout: canvasLayout || null,
         floatingIllustrations: floatingIllustrations || null,
         entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
       };
@@ -3318,6 +3340,76 @@
     }
 
     return map;
+  }
+
+  // ─── Footer content extraction ──────────────────────────────────────────
+  function extractFooterContentMap() {
+    const footer = document.querySelector('footer, [class*="footer"], [class*="Footer"]');
+    if (!footer) return null;
+    const links = Array.from(footer.querySelectorAll('a')).map(a => ({
+      text: a.textContent.trim().slice(0, 30),
+      href: a.href
+    })).filter(l => l.text.length > 0).slice(0, 10);
+    const cols = Array.from(footer.querySelectorAll(':scope > div > div, :scope > div')).map(col => {
+      const label = col.querySelector('[class*="label"],[class*="uppercase"],[class*="heading"],h3,h4,h5')?.textContent?.trim();
+      return { label: label?.slice(0, 30) || null, content: col.textContent.trim().slice(0, 100) };
+    }).filter(c => c.content.length > 5).slice(0, 4);
+    const cs = window.getComputedStyle(footer);
+    return {
+      type: 'footer',
+      links,
+      columns: cols,
+      bgColor: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
+      borderTop: cs.borderTopWidth !== '0px' ? cs.borderTop.slice(0, 60) : null,
+    };
+  }
+
+  // ─── Sticky-scroll section pattern detection ─────────────────────────────
+  function detectStickyScrollSections() {
+    const results = [];
+    const sections = Array.from(document.querySelectorAll('section, [class*="section"]'));
+    for (const sec of sections.slice(0, 15)) {
+      const children = Array.from(sec.children).length >= 2 ? Array.from(sec.children) : Array.from(sec.querySelector(':scope > div')?.children || []);
+      if (children.length < 2) continue;
+      const stickyCol = children.find(c => {
+        try { return window.getComputedStyle(c).position === 'sticky'; } catch(e) { return false; }
+      });
+      if (!stickyCol) continue;
+      const scrollCol = children.find(c => c !== stickyCol);
+      if (!scrollCol) continue;
+      const blocks = Array.from(scrollCol.querySelectorAll('h2,h3,[class*="block"],[class*="item"],[class*="card"]'));
+      results.push({
+        type: 'sticky-scroll-panel',
+        stickyColHasCanvas: !!stickyCol.querySelector('canvas'),
+        stickyColHasSvg: !!stickyCol.querySelector('svg'),
+        scrollBlockCount: blocks.length,
+        scrollBlockHeadings: blocks.slice(0, 5).map(b => b.textContent.trim().slice(0, 40)),
+      });
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── Contact section detection (CTA/contact before footer) ──────────────
+  function detectContactSection() {
+    const allSections = Array.from(document.querySelectorAll('section, [class*="section"]'));
+    const lastSections = allSections.slice(-3);
+    for (const sec of lastSections) {
+      const hasContactSignals =
+        /contact|get.?in.?touch|let.?s.?talk|reach.?out|say.?hello/i.test(sec.textContent) ||
+        sec.querySelector('input[type="email"], input[type="text"], textarea') !== null;
+      if (hasContactSignals) {
+        const cs = window.getComputedStyle(sec);
+        return {
+          type: 'contact',
+          heading: sec.querySelector('h1,h2,h3')?.textContent?.trim()?.slice(0, 60) || null,
+          eyebrow: sec.querySelector('[class*="label"],[class*="eyebrow"],[class*="overline"]')?.textContent?.trim() || null,
+          hasBgAnimation: !!sec.querySelector('canvas, svg[class*="anim"]'),
+          bgColor: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
+          ctas: Array.from(sec.querySelectorAll('a,button')).map(el => el.textContent.trim().slice(0, 30)).filter(t => t.length > 1).slice(0, 3),
+        };
+      }
+    }
+    return null;
   }
 
   // ─── Form/input field style extraction ────────────────────────────────────
