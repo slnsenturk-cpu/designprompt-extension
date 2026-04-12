@@ -563,6 +563,8 @@
     tokens.footerContentMap = extractFooterContentMap();
     tokens.contactSection = detectContactSection();
     tokens.stickySections = detectStickyScrollSections();
+    tokens.svgDiagramAnimations = detectSvgDiagramAnimations();
+    tokens.sectionBackgroundDecorations = detectSectionBackgroundDecorations();
 
     // ── 6. Deep visual analysis ──
     tokens.visualProfile = extractVisualProfile();
@@ -3409,14 +3411,114 @@
           return r.height > 60 && r.width > 100;
         });
       }
+      // Detect tab navigation within the sticky column
+      const _tabEls = stickyCol.querySelectorAll('[role="tab"], button, [class*="tab"], [class*="feature-nav"] > *');
+      const _tabLabels = Array.from(_tabEls)
+        .map(t => t.textContent.trim())
+        .filter(t => t.length > 2 && t.length < 60)
+        .slice(0, 8);
       results.push({
-        type: 'sticky-scroll-panel',
+        type: _tabLabels.length >= 2 ? 'sticky-tab-scroll' : 'sticky-scroll-panel',
         stickyColHasCanvas: !!stickyCol.querySelector('canvas'),
         stickyColHasSvg: !!stickyCol.querySelector('svg'),
         stickyColHasImg: !!stickyCol.querySelector('img'),
+        tabLabels: _tabLabels.length >= 2 ? _tabLabels : null,
         scrollBlockCount: blocks.length,
         scrollBlockHeadings: blocks.slice(0, 5).map(b => (b.querySelector('h2,h3,h4')?.textContent || b.textContent || '').trim().slice(0, 40)),
       });
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── SVG animated diagram + pill-track pattern detection ──────────────────
+  function detectSvgDiagramAnimations() {
+    const results = [];
+    // SVG with animateMotion / animate / many paths+circles = diagram animation
+    document.querySelectorAll('svg').forEach(svg => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width < 100 || rect.height < 100) return;
+      const motionEls = svg.querySelectorAll('animateMotion, animateTransform, animate');
+      const paths = svg.querySelectorAll('path');
+      const circles = svg.querySelectorAll('circle');
+      if (motionEls.length > 0 || (paths.length > 5 && circles.length > 2)) {
+        const colors = new Set();
+        svg.querySelectorAll('[fill],[stroke]').forEach(el => {
+          const f = el.getAttribute('fill');
+          const s = el.getAttribute('stroke');
+          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
+          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
+        });
+        results.push({
+          type: motionEls.length > 0 ? 'svg-path-animation' : 'svg-diagram',
+          width: Math.round(rect.width), height: Math.round(rect.height),
+          pathCount: paths.length, circleCount: circles.length,
+          animationCount: motionEls.length,
+          colors: [...colors].slice(0, 6),
+          labels: Array.from(svg.querySelectorAll('text')).map(t => t.textContent.trim()).filter(Boolean).slice(0, 8),
+          location: rect.top < window.innerHeight ? 'above-fold' : 'below-fold'
+        });
+      }
+    });
+    // Pill-track pattern: large pill-shaped elements with animated dots
+    const pillTexts = [];
+    const _candidates = document.querySelectorAll('[class*="pill"], [class*="tag"], [class*="badge"], [class*="label"], [class*="chip"]');
+    for (const el of Array.from(_candidates).slice(0, 30)) {
+      try {
+        const cs = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        const br = parseFloat(cs.borderRadius) || 0;
+        const text = el.textContent?.trim();
+        if (br > 30 && rect.width > 80 && rect.height > 30 && text && text.length < 30 && el.children.length < 5) {
+          pillTexts.push({ text, bg: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : 'transparent', border: cs.border?.slice(0, 40), w: Math.round(rect.width), h: Math.round(rect.height) });
+        }
+      } catch(e) { /* skip */ }
+    }
+    if (pillTexts.length >= 2) {
+      results.push({ type: 'pill-track-diagram', pills: pillTexts.slice(0, 8) });
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  // ─── Section background geometric decorations (absolute SVG) ──────────────
+  function detectSectionBackgroundDecorations() {
+    const results = [];
+    const sections = document.querySelectorAll('section, [class*="section"]');
+    for (const section of Array.from(sections).slice(0, 10)) {
+      const sectionRect = section.getBoundingClientRect();
+      if (sectionRect.height < 100) continue;
+      const decorSvgs = Array.from(section.querySelectorAll('svg')).filter(svg => {
+        try {
+          const cs = window.getComputedStyle(svg);
+          const parent = svg.parentElement;
+          const parentCs = parent ? window.getComputedStyle(parent) : null;
+          const isAbsPositioned = cs.position === 'absolute' || (parentCs && parentCs.position === 'absolute');
+          const isBackground = parseInt(cs.zIndex) <= 0 || svg.getAttribute('aria-hidden') === 'true' || cs.pointerEvents === 'none';
+          const rect = svg.getBoundingClientRect();
+          return (isAbsPositioned || isBackground) && rect.width > sectionRect.width * 0.25 && rect.height > 50;
+        } catch(e) { return false; }
+      }).map(svg => {
+        const paths = svg.querySelectorAll('path');
+        const lines = svg.querySelectorAll('line');
+        const rect = svg.getBoundingClientRect();
+        const colors = new Set();
+        svg.querySelectorAll('[stroke],[fill]').forEach(el => {
+          const s = el.getAttribute('stroke');
+          const f = el.getAttribute('fill');
+          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
+          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
+        });
+        return {
+          w: Math.round(rect.width), h: Math.round(rect.height),
+          pathCount: paths.length, lineCount: lines.length,
+          type: paths.length > 4 && rect.width > 200 ? 'radial-rays' : lines.length > 2 ? 'grid-lines' : 'organic-curves',
+          colors: [...colors].slice(0, 4),
+          opacity: window.getComputedStyle(svg).opacity
+        };
+      });
+      if (decorSvgs.length > 0) {
+        const bg = window.getComputedStyle(section).backgroundColor;
+        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: decorSvgs.slice(0, 3) });
+      }
     }
     return results.length > 0 ? results : null;
   }
