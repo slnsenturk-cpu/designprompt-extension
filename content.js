@@ -2450,7 +2450,7 @@
     // we allow at most 2 reports per canvas (hero + one more prominent section) to avoid noise.
     const _fixedCanvasReportCount = new Map();
 
-    for (const sec of sectionEls.slice(0, 12)) {
+    for (const sec of sectionEls.slice(0, 16)) {
       const rect = sec.getBoundingClientRect();
       if (rect.height < 100 || rect.width < 300) continue;
 
