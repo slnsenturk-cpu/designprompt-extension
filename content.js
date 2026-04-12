@@ -3630,20 +3630,37 @@
   // ─── Contact section detection (CTA/contact before footer) ──────────────
   function detectContactSection() {
     const allSections = Array.from(document.querySelectorAll('section, [class*="section"]'));
-    const lastSections = allSections.slice(-3);
+    const lastSections = allSections.slice(-5); // check last 5 sections, not just 3
     for (const sec of lastSections) {
-      const hasContactSignals =
-        /contact|get.?in.?touch|let.?s.?talk|reach.?out|say.?hello/i.test(sec.textContent) ||
-        sec.querySelector('input[type="email"], input[type="text"], textarea') !== null;
-      if (hasContactSignals) {
+      const secText = sec.textContent || '';
+      // Strategy 1: explicit contact language
+      const hasContactText =
+        /contact|get.?in.?touch|let.?s.?talk|reach.?out|say.?hello/i.test(secText);
+      // Strategy 2: CTA-style closing section (book a demo, get started, etc.)
+      const hasCtaSignals =
+        /book\s+a\s+demo|get\s+started|request\s+(a\s+)?demo|schedule\s+a?\s*(call|meeting|demo)|start\s+free|try\s+(it\s+)?free|join\s+the\s+waitlist/i.test(secText);
+      // Strategy 3: form elements
+      const hasForm = sec.querySelector('input[type="email"], input[type="text"], textarea') !== null;
+      // Strategy 4: large heading + single CTA button in a section with minimal content
+      const heading = sec.querySelector('h1,h2,h3');
+      const buttons = sec.querySelectorAll('a[href], button');
+      const hasMinimalCta = heading && buttons.length >= 1 && buttons.length <= 3 && secText.length < 300;
+
+      if (hasContactText || hasCtaSignals || hasForm || (hasMinimalCta && lastSections.indexOf(sec) >= lastSections.length - 2)) {
         const cs = window.getComputedStyle(sec);
+        // Check for background SVG decorations (radial rays, etc.)
+        const hasBgDecor = !!sec.querySelector('svg') && Array.from(sec.querySelectorAll('svg')).some(svg => {
+          const svgCs = window.getComputedStyle(svg);
+          return svgCs.position === 'absolute' || parseInt(svgCs.zIndex) <= 0;
+        });
         return {
-          type: 'contact',
-          heading: sec.querySelector('h1,h2,h3')?.textContent?.trim()?.slice(0, 60) || null,
+          type: hasContactText || hasForm ? 'contact' : 'closing-cta',
+          heading: heading?.textContent?.trim()?.slice(0, 60) || null,
           eyebrow: sec.querySelector('[class*="label"],[class*="eyebrow"],[class*="overline"]')?.textContent?.trim() || null,
           hasBgAnimation: !!sec.querySelector('canvas, svg[class*="anim"]'),
+          hasBgDecoration: hasBgDecor,
           bgColor: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
-          ctas: Array.from(sec.querySelectorAll('a,button')).map(el => el.textContent.trim().slice(0, 30)).filter(t => t.length > 1).slice(0, 3),
+          ctas: Array.from(buttons).map(el => el.textContent.trim().slice(0, 30)).filter(t => t.length > 1).slice(0, 3),
         };
       }
     }
