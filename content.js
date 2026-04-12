@@ -2444,39 +2444,34 @@
       }
     }
 
-    // Post-process: split very tall sections (>3× viewport height) into sub-sections
-    // This catches wrapper divs that contain multiple logical sections (common in Framer, Next.js)
+    // Post-process: split very tall sections (>2× viewport height) into sub-sections
+    // This catches wrapper divs that contain multiple logical sections (common in Framer, Next.js, Tailwind)
     const _vpH = window.innerHeight;
     const _expandedSections = [];
+    const _skipTags = new Set(['NAV','HEADER','FOOTER','SCRIPT','STYLE','LINK','META']);
+    const _findSubSections = (el, depth) => {
+      if (depth > 3) return [el]; // max 3 levels deep
+      const candidates = Array.from(el.children).filter(child => {
+        if (_skipTags.has(child.tagName)) return false;
+        const cr = child.getBoundingClientRect();
+        return cr.height > 150 && cr.width > 300;
+      });
+      if (candidates.length >= 2) return candidates;
+      // Single child wrapper — go deeper
+      if (candidates.length === 1 && candidates[0].children.length >= 2) {
+        return _findSubSections(candidates[0], depth + 1);
+      }
+      return [el]; // can't split further
+    };
+
     for (const sec of sectionEls) {
       const r = sec.getBoundingClientRect();
-      if (r.height > _vpH * 3 && sec.children.length >= 2) {
-        // This section is very tall — try to split into meaningful children
-        const _subCandidates = Array.from(sec.children).filter(child => {
-          if (child.tagName === 'NAV' || child.tagName === 'HEADER' || child.tagName === 'FOOTER') return false;
-          if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') return false;
-          const cr = child.getBoundingClientRect();
-          return cr.height > 150 && cr.width > 300;
-        });
-        if (_subCandidates.length >= 2) {
-          // Use children as sub-sections instead of the parent wrapper
-          _expandedSections.push(..._subCandidates);
+      if (r.height > _vpH * 2 && sec.children.length >= 1) {
+        const subs = _findSubSections(sec, 0);
+        if (subs.length >= 2 && subs[0] !== sec) {
+          _expandedSections.push(...subs);
         } else {
-          // Children too few — try one level deeper
-          const _innerDiv = sec.querySelector(':scope > div');
-          if (_innerDiv && _innerDiv.children.length >= 2) {
-            const _deepCandidates = Array.from(_innerDiv.children).filter(child => {
-              const cr = child.getBoundingClientRect();
-              return cr.height > 150 && cr.width > 300 && !['NAV','HEADER','FOOTER','SCRIPT','STYLE'].includes(child.tagName);
-            });
-            if (_deepCandidates.length >= 2) {
-              _expandedSections.push(..._deepCandidates);
-            } else {
-              _expandedSections.push(sec); // keep as-is
-            }
-          } else {
-            _expandedSections.push(sec); // keep as-is
-          }
+          _expandedSections.push(sec);
         }
       } else {
         _expandedSections.push(sec);
@@ -2747,8 +2742,10 @@
         if (_secTop < window.innerHeight * 2) type = 'hero';
         else type = 'cta-section';
       }
+      // [0x] numbered eyebrow pattern = feature showcase, NOT stats
+      else if (eyebrowText && /\[0[1-9]\]/.test(eyebrowText)) type = hasTabNav ? 'sidebar-switcher' : 'feature-showcase';
       else if (smallImgCount >= 4) type = (layout === 'split-columns') ? 'portfolio-split' : 'logo-strip';
-      // Sidebar-switcher: tab/button nav + multiple content panels (Attio [01] Powerful Platform pattern)
+      // Sidebar-switcher: tab/button nav + multiple content panels
       else if (hasTabNav && layout === 'split-columns') type = 'sidebar-switcher';
       else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
       else if (hasNumberedItems) type = 'numbered-steps';
@@ -3370,6 +3367,26 @@
         };
       }
 
+      // ── Composite section depth scan — extract sub-content for tall sections ──
+      let compositeContent = null;
+      if (rect.height > 1500 || type === 'feature-showcase' || type === 'sidebar-switcher') {
+        const _subH3s = Array.from(sec.querySelectorAll('h3, h4')).map(h => h.textContent.trim().slice(0, 50)).filter(t => t.length > 2).slice(0, 8);
+        const _tabBtns = Array.from(sec.querySelectorAll('[role="tab"], [role="tablist"] button, [class*="tab"] button, button[aria-selected]')).map(b => b.textContent.trim()).filter(t => t.length > 2 && t.length < 50).slice(0, 8);
+        const _featureCtas = Array.from(sec.querySelectorAll('a[href]')).filter(a => /explore|learn|see|try|get started/i.test(a.textContent)).map(a => a.textContent.trim().slice(0, 30)).slice(0, 6);
+        const _subDescriptions = Array.from(sec.querySelectorAll('p')).filter(p => {
+          const r = p.getBoundingClientRect();
+          return r.width > 200 && p.textContent.trim().length > 30 && p.textContent.trim().length < 200;
+        }).map(p => p.textContent.trim().slice(0, 80)).slice(0, 5);
+        if (_subH3s.length >= 2 || _tabBtns.length >= 2) {
+          compositeContent = {
+            subHeadings: _subH3s.length > 0 ? _subH3s : null,
+            tabLabels: _tabBtns.length > 0 ? _tabBtns : null,
+            featureCtas: _featureCtas.length > 0 ? _featureCtas : null,
+            subDescriptions: _subDescriptions.length > 0 ? _subDescriptions : null,
+          };
+        }
+      }
+
       const entry = {
         type,
         heading: headingText,
@@ -3384,6 +3401,7 @@
         hasNumberedItems,
         steps: stepItems || null,
         eyebrow: eyebrowText || null,
+        compositeContent: compositeContent || null,
         gridCols: gridCols || null,
         heroColumns: heroColumns || null,
         headingToSubtitleGap: headingToSubtitleGap || null,
