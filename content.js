@@ -1582,7 +1582,16 @@
           if (!hasBg && !(hasBorder && hasPadding) && !(hasPadding && hasRadius)) continue;
         }
         const bg = cs.backgroundColor;
-        const bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
+        let bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
+        // Fallback for gradient buttons: if bg is transparent but backgroundImage has gradient,
+        // try to extract the dominant solid color from the gradient stops
+        if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
+          const _gradColors = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g);
+          if (_gradColors && _gradColors.length > 0) {
+            const _firstHex = _gradColors[0].startsWith('#') ? _gradColors[0] : rgbToHex(_gradColors[0]);
+            if (_firstHex && !isTransparent(_firstHex)) bgHex = _firstHex;
+          }
+        }
         const colorHex = rgbToHex(cs.color);
         const bgSat = bgHex ? colorSaturation(bgHex) : 0;
         const bgLum = bgHex ? (parseInt(bgHex.slice(1,3),16)*0.299+parseInt(bgHex.slice(3,5),16)*0.587+parseInt(bgHex.slice(5,7),16)*0.114)/255 : 1;
@@ -2855,8 +2864,8 @@
         svg.querySelectorAll('[stroke],[fill]').forEach(el => {
           const s = el.getAttribute('stroke');
           const f = el.getAttribute('fill');
-          if (s && s !== 'none' && s !== 'currentColor' && s.length < 30) svgColors.add(s);
-          if (f && f !== 'none' && f !== 'currentColor' && f.length < 30) svgColors.add(f);
+          if (s && s !== 'none' && s !== 'currentColor' && !s.startsWith('url(') && s.length < 30) svgColors.add(s);
+          if (f && f !== 'none' && f !== 'currentColor' && !f.startsWith('url(') && f.length < 30) svgColors.add(f);
         });
 
         const secRect = sec.getBoundingClientRect();
@@ -3461,8 +3470,8 @@
         svg.querySelectorAll('[fill],[stroke]').forEach(el => {
           const f = el.getAttribute('fill');
           const s = el.getAttribute('stroke');
-          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
-          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
+          if (f && f !== 'none' && f !== 'transparent' && f !== 'currentColor' && !f.startsWith('url(')) colors.add(f);
+          if (s && s !== 'none' && s !== 'transparent' && s !== 'currentColor' && !s.startsWith('url(')) colors.add(s);
         });
         results.push({
           type: motionEls.length > 0 ? 'svg-path-animation' : 'svg-diagram',
@@ -3517,23 +3526,28 @@
         const lines = svg.querySelectorAll('line');
         const rect = svg.getBoundingClientRect();
         const colors = new Set();
+        const _isUsableColor = c => c && c !== 'none' && c !== 'transparent' && c !== 'currentColor' && !c.startsWith('url(');
         svg.querySelectorAll('[stroke],[fill]').forEach(el => {
           const s = el.getAttribute('stroke');
           const f = el.getAttribute('fill');
-          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
-          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
+          if (_isUsableColor(s)) colors.add(s);
+          if (_isUsableColor(f)) colors.add(f);
         });
+        // Skip decorations with zero usable colors AND zero paths (noise from Framer internal SVGs)
+        const _usableColors = [...colors].slice(0, 4);
+        if (_usableColors.length === 0 && paths.length === 0) return null;
         return {
           w: Math.round(rect.width), h: Math.round(rect.height),
           pathCount: paths.length, lineCount: lines.length,
           type: paths.length > 4 && rect.width > 200 ? 'radial-rays' : lines.length > 2 ? 'grid-lines' : 'organic-curves',
-          colors: [...colors].slice(0, 4),
+          colors: _usableColors,
           opacity: window.getComputedStyle(svg).opacity
         };
       });
-      if (decorSvgs.length > 0) {
+      const _validDecors = decorSvgs.filter(Boolean);
+      if (_validDecors.length > 0) {
         const bg = window.getComputedStyle(section).backgroundColor;
-        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: decorSvgs.slice(0, 3) });
+        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: _validDecors.slice(0, 3) });
       }
     }
     return results.length > 0 ? results : null;
