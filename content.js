@@ -3392,48 +3392,94 @@
   // ─── Sticky-scroll section pattern detection ─────────────────────────────
   function detectStickyScrollSections() {
     const results = [];
-    const sections = Array.from(document.querySelectorAll('section, [class*="section"]'));
-    for (const sec of sections.slice(0, 15)) {
-      const children = Array.from(sec.children).length >= 2 ? Array.from(sec.children) : Array.from(sec.querySelector(':scope > div')?.children || []);
-      if (children.length < 2) continue;
-      const stickyCol = children.find(c => {
-        try { return window.getComputedStyle(c).position === 'sticky'; } catch(e) { return false; }
-      });
-      if (!stickyCol) continue;
-      const scrollCol = children.find(c => c !== stickyCol);
-      if (!scrollCol) continue;
-      // Count content blocks — use multiple strategies for broader detection
-      let blocks = Array.from(scrollCol.querySelectorAll('h2,h3,h4,[class*="block"],[class*="item"],[class*="card"],[class*="feature"],[class*="step"],[class*="benefit"],article'));
-      // Fallback: if no semantic blocks found, count direct children with significant height
-      if (blocks.length === 0) {
+
+    // Strategy A: find ALL sticky elements on the page (depth-unlimited)
+    const allStickyEls = Array.from(document.querySelectorAll('*')).filter(el => {
+      try {
+        const cs = window.getComputedStyle(el);
+        if (cs.position !== 'sticky') return false;
+        const rect = el.getBoundingClientRect();
+        // Must be tall (takes up significant vertical space) and wide (not a narrow sidebar or nav)
+        return rect.height > 200 && rect.width > 200;
+      } catch(e) { return false; }
+    });
+
+    for (const stickyEl of allStickyEls.slice(0, 5)) {
+      // Find the section/container this sticky element lives inside
+      const container = stickyEl.closest('section, [class*="section"], main > div, [class*="feature"], [class*="product"]') || stickyEl.parentElement;
+      if (!container) continue;
+
+      // Skip nav/header/footer sticky elements
+      if (stickyEl.closest('nav, header, footer')) continue;
+
+      // Find sibling scrolling column
+      const parent = stickyEl.parentElement;
+      const siblings = parent ? Array.from(parent.children).filter(c => c !== stickyEl) : [];
+      const scrollCol = siblings[0] || null;
+
+      // Tab navigation inside sticky col
+      const _tabEls = stickyEl.querySelectorAll('[role="tab"], button[class*="tab"], [class*="tab-item"], [class*="tab-btn"], [class*="feature-nav"] > *, [class*="sidebar-nav"] > *, li');
+      const _tabLabels = Array.from(_tabEls)
+        .map(t => t.textContent.trim())
+        .filter(t => t.length > 2 && t.length < 60 && !t.includes('\n'))
+        .slice(0, 8);
+
+      // Content blocks in scroll column
+      let blocks = scrollCol ? Array.from(scrollCol.querySelectorAll('h2,h3,h4,[class*="block"],[class*="item"],[class*="card"],[class*="feature"],[class*="step"],article')) : [];
+      if (blocks.length === 0 && scrollCol) {
         blocks = Array.from(scrollCol.children).filter(c => {
           const r = c.getBoundingClientRect();
           return r.height > 60 && r.width > 100;
         });
       }
-      // Detect tab navigation within the sticky column
-      const _tabEls = stickyCol.querySelectorAll('[role="tab"], button, [class*="tab"], [class*="feature-nav"] > *');
-      const _tabLabels = Array.from(_tabEls)
-        .map(t => t.textContent.trim())
-        .filter(t => t.length > 2 && t.length < 60)
-        .slice(0, 8);
+
+      const stickyRect = stickyEl.getBoundingClientRect();
+      const isFullViewportHeight = Math.abs(stickyRect.height - window.innerHeight) < 50;
+
       results.push({
         type: _tabLabels.length >= 2 ? 'sticky-tab-scroll' : 'sticky-scroll-panel',
-        stickyColHasCanvas: !!stickyCol.querySelector('canvas'),
-        stickyColHasSvg: !!stickyCol.querySelector('svg'),
-        stickyColHasImg: !!stickyCol.querySelector('img'),
+        stickyColHasCanvas: !!stickyEl.querySelector('canvas'),
+        stickyColHasSvg: !!stickyEl.querySelector('svg'),
+        stickyColHasImg: !!stickyEl.querySelector('img'),
+        isFullViewportHeight,
         tabLabels: _tabLabels.length >= 2 ? _tabLabels : null,
         scrollBlockCount: blocks.length,
         scrollBlockHeadings: blocks.slice(0, 5).map(b => (b.querySelector('h2,h3,h4')?.textContent || b.textContent || '').trim().slice(0, 40)),
       });
     }
+
+    // Strategy B: look for content areas with multiple distinct vertical panels
+    // (Framer sites often create "virtual sticky" via IntersectionObserver + JS)
+    if (results.length === 0) {
+      const potentialContainers = document.querySelectorAll('[class*="feature"], [class*="product"], [class*="sticky"], [class*="scroll-section"]');
+      for (const container of Array.from(potentialContainers).slice(0, 10)) {
+        const rect = container.getBoundingClientRect();
+        if (rect.height < window.innerHeight * 2) continue; // Not tall enough to need sticky
+        const tabs = Array.from(container.querySelectorAll('[class*="tab"], [class*="nav-item"], li')).filter(el => {
+          const r = el.getBoundingClientRect();
+          return r.width > 40 && r.height > 20 && el.textContent.trim().length > 2;
+        }).map(el => el.textContent.trim()).slice(0, 8);
+        if (tabs.length >= 2) {
+          results.push({
+            type: 'sticky-tab-scroll',
+            stickyColHasCanvas: false, stickyColHasSvg: false, stickyColHasImg: false,
+            tabLabels: tabs,
+            scrollBlockCount: tabs.length,
+            scrollBlockHeadings: [],
+          });
+          break;
+        }
+      }
+    }
+
     return results.length > 0 ? results : null;
   }
 
   // ─── SVG animated diagram + pill-track pattern detection ──────────────────
   function detectSvgDiagramAnimations() {
     const results = [];
-    // SVG with animateMotion / animate / many paths+circles = diagram animation
+
+    // Strategy A: SVG with animateMotion / animate / many paths+circles
     document.querySelectorAll('svg').forEach(svg => {
       const rect = svg.getBoundingClientRect();
       if (rect.width < 100 || rect.height < 100) return;
@@ -3459,46 +3505,69 @@
         });
       }
     });
-    // Pill-track pattern: large pill-shaped elements with animated dots
+
+    // Strategy B: Pill-track pattern — oval pill shapes with category text
+    // Works on non-SVG implementations (Framer div-based diagrams)
     const pillTexts = [];
-    const _candidates = document.querySelectorAll('[class*="pill"], [class*="tag"], [class*="badge"], [class*="label"], [class*="chip"]');
-    for (const el of Array.from(_candidates).slice(0, 30)) {
+    // Broad selector: any element with pill-like shape and category-style text
+    const _allEls = document.querySelectorAll('div, span, p, [class*="pill"], [class*="tag"], [class*="badge"], [class*="label"], [class*="chip"], [class*="track"], [class*="rail"]');
+    for (const el of Array.from(_allEls).slice(0, 200)) {
       try {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
         const br = parseFloat(cs.borderRadius) || 0;
         const text = el.textContent?.trim();
-        if (br > 30 && rect.width > 80 && rect.height > 30 && text && text.length < 30 && el.children.length < 5) {
-          pillTexts.push({ text, bg: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : 'transparent', border: cs.border?.slice(0, 40), w: Math.round(rect.width), h: Math.round(rect.height) });
+        // Large pill = border-radius > 30px AND wider than tall
+        const isOval = br > 30 && rect.width > rect.height * 1.2;
+        // Or explicitly very rounded on a medium-large element
+        const isPillShaped = br > 40 && rect.width > 80 && rect.height > 30;
+        if ((isOval || isPillShaped) && text && text.length < 30 && el.children.length < 5) {
+          // Avoid nav, header, footer pills (those are buttons)
+          if (el.closest('nav, header, footer, button')) continue;
+          pillTexts.push({
+            text,
+            bg: !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : 'transparent',
+            border: cs.border?.slice(0, 40),
+            w: Math.round(rect.width),
+            h: Math.round(rect.height)
+          });
         }
       } catch(e) { /* skip */ }
     }
-    if (pillTexts.length >= 2) {
-      results.push({ type: 'pill-track-diagram', pills: pillTexts.slice(0, 8) });
+    // Only report if we found 2+ distinct pill shapes (not just buttons)
+    const distinctPills = pillTexts.filter((p, i, arr) => arr.findIndex(q => q.text === p.text) === i);
+    if (distinctPills.length >= 2) {
+      results.push({ type: 'pill-track-diagram', pills: distinctPills.slice(0, 8) });
     }
+
     return results.length > 0 ? results : null;
   }
 
   // ─── Section background geometric decorations (absolute SVG) ──────────────
   function detectSectionBackgroundDecorations() {
     const results = [];
-    const sections = document.querySelectorAll('section, [class*="section"]');
-    for (const section of Array.from(sections).slice(0, 10)) {
+    const sections = document.querySelectorAll('section, [class*="section"], main > div');
+    for (const section of Array.from(sections).slice(0, 12)) {
       const sectionRect = section.getBoundingClientRect();
-      if (sectionRect.height < 100) continue;
+      if (sectionRect.height < 100 || sectionRect.width < 200) continue;
+
+      // Strategy A: SVGs explicitly positioned as background (absolute/fixed, z-index≤0, or aria-hidden)
       const decorSvgs = Array.from(section.querySelectorAll('svg')).filter(svg => {
         try {
           const cs = window.getComputedStyle(svg);
           const parent = svg.parentElement;
           const parentCs = parent ? window.getComputedStyle(parent) : null;
-          const isAbsPositioned = cs.position === 'absolute' || (parentCs && parentCs.position === 'absolute');
-          const isBackground = parseInt(cs.zIndex) <= 0 || svg.getAttribute('aria-hidden') === 'true' || cs.pointerEvents === 'none';
+          const isAbsPositioned = cs.position === 'absolute' || cs.position === 'fixed' ||
+            (parentCs && (parentCs.position === 'absolute' || parentCs.position === 'fixed'));
+          const isBackground = parseInt(cs.zIndex) <= 0 || svg.getAttribute('aria-hidden') === 'true' ||
+            cs.pointerEvents === 'none' || parentCs?.pointerEvents === 'none';
           const rect = svg.getBoundingClientRect();
+          // Must cover at least 25% of section width
           return (isAbsPositioned || isBackground) && rect.width > sectionRect.width * 0.25 && rect.height > 50;
         } catch(e) { return false; }
       }).map(svg => {
         const paths = svg.querySelectorAll('path');
-        const lines = svg.querySelectorAll('line');
+        const lines = svg.querySelectorAll('line, polyline');
         const rect = svg.getBoundingClientRect();
         const colors = new Set();
         svg.querySelectorAll('[stroke],[fill]').forEach(el => {
@@ -3507,17 +3576,52 @@
           if (s && s !== 'none' && s !== 'transparent') colors.add(s);
           if (f && f !== 'none' && f !== 'transparent') colors.add(f);
         });
+        // Classify by shape count and structure
+        const hasRadialLines = paths.length > 4 && rect.width > sectionRect.width * 0.5;
         return {
           w: Math.round(rect.width), h: Math.round(rect.height),
           pathCount: paths.length, lineCount: lines.length,
-          type: paths.length > 4 && rect.width > 200 ? 'radial-rays' : lines.length > 2 ? 'grid-lines' : 'organic-curves',
-          colors: [...colors].slice(0, 4),
+          type: hasRadialLines ? 'radial-rays' : lines.length > 2 ? 'grid-lines' : 'organic-curves',
+          colors: [...colors].filter(c => c && c.length > 2).slice(0, 4),
           opacity: window.getComputedStyle(svg).opacity
         };
       });
-      if (decorSvgs.length > 0) {
+
+      // Strategy B: Large low-opacity absolutely-positioned divs as decoration
+      const decorDivs = Array.from(section.querySelectorAll('div')).filter(div => {
+        try {
+          const cs = window.getComputedStyle(div);
+          const rect = div.getBoundingClientRect();
+          const op = parseFloat(cs.opacity);
+          const isAbsOrFixed = cs.position === 'absolute' || cs.position === 'fixed';
+          const isBig = rect.width > sectionRect.width * 0.4 && rect.height > 50;
+          const isLowOpacity = op < 0.3 && op > 0;
+          const isBackground = parseInt(cs.zIndex) <= 0 || cs.pointerEvents === 'none';
+          const hasNoText = (div.innerText || '').trim().length < 5;
+          // Has gradient/pattern background
+          const bg = cs.backgroundImage;
+          const hasGradientBg = bg && bg !== 'none' && bg.includes('gradient');
+          return isAbsOrFixed && isBig && hasNoText && (isBackground || isLowOpacity) && hasGradientBg;
+        } catch(e) { return false; }
+      }).map(div => {
+        const cs = window.getComputedStyle(div);
+        const rect = div.getBoundingClientRect();
+        return {
+          type: 'gradient-decoration',
+          w: Math.round(rect.width), h: Math.round(rect.height),
+          gradient: cs.backgroundImage.slice(0, 120),
+          opacity: cs.opacity,
+          colors: []
+        };
+      });
+
+      const allDecors = [...decorSvgs, ...decorDivs].slice(0, 3);
+      if (allDecors.length > 0) {
         const bg = window.getComputedStyle(section).backgroundColor;
-        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: decorSvgs.slice(0, 3) });
+        results.push({
+          sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null,
+          decorations: allDecors
+        });
       }
     }
     return results.length > 0 ? results : null;
