@@ -2444,6 +2444,48 @@
       }
     }
 
+    // Post-process: split very tall sections (>3× viewport height) into sub-sections
+    // This catches wrapper divs that contain multiple logical sections (common in Framer, Next.js)
+    const _vpH = window.innerHeight;
+    const _expandedSections = [];
+    for (const sec of sectionEls) {
+      const r = sec.getBoundingClientRect();
+      if (r.height > _vpH * 3 && sec.children.length >= 2) {
+        // This section is very tall — try to split into meaningful children
+        const _subCandidates = Array.from(sec.children).filter(child => {
+          if (child.tagName === 'NAV' || child.tagName === 'HEADER' || child.tagName === 'FOOTER') return false;
+          if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') return false;
+          const cr = child.getBoundingClientRect();
+          return cr.height > 150 && cr.width > 300;
+        });
+        if (_subCandidates.length >= 2) {
+          // Use children as sub-sections instead of the parent wrapper
+          _expandedSections.push(..._subCandidates);
+        } else {
+          // Children too few — try one level deeper
+          const _innerDiv = sec.querySelector(':scope > div');
+          if (_innerDiv && _innerDiv.children.length >= 2) {
+            const _deepCandidates = Array.from(_innerDiv.children).filter(child => {
+              const cr = child.getBoundingClientRect();
+              return cr.height > 150 && cr.width > 300 && !['NAV','HEADER','FOOTER','SCRIPT','STYLE'].includes(child.tagName);
+            });
+            if (_deepCandidates.length >= 2) {
+              _expandedSections.push(..._deepCandidates);
+            } else {
+              _expandedSections.push(sec); // keep as-is
+            }
+          } else {
+            _expandedSections.push(sec); // keep as-is
+          }
+        }
+      } else {
+        _expandedSections.push(sec);
+      }
+    }
+    if (_expandedSections.length > sectionEls.length) {
+      sectionEls = _expandedSections;
+    }
+
     const map = [];
     // Track how many times each fixed-canvas has been reported across sections.
     // Full-viewport fixed canvases (WebGL backgrounds) technically overlap every section —
@@ -2706,12 +2748,14 @@
         else type = 'cta-section';
       }
       else if (smallImgCount >= 4) type = (layout === 'split-columns') ? 'portfolio-split' : 'logo-strip';
+      // Sidebar-switcher: tab/button nav + multiple content panels (Attio [01] Powerful Platform pattern)
+      else if (hasTabNav && layout === 'split-columns') type = 'sidebar-switcher';
       else if (hasNumberedItems && (hasTabNav || hasSwiper)) type = 'interactive-steps';
       else if (hasNumberedItems) type = 'numbered-steps';
       else if (hasSwiper) type = 'slider/carousel';
       else if (hasAccordion) type = 'faq/accordion';
       else if (hasVideo && !isFirstSection) type = 'video-showcase';
-      else if (hasStats) type = 'stats/metrics';
+      else if (hasStats && !hasTabNav) type = 'stats/metrics'; // Don't classify as stats if it's really a tabbed feature showcase
       else if (layout === 'split-columns' && (imgCount > 0 || largeSvgCount > 0)) type = 'feature-split';
       else if (layout === 'split-columns') type = 'two-column';
       else if (layout === 'multi-column-grid') type = 'feature-grid';
