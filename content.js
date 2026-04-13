@@ -1748,13 +1748,21 @@
           // (variables cascade from :root through the button, so getPropertyValue resolves them)
           const _bgVarNames = ['--button-primary-bg-from', '--button-primary-bg', '--button-bg', '--bg'];
           for (const varName of _bgVarNames) {
-            const val = cs.getPropertyValue(varName).trim();
-            if (val && val !== 'transparent' && val !== 'none' && !val.startsWith('var(')) {
-              const _parsed = cssColorToRgb(val);
-              if (_parsed && (_parsed.r + _parsed.g + _parsed.b < 700)) { // not near-white
-                bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
-                break;
-              }
+            let val = cs.getPropertyValue(varName).trim();
+            if (!val || val === 'transparent' || val === 'none') continue;
+            // Follow var() reference chains: --button-primary-bg-from: var(--color-black-200)
+            let depth = 0;
+            while (val.startsWith('var(') && depth < 5) {
+              const inner = val.match(/var\(\s*(--[^,)]+)/);
+              if (!inner) break;
+              val = cs.getPropertyValue(inner[1]).trim();
+              depth++;
+            }
+            if (!val || val === 'transparent' || val === 'none' || val.startsWith('var(')) continue;
+            const _parsed = cssColorToRgb(val);
+            if (_parsed && (_parsed.r + _parsed.g + _parsed.b < 700)) {
+              bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
+              break;
             }
           }
           // Strategy 2: extract color functions from gradient stops
@@ -2958,6 +2966,8 @@
       const innerContainers = sec.querySelectorAll(':scope > div, :scope > div > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
         const cs = window.getComputedStyle(child);
+        // Skip absolute/fixed positioned elements — they're overlays/decorations, not layout containers
+        if (cs.position === 'absolute' || cs.position === 'fixed') continue;
         // Grid detection FIRST — catches 3+ column layouts before split-columns
         if (cs.display === 'grid') {
           const cols = cs.gridTemplateColumns;
