@@ -2963,8 +2963,14 @@
                 layout = 'multi-column-grid';
                 gridCols = `${_rowChildren.length}-column flex/grid`;
               } else {
-                layout = 'split-columns';
-                _splitContainer = child;
+                // Verify it's a true split: each column should be roughly half the section width.
+                // If both children span >70% of section width, they're stacked full-width, not split.
+                const secW = rect.width;
+                const bothWide = c1.width > secW * 0.7 && c2.width > secW * 0.7;
+                if (!bothWide) {
+                  layout = 'split-columns';
+                  _splitContainer = child;
+                }
               }
               break;
             }
