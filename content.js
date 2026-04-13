@@ -424,6 +424,13 @@
 
     // ── 2. Aggressive color scan from computed styles ──
     const colorFreq = new Map(); // hex → count (for frequency-weighted clustering)
+    const colorUsage = new Map(); // hex → {bg, text, border} counts (for role inference)
+    const _trackUsage = (hex, role) => {
+      if (!hex) return;
+      const u = colorUsage.get(hex) || { bg: 0, text: 0, border: 0 };
+      u[role]++;
+      colorUsage.set(hex, u);
+    };
     const accentSet = new Set();
     const fontSet = new Set();
     const radiusSet = new Set();
@@ -468,21 +475,21 @@
         const bg = cs.backgroundColor;
         if (!isTransparent(bg)) {
           const hex = rgbToHex(bg);
-          if (hex) colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1);
+          if (hex) { colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1); _trackUsage(hex, 'bg'); }
         }
 
         // Text colors
         const color = cs.color;
         if (!isTransparent(color)) {
           const hex = rgbToHex(color);
-          if (hex) colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1);
+          if (hex) { colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1); _trackUsage(hex, 'text'); }
         }
 
         // Border colors (often accent colors)
         const borderColor = cs.borderColor;
         if (!isTransparent(borderColor) && borderColor !== 'rgb(0, 0, 0)') {
           const hex = rgbToHex(borderColor);
-          if (hex) accentSet.add(hex);
+          if (hex) { accentSet.add(hex); _trackUsage(hex, 'border'); }
         }
 
         // Outline colors
@@ -569,6 +576,10 @@
     tokens.textShadows = [...textShadowSet].slice(0, 6);
     tokens.letterSpacings = [...letterSpacingSet].slice(0, 6);
     tokens.cssAspectRatios = [...aspectRatioSet].slice(0, 6);
+    // Color usage map for role inference (bg/text/border counts per hex)
+    const _usageObj = {};
+    colorUsage.forEach((v, k) => { _usageObj[k] = v; });
+    tokens.colorUsage = _usageObj;
 
     // ── 3b. Computed animation properties from visible elements ──
     const animDetailSet = new Set();
