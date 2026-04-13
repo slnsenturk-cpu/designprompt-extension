@@ -2685,7 +2685,7 @@
         const r = el.getBoundingClientRect();
         return { top: r.top + _scrollY, bottom: r.top + _scrollY + r.height };
       });
-      const _isYCovered = (y) => _ranges.some(r => y >= r.top && y <= r.bottom);
+      const _isYCovered = (y) => _ranges.some(r => y > r.top && y < r.bottom);
 
       // Sub-component names that should NOT be promoted to sections
       // Keep: Heading, Content, Features, Screen, System, Blog, Section, Hero, Footer, CTA
@@ -2705,7 +2705,7 @@
           if (merged.includes(el)) return false;
           const r = el.getBoundingClientRect();
           const h = r.height;
-          if (h < 300 || h > _viewH * 3 || r.width < 300) return false;
+          if (h < 200 || h > _viewH * 3 || r.width < 300) return false;
           // Must not be a transparent wrapper
           const bg = window.getComputedStyle(el).backgroundColor;
           if (h > _viewH * 2 && (!bg || isTransparent(bg))) return false;
