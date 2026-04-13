@@ -1583,8 +1583,7 @@
         }
         const bg = cs.backgroundColor;
         let bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
-        // Fallback for gradient buttons: if bg is transparent but backgroundImage has gradient,
-        // try to extract the dominant solid color from the gradient stops
+        // Fallback for gradient buttons: extract dominant color from gradient stops
         if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
           const _gradColors = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g);
           if (_gradColors && _gradColors.length > 0) {
@@ -2436,36 +2435,61 @@
   }
 
   function extractSectionContentMap() {
-    // Strategy: ALWAYS prefer direct children of <main> as section candidates.
-    // querySelectorAll('section, [class*="section"]') is unreliable on Next.js/Tailwind sites
-    // because it matches deeply-nested children, not top-level page blocks.
+    // Strategy: three-pass section detection to handle all site structures:
+    //
+    // Problem A (Next.js/Tailwind like attio.com):
+    //   querySelectorAll('section, [class*="section"]') returns deeply-nested children.
+    //   Fix: prefer main.children — the real top-level blocks.
+    //
+    // Problem B (vanilla/custom like rig.ai):
+    //   Hero section lives as direct body child OUTSIDE <main>.
+    //   Fix: always scan body-level <section> elements too, sorted by document order.
+    //
+    // Combined: merge body-level sections + main-level sections, sort by vertical position.
 
     const mainEl = document.querySelector('main') ||
       document.querySelector('#__next > div') ||
       document.querySelector('#app > div') ||
-      document.querySelector('[class*="page"], [class*="content"], [class*="wrapper"]');
+      document.querySelector('[class*="page"]:not(nav):not(header)');
+
+    const _isValid = el => {
+      if (['NAV','HEADER','FOOTER','SCRIPT','STYLE','LINK'].includes(el.tagName)) return false;
+      const r = el.getBoundingClientRect();
+      return r.height > 150 && r.width > 300;
+    };
 
     let sectionEls = [];
 
-    // Pass 1: direct children of <main> — ground truth for page layout
-    if (mainEl) {
-      const mainChildren = Array.from(mainEl.children).filter(el => {
-        if (['NAV','HEADER','FOOTER','SCRIPT','STYLE','LINK'].includes(el.tagName)) return false;
-        const r = el.getBoundingClientRect();
-        return r.height > 150 && r.width > 300;
-      });
-      if (mainChildren.length >= 2) sectionEls = mainChildren;
+    // Pass 1: body-level <section> elements (above or outside main) — catches hero-outside-main pattern
+    const bodyLevelSections = Array.from(document.body.children).filter(el => {
+      if (el.tagName !== 'SECTION') return false;
+      if (mainEl && mainEl.contains(el)) return false; // skip if inside main (handled below)
+      return _isValid(el);
+    });
+
+    // Pass 2: direct children of <main> — catches Next.js/Tailwind pattern
+    const mainChildren = mainEl
+      ? Array.from(mainEl.children).filter(_isValid)
+      : [];
+
+    // Pass 3: semantic <section> fallback inside document — if passes 1+2 yield too few results
+    let merged = [...bodyLevelSections, ...mainChildren];
+
+    if (merged.length < 2) {
+      const byQuery = Array.from(document.querySelectorAll('section'))
+        .filter(el => !merged.includes(el) && _isValid(el));
+      merged = [...merged, ...byQuery];
     }
 
-    // Pass 2: semantic <section> fallback — only if Pass 1 found nothing
-    if (sectionEls.length < 2) {
-      const byQuery = Array.from(document.querySelectorAll('section, main > section'))
-        .filter(el => {
-          const r = el.getBoundingClientRect();
-          return r.height > 150 && r.width > 300;
-        });
-      if (byQuery.length > sectionEls.length) sectionEls = byQuery;
-    }
+    // Deduplicate by element reference and sort top-to-bottom by document position
+    const seen = new Set();
+    sectionEls = merged
+      .filter(el => { if (seen.has(el)) return false; seen.add(el); return true; })
+      .sort((a, b) => {
+        const ay = a.getBoundingClientRect().top + window.scrollY;
+        const by = b.getBoundingClientRect().top + window.scrollY;
+        return ay - by;
+      });
 
     const map = [];
     // Track how many times each fixed-canvas has been reported across sections.
@@ -2864,8 +2888,8 @@
         svg.querySelectorAll('[stroke],[fill]').forEach(el => {
           const s = el.getAttribute('stroke');
           const f = el.getAttribute('fill');
-          if (s && s !== 'none' && s !== 'currentColor' && !s.startsWith('url(') && s.length < 30) svgColors.add(s);
-          if (f && f !== 'none' && f !== 'currentColor' && !f.startsWith('url(') && f.length < 30) svgColors.add(f);
+          if (s && s !== 'none' && s !== 'currentColor' && s.length < 30) svgColors.add(s);
+          if (f && f !== 'none' && f !== 'currentColor' && f.length < 30) svgColors.add(f);
         });
 
         const secRect = sec.getBoundingClientRect();
@@ -3470,8 +3494,8 @@
         svg.querySelectorAll('[fill],[stroke]').forEach(el => {
           const f = el.getAttribute('fill');
           const s = el.getAttribute('stroke');
-          if (f && f !== 'none' && f !== 'transparent' && f !== 'currentColor' && !f.startsWith('url(')) colors.add(f);
-          if (s && s !== 'none' && s !== 'transparent' && s !== 'currentColor' && !s.startsWith('url(')) colors.add(s);
+          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
+          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
         });
         results.push({
           type: motionEls.length > 0 ? 'svg-path-animation' : 'svg-diagram',
@@ -3526,28 +3550,23 @@
         const lines = svg.querySelectorAll('line');
         const rect = svg.getBoundingClientRect();
         const colors = new Set();
-        const _isUsableColor = c => c && c !== 'none' && c !== 'transparent' && c !== 'currentColor' && !c.startsWith('url(');
         svg.querySelectorAll('[stroke],[fill]').forEach(el => {
           const s = el.getAttribute('stroke');
           const f = el.getAttribute('fill');
-          if (_isUsableColor(s)) colors.add(s);
-          if (_isUsableColor(f)) colors.add(f);
+          if (s && s !== 'none' && s !== 'transparent') colors.add(s);
+          if (f && f !== 'none' && f !== 'transparent') colors.add(f);
         });
-        // Skip decorations with zero usable colors AND zero paths (noise from Framer internal SVGs)
-        const _usableColors = [...colors].slice(0, 4);
-        if (_usableColors.length === 0 && paths.length === 0) return null;
         return {
           w: Math.round(rect.width), h: Math.round(rect.height),
           pathCount: paths.length, lineCount: lines.length,
           type: paths.length > 4 && rect.width > 200 ? 'radial-rays' : lines.length > 2 ? 'grid-lines' : 'organic-curves',
-          colors: _usableColors,
+          colors: [...colors].slice(0, 4),
           opacity: window.getComputedStyle(svg).opacity
         };
       });
-      const _validDecors = decorSvgs.filter(Boolean);
-      if (_validDecors.length > 0) {
+      if (decorSvgs.length > 0) {
         const bg = window.getComputedStyle(section).backgroundColor;
-        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: _validDecors.slice(0, 3) });
+        results.push({ sectionBg: !isTransparent(bg) ? rgbToHex(bg) : null, decorations: decorSvgs.slice(0, 3) });
       }
     }
     return results.length > 0 ? results : null;
