@@ -193,6 +193,33 @@
     return result;
   }
 
+  // ─── Frequency-weighted color clustering ─────────────────────────────────────
+  // Groups colors within `maxDist` RGB distance, keeps most-frequent as representative
+  // Only for low-saturation neutrals — accent colors are never clustered
+  function _clusterByFrequency(colors, freqMap, maxDist) {
+    if (colors.length <= 1) return colors;
+    const clusters = []; // [{representative, members}]
+    for (const c of colors) {
+      let merged = false;
+      for (const cluster of clusters) {
+        if (colorDistance(c, cluster.representative) < maxDist) {
+          cluster.members.push(c);
+          // Promote to representative if higher frequency
+          const cFreq = freqMap.get(c) || 0;
+          const repFreq = freqMap.get(cluster.representative) || 0;
+          if (cFreq > repFreq) cluster.representative = c;
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) clusters.push({ representative: c, members: [c] });
+    }
+    // Return representatives sorted by frequency (most common first)
+    return clusters
+      .map(cl => cl.representative)
+      .sort((a, b) => (freqMap.get(b) || 0) - (freqMap.get(a) || 0));
+  }
+
   // ─── Font helpers ──────────────────────────────────────────────────────────
   // Generic/system font stacks that are not real named fonts
   const SYSTEM_FONT_STACKS = new Set([
@@ -396,7 +423,7 @@
     });
 
     // ── 2. Aggressive color scan from computed styles ──
-    const colorSet = new Set();
+    const colorFreq = new Map(); // hex → count (for frequency-weighted clustering)
     const accentSet = new Set();
     const fontSet = new Set();
     const radiusSet = new Set();
@@ -441,14 +468,14 @@
         const bg = cs.backgroundColor;
         if (!isTransparent(bg)) {
           const hex = rgbToHex(bg);
-          if (hex) colorSet.add(hex);
+          if (hex) colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1);
         }
 
         // Text colors
         const color = cs.color;
         if (!isTransparent(color)) {
           const hex = rgbToHex(color);
-          if (hex) colorSet.add(hex);
+          if (hex) colorFreq.set(hex, (colorFreq.get(hex) || 0) + 1);
         }
 
         // Border colors (often accent colors)
@@ -516,18 +543,23 @@
         if (ar && ar !== 'auto') aspectRatioSet.add(ar);
 
         // Diversity plateau tracking
-        const currentDiversity = colorSet.size + fontSet.size + radiusSet.size;
+        const currentDiversity = colorFreq.size + fontSet.size + radiusSet.size;
         if (currentDiversity === lastDiversityCount) { diversityStale++; } else { diversityStale = 0; lastDiversityCount = currentDiversity; }
 
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
     // ── 3. Deduplicate and rank colors ──
-    const allColors = dedupeColors([...colorSet]);
-    const neutrals = allColors.filter(c => isLowSaturation(c));
-    const accents = dedupeColors([...allColors.filter(c => !isLowSaturation(c)), ...accentSet]);
+    const allColors = dedupeColors([...colorFreq.keys()]);
+
+    // Frequency-weighted clustering for neutrals — collapse similar grays into most-frequent representative
+    const neutralsRaw = allColors.filter(c => isLowSaturation(c));
+    const accentColors = allColors.filter(c => !isLowSaturation(c));
+    const neutralsClustered = _clusterByFrequency(neutralsRaw, colorFreq, 20);
+
+    const accents = dedupeColors([...accentColors, ...accentSet]);
     accents.sort((a, b) => colorSaturation(b) - colorSaturation(a));
-    tokens.colors = dedupeColors([...accents.slice(0, 6), ...neutrals.slice(0, 4)]).slice(0, 10);
+    tokens.colors = dedupeColors([...accents.slice(0, 6), ...neutralsClustered.slice(0, 4)]).slice(0, 10);
     tokens.accentColors = accents.slice(0, 5);
 
     tokens.fonts = [...fontSet].filter(Boolean).slice(0, 5);
