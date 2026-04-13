@@ -1740,7 +1740,23 @@
         }
         const bg = cs.backgroundColor;
         let bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
-        // Fallback for gradient buttons: extract dominant color from gradient stops
+        // Fallback 1: canvas-based color extraction from the actual rendered pixel
+        // Handles CSS variable gradients, oklch, and complex backgrounds that rgbToHex can't parse
+        if (!bgHex) {
+          try {
+            const _r = btn.getBoundingClientRect();
+            if (_r.width > 20 && _r.height > 15) {
+              if (!_colorCanvas) { _colorCanvas = document.createElement('canvas'); _colorCanvas.width = 1; _colorCanvas.height = 1; _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true }); }
+              // Sample the visual center of the button by reading background-color with var() resolved
+              const resolvedBg = cs.getPropertyValue('background-color');
+              if (resolvedBg && !isTransparent(resolvedBg)) {
+                const _parsed = cssColorToRgb(resolvedBg);
+                if (_parsed) bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
+              }
+            }
+          } catch(e) { /* canvas fallback failed */ }
+        }
+        // Fallback 2: gradient stops (only if still no bg)
         if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
           const _gradColors = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g);
           if (_gradColors && _gradColors.length > 0) {
@@ -2919,7 +2935,8 @@
       let layout = 'stacked'; // default
       let gridCols = null;
       let _splitContainer = null;
-      const innerContainers = sec.querySelectorAll(':scope > div > div, :scope > div');
+      // Check layout at two levels, but prefer direct children for split detection
+      const innerContainers = sec.querySelectorAll(':scope > div, :scope > div > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
         const cs = window.getComputedStyle(child);
         // Grid detection FIRST — catches 3+ column layouts before split-columns
@@ -2975,7 +2992,11 @@
                 const combinedWidth = c1.width + c2.width;
                 const fillsSection = combinedWidth > secW * 0.6;
                 const eachSubstantial = c1.height > 150 && c2.height > 150;
-                if (!bothWide && fillsSection && eachSubstantial) {
+                // The split container must occupy a major portion of the section height
+                // (a tab bar or button row is <20% of section height — not a layout split)
+                const childH = child.getBoundingClientRect().height;
+                const isMainLayout = childH > rect.height * 0.4;
+                if (!bothWide && fillsSection && eachSubstantial && isMainLayout) {
                   layout = 'split-columns';
                   _splitContainer = child;
                 }
