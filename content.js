@@ -836,6 +836,44 @@
       }
     }
 
+    // ── CSS framework detection via variable prefixes ──
+    const _rootCs = rootStyles; // already computed above
+    const _allVarNames = [];
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            if (rule.selectorText === ':root' || rule.selectorText === ':root, :host') {
+              for (let i = 0; i < rule.style.length; i++) {
+                const prop = rule.style[i];
+                if (prop.startsWith('--')) _allVarNames.push(prop);
+              }
+            }
+          }
+        } catch(e) { /* cross-origin */ }
+      }
+    } catch(e) {}
+    const _hasTwVars = _allVarNames.some(v => v.startsWith('--tw-'));
+    const _hasBsVars = _allVarNames.some(v => v.startsWith('--bs-'));
+    const _hasChakraVars = _allVarNames.some(v => v.startsWith('--chakra-'));
+    const _hasMuiVars = _allVarNames.some(v => v.startsWith('--mui-'));
+
+    const cssFrameworks = [];
+    if (_hasTwVars || document.querySelector('[class*="tw-"], [class*="sm\\:"], [class*="md\\:"], [class*="lg\\:"]')) cssFrameworks.push('tailwind');
+    if (_hasBsVars) cssFrameworks.push('bootstrap');
+    if (_hasChakraVars) cssFrameworks.push('chakra-ui');
+    if (_hasMuiVars) cssFrameworks.push('material-ui');
+    result.cssFrameworks = cssFrameworks;
+
+    // ── JS framework detection ──
+    const jsFrameworks = [];
+    if (document.querySelector('#__next') || document.querySelector('[data-nextjs-scroll-focus-boundary]')) jsFrameworks.push('nextjs');
+    if (document.querySelector('#__nuxt') || document.querySelector('[data-v-app]')) jsFrameworks.push('nuxt');
+    if (document.querySelector('#app[data-v-app]') || document.querySelector('[data-v-]')) jsFrameworks.push('vue');
+    if (document.querySelector('[data-reactroot]') || document.querySelector('[id="__next"]')) { if (!jsFrameworks.includes('nextjs')) jsFrameworks.push('react'); }
+    if (document.querySelector('script[src*="gatsby"]') || document.querySelector('#___gatsby')) jsFrameworks.push('gatsby');
+    result.jsFrameworks = jsFrameworks;
+
     return result;
   }
 
