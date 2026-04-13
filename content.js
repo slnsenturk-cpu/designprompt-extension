@@ -1740,28 +1740,37 @@
         }
         const bg = cs.backgroundColor;
         let bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
-        // Fallback 1: canvas-based color extraction from the actual rendered pixel
-        // Handles CSS variable gradients, oklch, and complex backgrounds that rgbToHex can't parse
-        if (!bgHex) {
+        // Fallback: gradient-based extraction when backgroundColor is transparent
+        // Handles CSS variable gradients, color-mix(), oklch() — common in Tailwind/Next.js
+        if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
+          // Strategy 1: render the full gradient string to canvas and sample center pixel
           try {
-            const _r = btn.getBoundingClientRect();
-            if (_r.width > 20 && _r.height > 15) {
-              if (!_colorCanvas) { _colorCanvas = document.createElement('canvas'); _colorCanvas.width = 1; _colorCanvas.height = 1; _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true }); }
-              // Sample the visual center of the button by reading background-color with var() resolved
-              const resolvedBg = cs.getPropertyValue('background-color');
-              if (resolvedBg && !isTransparent(resolvedBg)) {
-                const _parsed = cssColorToRgb(resolvedBg);
-                if (_parsed) bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
+            if (!_colorCanvas) { _colorCanvas = document.createElement('canvas'); _colorCanvas.width = 1; _colorCanvas.height = 1; _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true }); }
+            // Create a temp element with the same background to sample its resolved color
+            const _tmp = document.createElement('div');
+            _tmp.style.cssText = 'position:fixed;left:-9999px;width:10px;height:10px;background:' + cs.backgroundImage;
+            document.body.appendChild(_tmp);
+            const _tmpCs = window.getComputedStyle(_tmp);
+            const _tmpBg = _tmpCs.backgroundColor;
+            document.body.removeChild(_tmp);
+            if (_tmpBg && !isTransparent(_tmpBg)) {
+              const _parsed = rgbToHex(_tmpBg) || null;
+              if (_parsed) bgHex = _parsed;
+            }
+          } catch(e) { /* temp element fallback failed */ }
+          // Strategy 2: extract color functions from gradient stops and resolve via canvas
+          if (!bgHex) {
+            // Match: #hex, rgb(), rgba(), oklch(), color-mix(), hsl()
+            const _colorFuncs = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|(?:rgb|rgba|oklch|color-mix|hsl|hsla|lab|lch)\([^)]*(?:\([^)]*\))*[^)]*\)/gi);
+            if (_colorFuncs) {
+              for (const cf of _colorFuncs) {
+                const _parsed = cf.startsWith('#') ? { r: parseInt(cf.slice(1,3),16), g: parseInt(cf.slice(3,5),16), b: parseInt(cf.slice(5,7),16) } : cssColorToRgb(cf);
+                if (_parsed) {
+                  bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
+                  break;
+                }
               }
             }
-          } catch(e) { /* canvas fallback failed */ }
-        }
-        // Fallback 2: gradient stops (only if still no bg)
-        if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
-          const _gradColors = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/g);
-          if (_gradColors && _gradColors.length > 0) {
-            const _firstHex = _gradColors[0].startsWith('#') ? _gradColors[0] : rgbToHex(_gradColors[0]);
-            if (_firstHex && !isTransparent(_firstHex)) bgHex = _firstHex;
           }
         }
         const colorHex = rgbToHex(cs.color);
@@ -2935,6 +2944,9 @@
       let layout = 'stacked'; // default
       let gridCols = null;
       let _splitContainer = null;
+      // If the section itself is flex-col, it's fundamentally stacked
+      const _secCs = window.getComputedStyle(sec);
+      const _secIsFlexCol = _secCs.display === 'flex' && (_secCs.flexDirection === 'column' || _secCs.flexDirection === 'column-reverse');
       // Check layout at two levels, but prefer direct children for split detection
       const innerContainers = sec.querySelectorAll(':scope > div, :scope > div > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
@@ -2996,7 +3008,9 @@
                 // (a tab bar or button row is <20% of section height — not a layout split)
                 const childH = child.getBoundingClientRect().height;
                 const isMainLayout = childH > rect.height * 0.4;
-                if (!bothWide && fillsSection && eachSubstantial && isMainLayout) {
+                // Don't promote to split-columns if the section itself is flex-col
+                // (the section is fundamentally stacked — inner grid/flex children are sub-layouts)
+                if (!bothWide && fillsSection && eachSubstantial && isMainLayout && !_secIsFlexCol) {
                   layout = 'split-columns';
                   _splitContainer = child;
                 }
