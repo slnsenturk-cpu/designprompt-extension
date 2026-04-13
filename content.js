@@ -2671,28 +2671,46 @@
         }
       }
 
-      // Strategy B: split oversized sections — any section taller than 2.5 viewports
-      // likely contains multiple logical sections in Framer's div structure
+      // Strategy B: find section-level Framer components that the section-tag search missed
+      // Framer nests real page sections as named divs deep in the tree — not as direct children
+      // of <section> tags. Find named elements that are section-sized and non-overlapping.
       const _viewH = window.innerHeight;
+      const mergedSet = new Set(merged);
+      const _coveredRanges = merged.map(el => {
+        const r = el.getBoundingClientRect();
+        return [r.top + window.scrollY, r.top + window.scrollY + r.height];
+      });
+      const _isCoveredY = (y, h) => _coveredRanges.some(([s, e]) => y >= s && y + h <= e && (e - s) < h * 3);
+
+      // Scan ALL named Framer elements for section-level candidates
+      const sectionCandidates = Array.from(document.querySelectorAll('[data-framer-name]'))
+        .filter(el => {
+          if (mergedSet.has(el)) return false;
+          const r = el.getBoundingClientRect();
+          const h = r.height;
+          // Must be section-sized: >250px tall, <4 viewports, visible
+          if (h < 250 || h > _viewH * 4 || r.width < 300) return false;
+          // Must not be a wrapper (very tall transparent containers)
+          if (h > _viewH * 2.5 && isTransparent(window.getComputedStyle(el).backgroundColor)) return false;
+          // Must not overlap entirely with an existing section of similar size
+          const y = r.top + window.scrollY;
+          if (_isCoveredY(y, h)) return false;
+          return true;
+        })
+        .sort((a, b) => (a.getBoundingClientRect().top + window.scrollY) - (b.getBoundingClientRect().top + window.scrollY));
+
+      // Deduplicate: if parent and child are both candidates, keep the child (more specific)
       const toAdd = [];
-      for (const sec of [...merged]) {
-        const secH = sec.getBoundingClientRect().height;
-        if (secH < _viewH * 2.5) continue; // not oversized
-        // Look for direct children with distinct backgrounds or data-framer-name
-        let childPrevBg = null;
-        for (const child of Array.from(sec.children)) {
-          if (!_isValid(child)) continue;
-          if (merged.includes(child) || toAdd.includes(child)) continue;
-          const cs = window.getComputedStyle(child);
-          const bg = cs.backgroundColor;
-          const hasName = child.hasAttribute('data-framer-name');
-          const bgFlip = bg && !isTransparent(bg) && bg !== childPrevBg && childPrevBg !== null;
-          const childH = child.getBoundingClientRect().height;
-          // Require structural signal + minimum height to avoid splitting on tiny elements
-          if ((hasName || bgFlip) && childH > 200) {
-            toAdd.push(child);
-          }
-          if (bg && !isTransparent(bg)) childPrevBg = bg;
+      for (const el of sectionCandidates) {
+        const isParentOfExisting = toAdd.some(existing => el.contains(existing));
+        const isChildOfExisting = toAdd.some(existing => existing.contains(el));
+        if (isParentOfExisting) continue; // skip parent, keep child
+        if (isChildOfExisting) {
+          // Replace parent with this more specific child
+          const parentIdx = toAdd.findIndex(existing => existing.contains(el));
+          if (parentIdx >= 0) toAdd[parentIdx] = el;
+        } else {
+          toAdd.push(el);
         }
       }
       merged.push(...toAdd);
@@ -6058,6 +6076,28 @@
           });
           const activeLabel = activeEl ? activeEl.textContent.trim().replace(/^0\d\s*[—\-·]\s*/, '').trim() : labels[0];
           results.push({ type: 'framer-pill-tabs', labels, activeLabel, hasNumbers: true, count: labels.length });
+        }
+      }
+    }
+
+    // Pattern A3: Framer numbered section headings — data-framer-name "Heading N" with 01/02/03 text
+    // Not interactive tabs but a numbered feature sequence (e.g. "01 UNIFIED PLANNING / 02 INTELLIGENT OPERATIONS")
+    if (results.length === 0) {
+      const numberedHeadings = Array.from(document.querySelectorAll('[data-framer-name^="Heading"]'))
+        .filter(el => {
+          const text = el.innerText?.trim() || '';
+          return /^0[1-9]/.test(text) && el.getBoundingClientRect().height > 100;
+        })
+        .sort((a, b) => (a.getBoundingClientRect().top + window.scrollY) - (b.getBoundingClientRect().top + window.scrollY));
+      if (numberedHeadings.length >= 2) {
+        const labels = numberedHeadings.map(el => {
+          const lines = el.innerText.trim().split('\n').map(l => l.trim()).filter(Boolean);
+          // lines[0] = "01", lines[1] = "UNIFIED PLANNING", lines[2] = "Align your..."
+          return lines[1] || lines[0];
+        }).filter(Boolean).slice(0, 6);
+        if (labels.length >= 2) {
+          results.push({ type: 'numbered-switcher', labels, hasNumbers: true, count: labels.length,
+            panelLayout: 'block', activeLabel: labels[0] });
         }
       }
     }
