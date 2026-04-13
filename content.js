@@ -2639,15 +2639,7 @@
       const innerContainers = sec.querySelectorAll(':scope > div > div, :scope > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
         const cs = window.getComputedStyle(child);
-        if ((cs.display === 'flex' || cs.display === 'grid') && child.children.length >= 2) {
-          const c1 = child.children[0].getBoundingClientRect();
-          const c2 = child.children[1].getBoundingClientRect();
-          if (Math.abs(c1.top - c2.top) < 50 && c1.width > 200 && c2.width > 200) {
-            layout = 'split-columns';
-            _splitContainer = child;
-            break;
-          }
-        }
+        // Grid detection FIRST — catches 3+ column layouts before split-columns
         if (cs.display === 'grid') {
           const cols = cs.gridTemplateColumns;
           if (cols && cols.split(' ').length >= 3) {
@@ -2664,6 +2656,30 @@
               gridCols = cols;
             }
             break;
+          }
+        }
+        // Flex/grid with exactly 2 side-by-side children = split-columns (not multi-column)
+        if (layout === 'stacked' && (cs.display === 'flex' || cs.display === 'grid') && child.children.length >= 2) {
+          const visibleChildren = Array.from(child.children).filter(c => {
+            const r = c.getBoundingClientRect();
+            return r.width > 100 && r.height > 50;
+          });
+          if (visibleChildren.length >= 2) {
+            const c1 = visibleChildren[0].getBoundingClientRect();
+            const c2 = visibleChildren[1].getBoundingClientRect();
+            const sameRow = Math.abs(c1.top - c2.top) < 50 && c1.width > 200 && c2.width > 200;
+            if (sameRow) {
+              // Count how many children are on the same row
+              const _rowChildren = visibleChildren.filter(c => Math.abs(c.getBoundingClientRect().top - c1.top) < 50);
+              if (_rowChildren.length >= 3) {
+                layout = 'multi-column-grid';
+                gridCols = `${_rowChildren.length}-column flex/grid`;
+              } else {
+                layout = 'split-columns';
+                _splitContainer = child;
+              }
+              break;
+            }
           }
         }
       }
@@ -2705,12 +2721,14 @@
       };
       const ctaButtons = [...new Set(
         Array.from(sec.querySelectorAll('a[class*="btn"], a[class*="button"], a[class*="cta"], a[class*="action"], a[class*="primary"], a[class*="start"], button[class*="btn"], button[class*="button"], button[class*="cta"], [role="button"]'))
+          .filter(el => !el.closest('nav, header, [class*="nav"], [class*="header"], [role="navigation"]'))
           .map(cleanCtaText)
           .filter(t => t.length > 1)
       )].slice(0, 3);
       // Fallback: detect styled <a> tags that look like buttons (bg + padding)
       if (ctaButtons.length === 0) {
         const styledLinks = Array.from(sec.querySelectorAll('a[href]')).filter(a => {
+          if (a.closest('nav, header, [class*="nav"], [class*="header"], [role="navigation"]')) return false;
           const acs = window.getComputedStyle(a);
           const hasBg = !isTransparent(acs.backgroundColor);
           const hasBorder = acs.borderWidth !== '0px' && acs.borderStyle !== 'none';
@@ -2848,6 +2866,17 @@
       });
       for (const svg of largeSvgs.slice(0, 3)) {
         const r = svg.getBoundingClientRect();
+        // Use viewBox or width/height attributes for more accurate dimensions
+        // (getBoundingClientRect may be clipped by overflow:hidden parent)
+        let svgW = Math.round(r.width), svgH = Math.round(r.height);
+        const _vb = svg.getAttribute('viewBox');
+        if (_vb) {
+          const _vbParts = _vb.split(/[\s,]+/).map(Number);
+          if (_vbParts.length === 4 && _vbParts[2] > svgW * 1.2) { svgW = Math.round(_vbParts[2]); svgH = Math.round(_vbParts[3]); }
+        }
+        const _attrW = parseInt(svg.getAttribute('width'));
+        const _attrH = parseInt(svg.getAttribute('height'));
+        if (_attrW > svgW * 1.2 && _attrH > 0) { svgW = _attrW; svgH = _attrH; }
         const cs = window.getComputedStyle(svg);
         const pathCount = svg.querySelectorAll('path,circle,ellipse,line,rect,polygon').length;
         const textCount = svg.querySelectorAll('text').length;
@@ -2896,7 +2925,7 @@
         const relX = (r.left - secRect.left) / secRect.width;
         const placement = relX < 0.3 ? 'left' : relX > 0.5 ? 'right' : 'center';
 
-        let desc = `[svg] ${Math.round(r.width)}×${Math.round(r.height)}, ${placement}: ${svgDesc}`;
+        let desc = `[svg] ${svgW}×${svgH}, ${placement}: ${svgDesc}`;
         if (hasAnim) desc += ' (animated)';
         if (svgColors.size > 0) desc += `. Colors: ${[...svgColors].slice(0, 3).join(', ')}`;
         // Container styling for SVG
