@@ -2688,7 +2688,9 @@
       const _isYCovered = (y) => _ranges.some(r => y >= r.top && y <= r.bottom);
 
       // Sub-component names that should NOT be promoted to sections
-      const _SUB_NAMES = /^(Image|BG|Container|Info|Content|Bottom|Decoration|Button|Icon|Logo|Badge|Label|Tablet|Desktop|Mobile|CTA|Dark mode|Green|Primary|Nav)/i;
+      // Keep: Heading, Content, Features, Screen, System, Blog, Section, Hero, Footer, CTA
+      // Reject: visual/layout sub-components only
+      const _SUB_NAMES = /^(Image|BG|Decoration|Button|Icon|Logo|Badge|Label|Tablet|Desktop|Mobile|Dark mode|Green|Primary|Nav|Bottom|Info|Container)\b/i;
 
       // Find the "Main" Framer component and scan for section-level children
       // that live in uncovered Y-ranges
