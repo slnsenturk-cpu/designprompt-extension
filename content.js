@@ -1807,8 +1807,10 @@
       let score = 0;
       // Has a visible background color = likely a filled button
       if (c.backgroundColor) score += 2;
-      // High saturation bg = very likely primary
-      if (c.bgSat > 30) score += 3;
+      // High contrast bg (very dark or very saturated) = strong CTA signal
+      // Dark buttons (#1c1d1f, #000) are common primaries — don't penalize low saturation
+      if (c.backgroundColor && c.bgLum < 0.15) score += 3; // dark bg = strong primary signal
+      else if (c.bgSat > 30) score += 2; // saturated bg = moderate signal
       // Even low-saturation colored bg counts (e.g. dark blue #0000ee)
       if (c.backgroundColor && c.bgSat > 10 && c.bgLum < 0.8) score += 1;
       // Class name hints
@@ -2947,7 +2949,10 @@
           }
         }
         // Flex/grid with exactly 2 side-by-side children = split-columns (not multi-column)
+        // Skip if container is flex-direction: column — children are stacked, not split
         if (layout === 'stacked' && (cs.display === 'flex' || cs.display === 'grid') && child.children.length >= 2) {
+          // A column-direction flex container is stacked by definition
+          if (cs.flexDirection === 'column' || cs.flexDirection === 'column-reverse') continue;
           const visibleChildren = Array.from(child.children).filter(c => {
             const r = c.getBoundingClientRect();
             return r.width > 100 && r.height > 50;
@@ -2963,11 +2968,14 @@
                 layout = 'multi-column-grid';
                 gridCols = `${_rowChildren.length}-column flex/grid`;
               } else {
-                // Verify it's a true split: each column should be roughly half the section width.
-                // If both children span >70% of section width, they're stacked full-width, not split.
+                // Verify it's a true split: each column must be a substantial content block
+                // and together they should roughly fill the section width (not a small tab bar)
                 const secW = rect.width;
                 const bothWide = c1.width > secW * 0.7 && c2.width > secW * 0.7;
-                if (!bothWide) {
+                const combinedWidth = c1.width + c2.width;
+                const fillsSection = combinedWidth > secW * 0.6;
+                const eachSubstantial = c1.height > 150 && c2.height > 150;
+                if (!bothWide && fillsSection && eachSubstantial) {
                   layout = 'split-columns';
                   _splitContainer = child;
                 }
