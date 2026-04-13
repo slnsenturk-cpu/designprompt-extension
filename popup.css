@@ -937,6 +937,26 @@ body {
 .picker-launch-sub   { font-size: 11px; color: var(--text-3); text-align: center; line-height: 1.6; }
 .picker-launch-esc   { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
 
+/* ─── URL badge ─── */
+.url-badge {
+  padding: 0 16px 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 0;
+  line-height: 1;
+}
+.url-badge:empty { display: none; }
+
+/* ─── Copy pulse ─── */
+.prompt-container.copy-pulse {
+  border-color: var(--accent) !important;
+  transition: border-color 0.3s ease;
+}
+
 /* ─── Screen reader only (accessibility) ─── */
 .sr-only {
   position: absolute;

@@ -153,11 +153,41 @@
     return Math.sqrt((r1-r2)**2 + (g1-g2)**2 + (b1-b2)**2);
   }
 
+  function _hslHue(hex) {
+    const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+    const mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+    if(mx===mn) return 0;
+    const d=mx-mn; let h;
+    if(mx===r) h=((g-b)/d+(g<b?6:0))/6;
+    else if(mx===g) h=((b-r)/d+2)/6;
+    else h=((r-g)/d+4)/6;
+    return Math.round(h*360);
+  }
+
+  function _hslSat(hex) {
+    const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+    const mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+    if(mx===mn) return 0;
+    const l=(mx+mn)/2;
+    return Math.round((l<=0.5?(mx-mn)/(mx+mn):(mx-mn)/(2-mx-mn))*100);
+  }
+
   function dedupeColors(colors) {
     const result = [];
     for (const c of colors) {
       if (!c || c.length < 4) continue;
-      const tooClose = result.some(r => colorDistance(c, r) < 25);
+      const tooClose = result.some(r => {
+        const dist = colorDistance(c, r);
+        if (dist >= 25) return false; // clearly different
+        // For saturated colors, also check hue difference
+        const s1 = _hslSat(c), s2 = _hslSat(r);
+        if (s1 > 15 && s2 > 15) {
+          const hueDiff = Math.abs(_hslHue(c) - _hslHue(r));
+          const hueDistWrapped = Math.min(hueDiff, 360 - hueDiff);
+          if (hueDistWrapped > 15) return false; // different hue, keep both
+        }
+        return true; // too close
+      });
       if (!tooClose) result.push(c);
     }
     return result;
@@ -201,7 +231,7 @@
 
     // Scroll down in 70% viewport steps — triggers IntersectionObserver callbacks
     const step = Math.floor(viewH * 0.7);
-    const maxScroll = Math.min(docH, viewH * 15); // Cap at ~12,000px for 2s budget
+    const maxScroll = Math.min(docH, viewH * 25); // Cap at ~20,000px for extended pages
 
     for (let y = 0; y < maxScroll; y += step) {
       window.scrollTo({ top: y, left: 0, behavior: 'instant' });
@@ -210,7 +240,17 @@
 
     // Scroll to absolute bottom
     window.scrollTo({ top: docH, left: 0, behavior: 'instant' });
-    await new Promise(r => setTimeout(r, 300)); // Wait for animations to settle
+    await new Promise(r => setTimeout(r, 500)); // Wait for animations to settle
+
+    // GSAP ScrollTrigger detection: slower second pass with pauses
+    const hasGSAP = typeof window.gsap !== 'undefined' || typeof window.ScrollTrigger !== 'undefined';
+    if (hasGSAP) {
+      const slowStep = viewH;
+      for (let y = 0; y < maxScroll; y += slowStep) {
+        window.scrollTo({ top: y, left: 0, behavior: 'instant' });
+        await new Promise(r => setTimeout(r, 500)); // GSAP needs time to evaluate
+      }
+    }
 
     // Scroll back to top
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -362,11 +402,32 @@
     const radiusSet = new Set();
     const shadowSet = new Set();
     const transSet = new Set();
+    const textShadowSet = new Set();
+    const letterSpacingSet = new Set();
+    const aspectRatioSet = new Set();
+
+    // Priority-based scanning: important elements first, then remaining
+    const PRIORITY_TAGS = new Set(['button','nav','header','footer','main','section','h1','h2','h3','h4','h5','h6','a','input','textarea','select','form','article']);
+    const PRIORITY_CLASS_RE = /hero|card|modal|dialog|menu|dropdown|sidebar|banner|cta|feature|pricing|testimonial/i;
+    const allEls = document.querySelectorAll('*');
+    const priorityEls = [];
+    const otherEls = [];
+    for (const el of allEls) {
+      if (PRIORITY_TAGS.has(el.tagName.toLowerCase()) || PRIORITY_CLASS_RE.test(el.className || '')) {
+        priorityEls.push(el);
+      } else {
+        otherEls.push(el);
+      }
+    }
 
     let scanned = 0;
-    const allEls = document.querySelectorAll('*');
-    for (const el of allEls) {
-      if (scanned > 800) break;
+    let diversityStale = 0;
+    let lastDiversityCount = 0;
+    const scanBatch = [...priorityEls, ...otherEls];
+    for (const el of scanBatch) {
+      if (scanned > 1200) break;
+      // Early exit on diversity plateau: no new tokens for 200 consecutive elements
+      if (scanned > 600 && diversityStale > 200) break;
       try {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
@@ -442,6 +503,22 @@
           transSet.add(tr);
         }
 
+        // Text shadows
+        const ts = cs.textShadow;
+        if (ts && ts !== 'none') textShadowSet.add(ts);
+
+        // Letter spacing
+        const ls = cs.letterSpacing;
+        if (ls && ls !== 'normal' && ls !== '0px') letterSpacingSet.add(ls);
+
+        // CSS aspect-ratio property
+        const ar = cs.aspectRatio;
+        if (ar && ar !== 'auto') aspectRatioSet.add(ar);
+
+        // Diversity plateau tracking
+        const currentDiversity = colorSet.size + fontSet.size + radiusSet.size;
+        if (currentDiversity === lastDiversityCount) { diversityStale++; } else { diversityStale = 0; lastDiversityCount = currentDiversity; }
+
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
@@ -457,6 +534,9 @@
     tokens.borderRadii = [...radiusSet].slice(0, 6);
     tokens.shadows = [...shadowSet].slice(0, 8);
     tokens.transitions = [...transSet].slice(0, 6);
+    tokens.textShadows = [...textShadowSet].slice(0, 6);
+    tokens.letterSpacings = [...letterSpacingSet].slice(0, 6);
+    tokens.cssAspectRatios = [...aspectRatioSet].slice(0, 6);
 
     // ── 3b. Computed animation properties from visible elements ──
     const animDetailSet = new Set();
@@ -582,6 +662,9 @@
     // ── 8. Responsive breakpoints ──
     tokens.breakpoints = extractBreakpoints();
 
+    // ── 8b. Dark mode tokens ──
+    tokens.darkModeTokens = extractDarkModeTokens();
+
     // ── 9. Asset URLs (fonts, backgrounds, icons) ──
     tokens.assets = extractAssets();
 
@@ -665,7 +748,51 @@
     // ── 23. Framework / site builder detection ──
     tokens.frameworkDetection = detectFrameworkSite();
 
+    // ── 24. Design system fingerprinting ──
+    tokens.designSystem = detectDesignSystem();
+
     return tokens;
+  }
+
+  // ─── Design system fingerprinting ──────────────────────────────────────────
+  function detectDesignSystem() {
+    try {
+      const root = document.documentElement;
+      const cs = window.getComputedStyle(root);
+      const hasVar = (name) => { const v = cs.getPropertyValue(name).trim(); return v && v !== ''; };
+      const hasEl = (sel) => { try { return !!document.querySelector(sel); } catch(e) { return false; } };
+
+      // shadcn/ui: uses --radius, --background, --foreground, --primary CSS vars
+      if (hasVar('--radius') && hasVar('--background') && hasVar('--foreground') && hasVar('--primary')) {
+        return { name: 'shadcn/ui', confidence: 'high', note: 'Override only divergent tokens from shadcn defaults' };
+      }
+
+      // Radix UI: [data-radix-*] attributes
+      if (hasEl('[data-radix-popper-content-wrapper]') || hasEl('[data-radix-collection-item]') || hasEl('[data-radix-scroll-area-viewport]')) {
+        return { name: 'Radix UI', confidence: 'high', note: 'Radix primitives detected — tokens represent the styling layer on top of headless components' };
+      }
+
+      // Chakra UI: .chakra-* classes
+      if (hasEl('[class*="chakra-"]')) {
+        return { name: 'Chakra UI', confidence: 'high', note: 'Chakra UI detected — extracted tokens override the default theme' };
+      }
+
+      // Mantine: --mantine-* CSS vars
+      if (hasVar('--mantine-color-scheme') || hasVar('--mantine-primary-color-filled')) {
+        return { name: 'Mantine', confidence: 'high', note: 'Mantine detected — use extracted --mantine-* vars as theme overrides' };
+      }
+
+      // Ant Design: .ant-* classes
+      if (hasEl('[class*="ant-btn"]') || hasEl('[class*="ant-layout"]')) {
+        return { name: 'Ant Design', confidence: 'medium', note: 'Ant Design detected — tokens represent customization on top of antd defaults' };
+      }
+
+      // Material UI: .Mui* classes or --mui-* vars
+      if (hasEl('[class*="MuiButton"]') || hasEl('[class*="MuiTypography"]') || hasVar('--mui-palette-primary-main')) {
+        return { name: 'Material UI', confidence: 'medium', note: 'MUI detected — use extracted palette to configure createTheme()' };
+      }
+    } catch(e) { console.debug('[VibeDesign] Design system detection:', e.message); }
+    return null;
   }
 
   // ─── Framework / site builder detection ────────────────────────────────────
@@ -1127,6 +1254,36 @@
     } catch(e) { console.debug('[VibeDesign]', e.message); }
     // Return sorted breakpoints in typical responsive range (320-1920)
     return [...bps].filter(b => b >= 320 && b <= 1920).sort((a,b) => a-b);
+  }
+
+  // ─── Dark mode token extraction ───────────────────────────────────────────
+  function extractDarkModeTokens() {
+    const tokens = {};
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            if (rule.type === CSSRule.MEDIA_RULE &&
+                rule.conditionText && rule.conditionText.includes('prefers-color-scheme') &&
+                rule.conditionText.includes('dark')) {
+              for (const inner of rule.cssRules) {
+                if (inner.style) {
+                  for (let i = 0; i < inner.style.length; i++) {
+                    const prop = inner.style[i];
+                    if (prop.startsWith('--') ||
+                        ['background-color','color','border-color','background'].includes(prop)) {
+                      const val = inner.style.getPropertyValue(prop).trim();
+                      if (val) tokens[prop] = val;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch(e) { /* cross-origin sheet */ }
+      }
+    } catch(e) { console.debug('[VibeDesign]', e.message); }
+    return Object.keys(tokens).length > 0 ? tokens : null;
   }
 
   // ─── Rotating / cycling text detection ───────────────────────────────────
@@ -2647,13 +2804,20 @@
             const _colParts = cols.split(' ').filter(Boolean);
             const _uniq = new Set(_colParts);
             if (_uniq.size === 1 && _colParts.length > 6) {
-              // Baseline/decorative grid: N identical columns — summarize instead of repeating
               gridCols = `baseline-grid:${_colParts.length}-col×${_colParts[0]}`;
             } else if (_colParts.length > 8) {
-              // Too many varied columns — truncate
               gridCols = `${_colParts.length}-col grid (${_colParts.slice(0,3).join(' ')}...)`;
             } else {
               gridCols = cols;
+            }
+            // Extract grid-template-areas and rows
+            const _areas = cs.gridTemplateAreas;
+            if (_areas && _areas !== 'none') {
+              gridCols += ` areas:${_areas.replace(/"/g, '').replace(/\s+/g, '|')}`;
+            }
+            const _rows = cs.gridTemplateRows;
+            if (_rows && _rows !== 'none' && _rows.split(' ').length <= 8) {
+              gridCols += ` rows:${_rows}`;
             }
             break;
           }
@@ -5241,7 +5405,35 @@
       hasPseudoAfter: window.getComputedStyle(el,'::after').content !== 'none',
       url: window.location.href,
       pageTitle: document.title,
+      parentContext: _extractParentContext(el),
     };
+  }
+
+  function _extractParentContext(el) {
+    try {
+      const parent = el.closest('section, article, [role="main"], [role="region"], [role="dialog"], main, aside');
+      if (!parent || parent === document.body) return null;
+      const pcs = window.getComputedStyle(parent);
+      const childTags = new Set();
+      parent.querySelectorAll('button, a, h1, h2, h3, h4, input, img, video, nav, form').forEach(c => {
+        const tag = c.tagName.toLowerCase();
+        const cls = (c.className || '').toString().toLowerCase();
+        if (tag === 'button' || cls.includes('btn')) childTags.add('Button');
+        else if (tag === 'a') childTags.add('Link');
+        else if (/^h[1-6]$/.test(tag)) childTags.add('Heading');
+        else if (tag === 'input') childTags.add('Input');
+        else if (tag === 'img') childTags.add('Image');
+        else if (tag === 'video') childTags.add('Video');
+        else if (tag === 'nav') childTags.add('Navigation');
+        else if (tag === 'form') childTags.add('Form');
+      });
+      return {
+        sectionType: parent.tagName.toLowerCase(),
+        layout: pcs.display === 'grid' ? 'grid' : pcs.display === 'flex' ? 'flex' : 'block',
+        bgColor: !isTransparent(pcs.backgroundColor) ? rgbToHex(pcs.backgroundColor) : null,
+        childComponents: [...childTags].slice(0, 8),
+      };
+    } catch(e) { return null; }
   }
 
   // ─── Image data extraction ─────────────────────────────────────────────────
