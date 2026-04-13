@@ -2638,6 +2638,39 @@
       merged = [...merged, ...byQuery];
     }
 
+    // Pass 4: Framer fallback — detect sections by data-framer-name or bg color transitions
+    // Only runs on Framer sites when passes 1-3 found too few sections
+    if (merged.length < 3 && document.querySelector('[data-framer-name]')) {
+      // Walk Framer's single-child wrapper chain to find the structural content container
+      // (body > div.framer-xxx > div.framer-yyy > [actual content divs])
+      let framerRoot = document.body;
+      let depth = 0;
+      while (framerRoot.children.length === 1 && framerRoot.firstElementChild?.tagName === 'DIV' && depth < 10) {
+        framerRoot = framerRoot.firstElementChild;
+        depth++;
+      }
+      if (framerRoot !== document.body && framerRoot.children.length >= 2) {
+        let prevBg = null;
+        let pass4Count = 0;
+        for (const child of Array.from(framerRoot.children)) {
+          if (pass4Count >= 16) break; // cap to prevent over-segmentation
+          if (!_isValid(child)) continue;
+          if (merged.includes(child)) continue;
+          const cs = window.getComputedStyle(child);
+          const bg = cs.backgroundColor;
+          const hasFramerName = child.hasAttribute('data-framer-name');
+          const bgChanged = bg && !isTransparent(bg) && bg !== prevBg && prevBg !== null;
+          // Require a structural signal: named Framer component OR bg color transition
+          // Height alone is NOT sufficient — prevents false positives on non-Framer sites
+          if (hasFramerName || bgChanged) {
+            merged.push(child);
+            pass4Count++;
+          }
+          if (bg && !isTransparent(bg)) prevBg = bg;
+        }
+      }
+    }
+
     // Deduplicate by element reference and sort top-to-bottom by document position
     const seen = new Set();
     sectionEls = merged
@@ -5942,6 +5975,42 @@
       const panelLayout = panel ? (window.getComputedStyle(panel).display === 'grid' ? 'grid' : window.getComputedStyle(panel).display === 'flex' ? 'flex' : 'block') : null;
       results.push({ type: 'tab-switcher', labels, activeLabel, panelLayout, count: labels.length });
     });
+
+    // Pattern A2: Framer-style pill tabs — adjacent clickable pill divs with 01/02/03 prefixes
+    // Catches patterns like: [01 — UNIFIED PLANNING] [02 — INTELLIGENT OPERATIONS] [03 — DECISION SUPPORT]
+    if (results.length === 0) {
+      const pillCandidates = Array.from(document.querySelectorAll('div, a, button')).filter(el => {
+        try {
+          const cs = window.getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          if (r.width < 80 || r.width > 500 || r.height < 30 || r.height > 70) return false;
+          if (cs.cursor !== 'pointer') return false;
+          const br = parseInt(cs.borderRadius);
+          if (isNaN(br) || br < 16) return false; // pill-shaped
+          const text = el.textContent.trim();
+          return /^0[1-9]/.test(text) && text.length < 80;
+        } catch(e) { return false; }
+      });
+      if (pillCandidates.length >= 2) {
+        const parentGroups = new Map();
+        pillCandidates.forEach(el => {
+          const p = el.parentElement;
+          if (!parentGroups.has(p)) parentGroups.set(p, []);
+          parentGroups.get(p).push(el);
+        });
+        for (const [, pills] of parentGroups) {
+          if (pills.length < 2) continue;
+          const labels = pills.map(p => p.textContent.trim().replace(/^0\d\s*[—\-·]\s*/, '').trim()).filter(Boolean).slice(0, 6);
+          if (labels.length < 2) continue;
+          const activeEl = pills.find(p => {
+            const cs = window.getComputedStyle(p);
+            return cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent';
+          });
+          const activeLabel = activeEl ? activeEl.textContent.trim().replace(/^0\d\s*[—\-·]\s*/, '').trim() : labels[0];
+          results.push({ type: 'framer-pill-tabs', labels, activeLabel, hasNumbers: true, count: labels.length });
+        }
+      }
+    }
 
     // Pattern B: numbered/labeled switcher buttons (01/02/03 pattern) — not <nav>
     if (results.length === 0) {
