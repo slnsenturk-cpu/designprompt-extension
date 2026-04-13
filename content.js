@@ -2638,11 +2638,14 @@
       merged = [...merged, ...byQuery];
     }
 
-    // Pass 4: Framer fallback — detect sections by data-framer-name or bg color transitions
-    // Only runs on Framer sites when passes 1-3 found too few sections
-    if (merged.length < 3 && document.querySelector('[data-framer-name]')) {
-      // Walk Framer's single-child wrapper chain to find the structural content container
-      // (body > div.framer-xxx > div.framer-yyy > [actual content divs])
+    // Pass 4: Framer fallback — two strategies:
+    // A) Find new section-level elements from Framer's wrapper chain
+    // B) Split oversized existing sections into sub-sections by bg color or data-framer-name children
+    const _isFramerSite = !!document.querySelector('[data-framer-name]');
+    const _pageH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+    const _expectedMinSections = Math.max(4, Math.floor(_pageH / (window.innerHeight * 1.5)));
+    if (_isFramerSite && merged.length < _expectedMinSections) {
+      // Strategy A: walk wrapper chain to find structural content container
       let framerRoot = document.body;
       let depth = 0;
       while (framerRoot.children.length === 1 && framerRoot.firstElementChild?.tagName === 'DIV' && depth < 10) {
@@ -2653,15 +2656,13 @@
         let prevBg = null;
         let pass4Count = 0;
         for (const child of Array.from(framerRoot.children)) {
-          if (pass4Count >= 16) break; // cap to prevent over-segmentation
+          if (pass4Count >= 16) break;
           if (!_isValid(child)) continue;
           if (merged.includes(child)) continue;
           const cs = window.getComputedStyle(child);
           const bg = cs.backgroundColor;
           const hasFramerName = child.hasAttribute('data-framer-name');
           const bgChanged = bg && !isTransparent(bg) && bg !== prevBg && prevBg !== null;
-          // Require a structural signal: named Framer component OR bg color transition
-          // Height alone is NOT sufficient — prevents false positives on non-Framer sites
           if (hasFramerName || bgChanged) {
             merged.push(child);
             pass4Count++;
@@ -2669,6 +2670,32 @@
           if (bg && !isTransparent(bg)) prevBg = bg;
         }
       }
+
+      // Strategy B: split oversized sections — any section taller than 2.5 viewports
+      // likely contains multiple logical sections in Framer's div structure
+      const _viewH = window.innerHeight;
+      const toAdd = [];
+      for (const sec of [...merged]) {
+        const secH = sec.getBoundingClientRect().height;
+        if (secH < _viewH * 2.5) continue; // not oversized
+        // Look for direct children with distinct backgrounds or data-framer-name
+        let childPrevBg = null;
+        for (const child of Array.from(sec.children)) {
+          if (!_isValid(child)) continue;
+          if (merged.includes(child) || toAdd.includes(child)) continue;
+          const cs = window.getComputedStyle(child);
+          const bg = cs.backgroundColor;
+          const hasName = child.hasAttribute('data-framer-name');
+          const bgFlip = bg && !isTransparent(bg) && bg !== childPrevBg && childPrevBg !== null;
+          const childH = child.getBoundingClientRect().height;
+          // Require structural signal + minimum height to avoid splitting on tiny elements
+          if ((hasName || bgFlip) && childH > 200) {
+            toAdd.push(child);
+          }
+          if (bg && !isTransparent(bg)) childPrevBg = bg;
+        }
+      }
+      merged.push(...toAdd);
     }
 
     // Deduplicate by element reference and sort top-to-bottom by document position
@@ -2717,16 +2744,39 @@
       }
 
       // Pick first VISIBLE heading (skip display:none responsive clones)
-      const heading = Array.from(sec.querySelectorAll('h1, h2, h3')).find(el => {
+      let heading = Array.from(sec.querySelectorAll('h1, h2, h3')).find(el => {
         const cs = window.getComputedStyle(el);
         const r = el.getBoundingClientRect();
         return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
       }) || null;
+      // Framer fallback: no semantic heading tags — find the largest visible text element
+      if (!heading) {
+        let bestEl = null, bestSize = 0;
+        const _candidates = sec.querySelectorAll('[data-framer-component-type="RichTextContainer"], [data-framer-component-type="RichText"], div, p, span');
+        for (const el of Array.from(_candidates).slice(0, 60)) {
+          try {
+            const cs = window.getComputedStyle(el);
+            if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+            const fs = parseFloat(cs.fontSize) || 0;
+            const r = el.getBoundingClientRect();
+            if (fs < 24 || r.width < 100 || r.height < 20) continue; // only large text
+            const text = el.innerText?.trim();
+            if (!text || text.length < 3 || text.length > 120) continue;
+            // Avoid picking up body paragraphs — must be significantly larger than 16px body
+            if (fs > bestSize) { bestSize = fs; bestEl = el; }
+          } catch(e) {}
+        }
+        if (bestEl) heading = bestEl;
+      }
       const headingText = heading?.innerText?.trim().slice(0, 60) || '';
-      const hasH1 = !!Array.from(sec.querySelectorAll('h1')).find(el => {
+      let hasH1 = !!Array.from(sec.querySelectorAll('h1')).find(el => {
         const cs = window.getComputedStyle(el);
         return cs.display !== 'none' && cs.visibility !== 'hidden';
       });
+      // Framer fallback: treat very large text (>40px) as equivalent to h1
+      if (!hasH1 && heading) {
+        try { hasH1 = parseFloat(window.getComputedStyle(heading).fontSize) > 40; } catch(e) {}
+      }
 
       // ── Detect colored/highlighted words in headings ──
       let headingColoredWords = [];
@@ -2958,7 +3008,7 @@
       // Classify section type — hero MUST take priority
       let type = 'content';
       const isFirstSection = map.length === 0;
-      const hasAnyHeading = !!sec.querySelector('h1, h2, h3');
+      const hasAnyHeading = !!sec.querySelector('h1, h2, h3') || !!headingText;
       // Hero: FIRST section is ALWAYS hero if it has any heading or CTA or visual
       if (isFirstSection && (hasH1 || hasAnyHeading || ctaButtons.length > 0 || hasVideo || hasCanvas)) type = 'hero';
       else if (hasH1 && (hasForm || ctaButtons.length > 0)) {
