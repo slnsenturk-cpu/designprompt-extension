@@ -2671,47 +2671,68 @@
         }
       }
 
-      // Strategy B: find section-level Framer components that the section-tag search missed
-      // Framer nests real page sections as named divs deep in the tree — not as direct children
-      // of <section> tags. Find named elements that are section-sized and non-overlapping.
+      // Strategy B: find section-level Framer components in uncovered Y-ranges
+      // The previous passes found <section> tags but Framer hides real page sections
+      // as named divs deep in the tree. Only promote elements that:
+      // 1. Have section-like names (not sub-components like "Image", "BG", "Container")
+      // 2. Occupy Y-ranges not already covered by existing sections
+      // 3. Contain meaningful content (heading text or interactive elements)
       const _viewH = window.innerHeight;
-      const mergedSet = new Set(merged);
-      const _coveredRanges = merged.map(el => {
-        const r = el.getBoundingClientRect();
-        return [r.top + window.scrollY, r.top + window.scrollY + r.height];
-      });
-      const _isCoveredY = (y, h) => _coveredRanges.some(([s, e]) => y >= s && y + h <= e && (e - s) < h * 3);
+      const _scrollY = window.scrollY;
 
-      // Scan ALL named Framer elements for section-level candidates
-      const sectionCandidates = Array.from(document.querySelectorAll('[data-framer-name]'))
+      // Build a coverage map from existing merged sections
+      const _ranges = merged.map(el => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top + _scrollY, bottom: r.top + _scrollY + r.height };
+      });
+      const _isYCovered = (y) => _ranges.some(r => y >= r.top && y <= r.bottom);
+
+      // Sub-component names that should NOT be promoted to sections
+      const _SUB_NAMES = /^(Image|BG|Container|Info|Content|Bottom|Decoration|Button|Icon|Logo|Badge|Label|Tablet|Desktop|Mobile|CTA|Dark mode|Green|Primary|Nav)/i;
+
+      // Find the "Main" Framer component and scan for section-level children
+      // that live in uncovered Y-ranges
+      const _framerMain = document.querySelector('[data-framer-name="Main"]');
+      const _searchRoot = _framerMain || document.body;
+
+      // Collect named elements that look like page sections
+      const sectionCandidates = Array.from(_searchRoot.querySelectorAll('[data-framer-name]'))
         .filter(el => {
-          if (mergedSet.has(el)) return false;
+          const name = el.getAttribute('data-framer-name');
+          if (!name || _SUB_NAMES.test(name)) return false;
+          if (merged.includes(el)) return false;
           const r = el.getBoundingClientRect();
           const h = r.height;
-          // Must be section-sized: >250px tall, <4 viewports, visible
-          if (h < 250 || h > _viewH * 4 || r.width < 300) return false;
-          // Must not be a wrapper (very tall transparent containers)
-          if (h > _viewH * 2.5 && isTransparent(window.getComputedStyle(el).backgroundColor)) return false;
-          // Must not overlap entirely with an existing section of similar size
-          const y = r.top + window.scrollY;
-          if (_isCoveredY(y, h)) return false;
-          return true;
+          if (h < 300 || h > _viewH * 3 || r.width < 300) return false;
+          // Must not be a transparent wrapper
+          const bg = window.getComputedStyle(el).backgroundColor;
+          if (h > _viewH * 2 && (!bg || isTransparent(bg))) return false;
+          // Must occupy an uncovered Y-range (at least its top is not inside an existing section)
+          const y = r.top + _scrollY;
+          if (_isYCovered(y)) return false;
+          // Must contain content (heading text > 20px or CTA buttons)
+          const hasContent = !!Array.from(el.querySelectorAll('*')).find(c => {
+            try { return parseFloat(window.getComputedStyle(c).fontSize) > 20 && c.innerText?.trim().length > 3; } catch(e) { return false; }
+          }) || !!el.querySelector('a, button, video, canvas, svg');
+          return hasContent;
         })
-        .sort((a, b) => (a.getBoundingClientRect().top + window.scrollY) - (b.getBoundingClientRect().top + window.scrollY));
+        .sort((a, b) => (a.getBoundingClientRect().top + _scrollY) - (b.getBoundingClientRect().top + _scrollY));
 
-      // Deduplicate: if parent and child are both candidates, keep the child (more specific)
+      // Deduplicate overlapping candidates — keep the one with the most specific content
       const toAdd = [];
       for (const el of sectionCandidates) {
-        const isParentOfExisting = toAdd.some(existing => el.contains(existing));
-        const isChildOfExisting = toAdd.some(existing => existing.contains(el));
-        if (isParentOfExisting) continue; // skip parent, keep child
-        if (isChildOfExisting) {
-          // Replace parent with this more specific child
-          const parentIdx = toAdd.findIndex(existing => existing.contains(el));
-          if (parentIdx >= 0) toAdd[parentIdx] = el;
-        } else {
-          toAdd.push(el);
-        }
+        const y = el.getBoundingClientRect().top + _scrollY;
+        const h = el.getBoundingClientRect().height;
+        // Skip if substantially overlaps with an already-added candidate
+        const overlaps = toAdd.some(existing => {
+          const ey = existing.getBoundingClientRect().top + _scrollY;
+          const eh = existing.getBoundingClientRect().height;
+          const overlapStart = Math.max(y, ey);
+          const overlapEnd = Math.min(y + h, ey + eh);
+          return (overlapEnd - overlapStart) > Math.min(h, eh) * 0.5;
+        });
+        if (overlaps) continue;
+        toAdd.push(el);
       }
       merged.push(...toAdd);
     }
