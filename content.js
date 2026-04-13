@@ -2962,8 +2962,8 @@
           if (_fcs.display === 'flex' && (_fcs.flexDirection === 'column' || _fcs.flexDirection === 'column-reverse')) _secIsFlexCol = true;
         }
       }
-      // Check layout at two levels, but prefer direct children for split detection
-      const innerContainers = sec.querySelectorAll(':scope > div, :scope > div > div');
+      // Check layout at two levels — include section children (Next.js wraps in section > div)
+      const innerContainers = sec.querySelectorAll(':scope > div, :scope > section, :scope > div > div, :scope > section > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
         const cs = window.getComputedStyle(child);
         // Skip absolute/fixed positioned elements — they're overlays/decorations, not layout containers
