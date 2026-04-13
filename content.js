@@ -1740,27 +1740,25 @@
         }
         const bg = cs.backgroundColor;
         let bgHex = !isTransparent(bg) ? rgbToHex(bg) : null;
-        // Fallback: gradient-based extraction when backgroundColor is transparent
-        // Handles CSS variable gradients, color-mix(), oklch() — common in Tailwind/Next.js
-        if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
-          // Strategy 1: render the full gradient string to canvas and sample center pixel
-          try {
-            if (!_colorCanvas) { _colorCanvas = document.createElement('canvas'); _colorCanvas.width = 1; _colorCanvas.height = 1; _colorCtx = _colorCanvas.getContext('2d', { willReadFrequently: true }); }
-            // Create a temp element with the same background to sample its resolved color
-            const _tmp = document.createElement('div');
-            _tmp.style.cssText = 'position:fixed;left:-9999px;width:10px;height:10px;background:' + cs.backgroundImage;
-            document.body.appendChild(_tmp);
-            const _tmpCs = window.getComputedStyle(_tmp);
-            const _tmpBg = _tmpCs.backgroundColor;
-            document.body.removeChild(_tmp);
-            if (_tmpBg && !isTransparent(_tmpBg)) {
-              const _parsed = rgbToHex(_tmpBg) || null;
-              if (_parsed) bgHex = _parsed;
+        // Fallback: resolve button background when backgroundColor is transparent
+        // Common on Tailwind/Next.js sites using CSS variable gradients like:
+        //   background-image: radial-gradient(var(--button-primary-bg-from), var(--button-primary-bg-to))
+        if (!bgHex) {
+          // Strategy 1: read CSS variable values directly from the button element
+          // (variables cascade from :root through the button, so getPropertyValue resolves them)
+          const _bgVarNames = ['--button-primary-bg-from', '--button-primary-bg', '--button-bg', '--bg'];
+          for (const varName of _bgVarNames) {
+            const val = cs.getPropertyValue(varName).trim();
+            if (val && val !== 'transparent' && val !== 'none' && !val.startsWith('var(')) {
+              const _parsed = cssColorToRgb(val);
+              if (_parsed && (_parsed.r + _parsed.g + _parsed.b < 700)) { // not near-white
+                bgHex = '#' + [_parsed.r, _parsed.g, _parsed.b].map(c => c.toString(16).padStart(2,'0')).join('');
+                break;
+              }
             }
-          } catch(e) { /* temp element fallback failed */ }
-          // Strategy 2: extract color functions from gradient stops and resolve via canvas
-          if (!bgHex) {
-            // Match: #hex, rgb(), rgba(), oklch(), color-mix(), hsl()
+          }
+          // Strategy 2: extract color functions from gradient stops
+          if (!bgHex && cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('gradient')) {
             const _colorFuncs = cs.backgroundImage.match(/#[0-9a-fA-F]{3,8}|(?:rgb|rgba|oklch|color-mix|hsl|hsla|lab|lch)\([^)]*(?:\([^)]*\))*[^)]*\)/gi);
             if (_colorFuncs) {
               for (const cf of _colorFuncs) {
@@ -2944,9 +2942,18 @@
       let layout = 'stacked'; // default
       let gridCols = null;
       let _splitContainer = null;
-      // If the section itself is flex-col, it's fundamentally stacked
+      // If the section or its primary content child is flex-col, it's fundamentally stacked
+      // (Next.js/Tailwind: main > div.wrapper > section.flex-col — sec may be the wrapper, not the section)
       const _secCs = window.getComputedStyle(sec);
-      const _secIsFlexCol = _secCs.display === 'flex' && (_secCs.flexDirection === 'column' || _secCs.flexDirection === 'column-reverse');
+      let _secIsFlexCol = _secCs.display === 'flex' && (_secCs.flexDirection === 'column' || _secCs.flexDirection === 'column-reverse');
+      if (!_secIsFlexCol) {
+        // Check the first large child — it might be the actual flex-col section inside a wrapper
+        const _firstBigChild = Array.from(sec.children).find(c => c.getBoundingClientRect().height > rect.height * 0.5);
+        if (_firstBigChild) {
+          const _fcs = window.getComputedStyle(_firstBigChild);
+          if (_fcs.display === 'flex' && (_fcs.flexDirection === 'column' || _fcs.flexDirection === 'column-reverse')) _secIsFlexCol = true;
+        }
+      }
       // Check layout at two levels, but prefer direct children for split detection
       const innerContainers = sec.querySelectorAll(':scope > div, :scope > div > div');
       for (const child of Array.from(innerContainers).slice(0, 5)) {
