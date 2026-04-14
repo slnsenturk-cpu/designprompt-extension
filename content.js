@@ -662,6 +662,9 @@
     // ── 18. Spacing scale ──
     tokens.spacingScale = detectSpacingScale();
 
+    // ── 19. Iconography & visual system ──
+    tokens.iconographySystem = extractIconographySystem();
+
     // ── 20. Section-specific illustrations ──
     tokens.sectionIllustrations = detectSectionIllustrations();
 
@@ -6126,6 +6129,94 @@
       if (!seen[r.role] || r.zIndex > seen[r.role].zIndex) { seen[r.role] = r; return true; }
       return false;
     });
+  }
+
+  // ─── Iconography & visual system extraction ─────────────────────────────────
+  function extractIconographySystem() {
+    const icons = { svgIcons: null, iconFonts: [], decorativeElements: [], system: null };
+    const svgs = document.querySelectorAll('svg');
+
+    // 1. Inline SVG icons (12-48px)
+    const iconSvgs = Array.from(svgs).filter(svg => {
+      const rect = svg.getBoundingClientRect();
+      return rect.width >= 12 && rect.width <= 48 && rect.height >= 12 && rect.height <= 48;
+    });
+    const sizes = new Set();
+    const strokeWidths = new Set();
+    const fillColors = new Set();
+    let strokeCount = 0, fillCount = 0;
+    iconSvgs.slice(0, 30).forEach(svg => {
+      const rect = svg.getBoundingClientRect();
+      const w = Math.round(rect.width), h = Math.round(rect.height);
+      if (w > 0) sizes.add(`${w}x${h}`);
+      svg.querySelectorAll('path, line, polyline, circle, rect').forEach(p => {
+        const pcs = window.getComputedStyle(p);
+        if (pcs.strokeWidth && pcs.strokeWidth !== '0px' && pcs.stroke !== 'none') {
+          strokeCount++;
+          if (pcs.strokeWidth !== '1px') strokeWidths.add(pcs.strokeWidth);
+        }
+        const fill = pcs.fill;
+        if (fill && fill !== 'none' && !isTransparent(fill)) {
+          fillCount++;
+          const hex = rgbToHex(fill);
+          if (hex && !isBlackOrWhite(hex)) fillColors.add(hex);
+        }
+      });
+    });
+    if (iconSvgs.length > 0) {
+      icons.svgIcons = {
+        count: iconSvgs.length,
+        dominantSizes: [...sizes].slice(0, 3),
+        strokeWidths: strokeWidths.size > 0 ? [...strokeWidths].slice(0, 3) : ['1px'],
+        style: strokeCount > fillCount ? 'outlined' : 'filled',
+        strokeToFillRatio: strokeCount + fillCount > 0
+          ? `${Math.round(strokeCount / (strokeCount + fillCount) * 100)}% outlined`
+          : null,
+        accentColors: [...fillColors].slice(0, 5),
+      };
+    }
+
+    // 2. Icon font libraries
+    const iconFontPatterns = [
+      { name: 'Lucide', selector: '[class*="lucide"]' },
+      { name: 'Heroicons', selector: '[class*="heroicon"]' },
+      { name: 'Font Awesome', selector: '[class*="fa-"]' },
+      { name: 'Material Icons', selector: '.material-icons, [class*="material-icon"]' },
+      { name: 'Phosphor', selector: '[class*="ph-"]' },
+      { name: 'Radix', selector: '[class*="radix-icon"]' },
+      { name: 'Tabler', selector: '[class*="tabler-icon"]' },
+    ];
+    iconFontPatterns.forEach(({ name, selector }) => {
+      try { if (document.querySelector(selector)) icons.iconFonts.push(name); } catch(e) {}
+    });
+
+    // 3. Decorative SVG elements (>200px)
+    const largeSvgs = Array.from(svgs).filter(svg => {
+      const rect = svg.getBoundingClientRect();
+      return rect.width > 200 || rect.height > 200;
+    });
+    icons.decorativeElements = largeSvgs.slice(0, 5).map(svg => {
+      const rect = svg.getBoundingClientRect();
+      const section = svg.closest('section, [class*="hero"], [class*="feature"], [class*="section"]');
+      const gradients = svg.querySelectorAll('linearGradient, radialGradient');
+      const anims = svg.querySelectorAll('[class*="animate"], [style*="animation"]');
+      return {
+        size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
+        context: section ? (section.className || section.tagName).toString().split(' ')[0].slice(0, 40) : 'unknown',
+        hasGradients: gradients.length > 0,
+        hasAnimations: anims.length > 0,
+        gradientCount: gradients.length,
+      };
+    });
+
+    // 4. System detection
+    if (icons.iconFonts.length > 0) {
+      icons.system = icons.iconFonts[0];
+    } else if (icons.svgIcons && icons.svgIcons.count > 5) {
+      icons.system = `Custom inline SVG (${icons.svgIcons.style})`;
+    }
+
+    return icons;
   }
 
   // ─── Message listener — page extraction only ────────────────────────────────
