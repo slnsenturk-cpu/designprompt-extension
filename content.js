@@ -6136,10 +6136,44 @@
     const icons = { svgIcons: null, iconFonts: [], decorativeElements: [], system: null };
     const svgs = document.querySelectorAll('svg');
 
-    // 1. Inline SVG icons (12-48px)
+    // Exclude SVGs inside product UI containers (screenshots, demos, embedded apps)
+    const UI_CONTAINER_SELECTOR = [
+      '[class*="product"]', '[class*="screenshot"]', '[class*="demo"]',
+      '[class*="sidebar"]', '[class*="app-"]', '[class*="-app"]',
+      '[class*="preview"]', '[class*="mockup"]', '[class*="device"]',
+      '[role="application"]', 'iframe',
+    ].join(',');
+
+    function isMarketingElement(el) {
+      try { return !el.closest(UI_CONTAINER_SELECTOR); } catch(e) { return true; }
+    }
+
+    function getSvgContext(svg) {
+      const section = svg.closest('section');
+      if (section) {
+        const cls = (section.className || '').toString();
+        if (/hero/i.test(cls)) return 'hero';
+        if (/feature/i.test(cls)) return 'feature-section';
+        if (/testimonial/i.test(cls)) return 'testimonial';
+        if (/pricing/i.test(cls)) return 'pricing';
+        if (/cta/i.test(cls)) return 'cta-section';
+        const firstWord = cls.split(/\s/)[0];
+        if (firstWord && firstWord.length < 30) return firstWord;
+      }
+      const rect = svg.getBoundingClientRect();
+      const viewH = window.innerHeight;
+      if (rect.top < viewH * 0.3) return 'above-fold';
+      return `~${Math.round(rect.top / viewH)}x viewport`;
+    }
+
+    // 1. Inline SVG icons (12-48px, exclude lines/dividers and product UI)
     const iconSvgs = Array.from(svgs).filter(svg => {
       const rect = svg.getBoundingClientRect();
-      return rect.width >= 12 && rect.width <= 48 && rect.height >= 12 && rect.height <= 48;
+      const w = Math.round(rect.width), h = Math.round(rect.height);
+      if (h < 4 || w < 4) return false;
+      if (w / h > 20 || h / w > 20) return false;
+      if (w < 12 || w > 48 || h < 12 || h > 48) return false;
+      return isMarketingElement(svg);
     });
     const sizes = new Set();
     const strokeWidths = new Set();
@@ -6190,19 +6224,22 @@
       try { if (document.querySelector(selector)) icons.iconFonts.push(name); } catch(e) {}
     });
 
-    // 3. Decorative SVG elements (>200px)
+    // 3. Decorative SVG elements (>200px, exclude lines and product UI)
     const largeSvgs = Array.from(svgs).filter(svg => {
       const rect = svg.getBoundingClientRect();
-      return rect.width > 200 || rect.height > 200;
+      const w = Math.round(rect.width), h = Math.round(rect.height);
+      if (h < 4 || w < 4) return false;
+      if (w / h > 20 || h / w > 20) return false;
+      if (w <= 200 && h <= 200) return false;
+      return isMarketingElement(svg);
     });
     icons.decorativeElements = largeSvgs.slice(0, 5).map(svg => {
       const rect = svg.getBoundingClientRect();
-      const section = svg.closest('section, [class*="hero"], [class*="feature"], [class*="section"]');
       const gradients = svg.querySelectorAll('linearGradient, radialGradient');
       const anims = svg.querySelectorAll('[class*="animate"], [style*="animation"]');
       return {
         size: `${Math.round(rect.width)}x${Math.round(rect.height)}`,
-        context: section ? (section.className || section.tagName).toString().split(' ')[0].slice(0, 40) : 'unknown',
+        context: getSvgContext(svg),
         hasGradients: gradients.length > 0,
         hasAnimations: anims.length > 0,
         gradientCount: gradients.length,
