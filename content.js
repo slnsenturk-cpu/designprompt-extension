@@ -5635,34 +5635,8 @@
     } catch(e) { return null; }
   }
 
-  // ─── Image data extraction ─────────────────────────────────────────────────
-  function extractImageData(el) {
-    const rect = el.getBoundingClientRect();
-    let src = null;
-    if (el.tagName === 'IMG') {
-      src = el.currentSrc || el.src;
-    } else {
-      const bg = window.getComputedStyle(el).backgroundImage;
-      if (bg && bg !== 'none') {
-        const m = bg.match(/url\(["']?(.+?)["']?\)/);
-        if (m) src = m[1];
-      }
-      const img = el.querySelector('img');
-      if (!src && img) src = img.currentSrc || img.src;
-    }
-    return {
-      src,
-      rect: { top: Math.round(rect.top), left: Math.round(rect.left), width: Math.round(rect.width), height: Math.round(rect.height) },
-      alt: el.alt || el.getAttribute('aria-label') || '',
-      url: window.location.href,
-      pageTitle: document.title,
-      tag: el.tagName.toLowerCase(),
-    };
-  }
-
-  // Picker UI moved to lib/picker.js — expose extraction functions for it
+  // Picker UI moved to lib/picker.js — expose extraction function
   window.__vibeDesign.extractElementData = extractElementData;
-  window.__vibeDesign.extractImageData = extractImageData;
 
   // ─── Multi-state interactive capture ───────────────────────────────────────
   async function extractAllInteractiveStates() {
