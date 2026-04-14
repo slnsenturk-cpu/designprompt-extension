@@ -16,33 +16,13 @@ function setImgFocus(f) {
   document.querySelectorAll('[data-imgfocus]').forEach(c => c.classList.toggle('active', c.dataset.imgfocus === f));
 }
 
-// Override shared no-op — popup needs picker UI in the analyze button
+// Override shared updateAnalyzeBtn — popup adds picker hint overlays
+const _sharedUpdateAnalyzeBtn = updateAnalyzeBtn;
 function updateAnalyzeBtn() {
-  const btn = $('analyzeBtn'), icon = $('analyzeBtnIcon'), text = $('analyzeBtnText');
-  btn.classList.remove('picker-active');
-  const ph = $('pickerHint'); if (ph) ph.style.display = 'none';
-  const iph = $('imagePickerHint'); if (iph) iph.style.display = 'none';
-  if (state.mode === 'page') {
-    icon.textContent = '◫'; text.textContent = 'Analyze Page';
-  } else if (state.mode === 'element') {
-    if (state.pickerActive) {
-      icon.textContent = '✕'; text.textContent = 'Cancel';
-      btn.classList.add('picker-active');
-      if (ph) ph.style.display = 'block';
-    } else {
-      icon.textContent = '⊡'; text.textContent = 'Pick Element';
-    }
-  } else {
-    if (state.capturedImageData) {
-      icon.textContent = '⬚'; text.textContent = 'Analyze Image';
-    } else if (state.imagePickerActive) {
-      icon.textContent = '✕'; text.textContent = 'Cancel';
-      btn.classList.add('picker-active');
-      if (iph) iph.style.display = 'block';
-    } else {
-      icon.textContent = '⬚'; text.textContent = 'Pick Image';
-    }
-  }
+  _sharedUpdateAnalyzeBtn();
+  // Popup-specific: show/hide picker instruction hints
+  const ph = $('pickerHint'); if (ph) ph.style.display = (state.mode === 'element' && state.pickerActive) ? 'block' : 'none';
+  const iph = $('imagePickerHint'); if (iph) iph.style.display = (state.mode === 'image' && state.imagePickerActive) ? 'block' : 'none';
 }
 
 function showPickerLaunchScreen(mode) {
