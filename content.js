@@ -6141,7 +6141,10 @@
       '[class*="product"]', '[class*="screenshot"]', '[class*="demo"]',
       '[class*="sidebar"]', '[class*="app-"]', '[class*="-app"]',
       '[class*="preview"]', '[class*="mockup"]', '[class*="device"]',
-      '[role="application"]', 'iframe',
+      '[class*="table"]', '[class*="panel"]', '[class*="drawer"]',
+      '[class*="modal"]', '[class*="dialog"]', '[class*="popover"]',
+      '[role="application"]', '[role="grid"]', '[role="treegrid"]',
+      '[role="toolbar"]', 'iframe', 'nav', 'footer',
     ].join(',');
 
     function isMarketingElement(el) {
@@ -6166,13 +6169,14 @@
       return `~${Math.round(rect.top / viewH)}x viewport`;
     }
 
-    // 1. Inline SVG icons (12-48px, exclude lines/dividers and product UI)
+    // 1. Inline SVG icons (16-48px, exclude lines/dividers, product UI, and tiny chrome icons)
     const iconSvgs = Array.from(svgs).filter(svg => {
       const rect = svg.getBoundingClientRect();
       const w = Math.round(rect.width), h = Math.round(rect.height);
       if (h < 4 || w < 4) return false;
       if (w / h > 20 || h / w > 20) return false;
-      if (w < 12 || w > 48 || h < 12 || h > 48) return false;
+      // Marketing feature icons are 16px+ — skip tiny 12-15px UI chrome icons
+      if (w < 16 || w > 48 || h < 16 || h > 48) return false;
       return isMarketingElement(svg);
     });
     const sizes = new Set();
