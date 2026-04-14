@@ -1,10 +1,10 @@
-# DesignPrompt Landing Page — Lovable Prompt
+# VibeDesign Landing Page — Lovable Prompt
 
 Paste this into Lovable to generate the landing page:
 
 ---
 
-Build a single-page landing page for "DesignPrompt" — a Chrome extension that extracts visual design tokens from any website and converts them into ready-to-use prompts for vibe coding tools (v0.dev, Bolt, Lovable, Figma Make).
+Build a single-page landing page for "VibeDesign" — a Chrome extension that extracts visual design tokens from any website and converts them into ready-to-use prompts for vibe coding tools (v0.dev, Bolt, Lovable, Figma Make).
 
 ## Design Style
 
@@ -52,7 +52,7 @@ Inspired by rig.ai but SIMPLER — fewer sections, less visual noise, cleaner sp
 ## Page Sections (build exactly in this order)
 
 ### 1. Navigation (sticky)
-- Logo left: "⬡ DesignPrompt" in Inter 600, 15px
+- Logo left: "⬡ VibeDesign" in Inter 600, 15px
 - Right side: ghost links "Features", "How it works", "Pricing" + primary button "Add to Chrome" (links to # for now)
 - Background: transparent, transitions to rgba(10,10,11,0.9) + backdrop-filter:blur(12px) on scroll
 - Border-bottom: 1px solid rgba(255,255,255,0.06) on scroll
@@ -61,7 +61,7 @@ Inspired by rig.ai but SIMPLER — fewer sections, less visual noise, cleaner sp
 - Layout: centered text, no split columns
 - Mono label above heading: "CHROME EXTENSION" in JetBrains Mono, 12px, uppercase, #3A1DF5, letter-spacing 0.1em
 - H1: "Extract any website's design. Get a perfect prompt."
-- Subtitle (16px, #6B6B76, max-width 560px, centered): "DesignPrompt analyzes colors, typography, spacing, components, and animations from any website — then generates a ready-to-paste prompt for v0, Bolt, Lovable, or Figma Make."
+- Subtitle (16px, #6B6B76, max-width 560px, centered): "VibeDesign analyzes colors, typography, spacing, components, and animations from any website — then generates a ready-to-paste prompt for v0, Bolt, Lovable, or Figma Make."
 - Two buttons centered: "Add to Chrome — It's Free" (primary with glow) + "Watch Demo" (ghost)
 - Below buttons: small text "Works with any website. No API key required for basic analysis." in #3D3D45, 13px
 
@@ -78,8 +78,8 @@ Inspired by rig.ai but SIMPLER — fewer sections, less visual noise, cleaner sp
   - Step number: "01" / "02" / "03" in JetBrains Mono, 48px, font-weight 700, color #3A1DF5
   - Step title (H3): "Browse any site" / "Click Analyze" / "Copy & Paste"
   - Step description (14px, #6B6B76):
-    - "Navigate to any website whose design you love. DesignPrompt works on any site — SaaS, portfolio, e-commerce, anything."
-    - "Open the side panel and click Analyze. DesignPrompt extracts colors, fonts, spacing, shadows, animations, and component patterns in seconds."
+    - "Navigate to any website whose design you love. VibeDesign works on any site — SaaS, portfolio, e-commerce, anything."
+    - "Open the side panel and click Analyze. VibeDesign extracts colors, fonts, spacing, shadows, animations, and component patterns in seconds."
     - "Copy the generated prompt and paste it into v0.dev, Bolt, Lovable, or Figma Make. The output matches the original site's visual identity."
 
 ### 5. Features Grid
@@ -105,7 +105,7 @@ Features:
 - Left panel: "BEFORE" label in mono, #6B6B76
   - Dark card with monospace text showing a bad/vague prompt: "Make it look like that SaaS site I saw. Use dark mode. Make it modern. Add some shadows."
   - Style: #111113 bg, 13px JetBrains Mono, #6B6B76 text, red strike-through styling
-- Right panel: "AFTER — WITH DESIGNPROMPT" label in mono, #3A1DF5
+- Right panel: "AFTER — WITH VIBEDESIGN" label in mono, #3A1DF5
   - Dark card with monospace text showing a detailed prompt excerpt:
     ```
     Background: #0F172A
@@ -128,7 +128,7 @@ Features:
 ### 8. Footer
 - Background: #0A0A0B, border-top: 1px solid rgba(255,255,255,0.06)
 - Padding: 48px vertical
-- Left: "⬡ DesignPrompt" logo + "© 2025" in #3D3D45
+- Left: "⬡ VibeDesign" logo + "© 2025" in #3D3D45
 - Right: links in #6B6B76: "Privacy Policy" · "GitHub" · "Chrome Web Store"
 - All in 13px Inter
 

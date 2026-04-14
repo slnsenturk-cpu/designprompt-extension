@@ -1,4 +1,4 @@
-// DesignPrompt — Popup UI (popup-specific overrides)
+// VibeDesign — Popup UI (popup-specific overrides)
 // Shared code lives in lib/ui-helpers.js
 
 // ── Popup-specific: picker mode support ───────────────────────────────────

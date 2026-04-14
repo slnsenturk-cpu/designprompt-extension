@@ -1,4 +1,4 @@
-/* DesignPrompt — Popup Styles (v2 — human-craft redesign) */
+/* VibeDesign — Popup Styles (v2 — human-craft redesign) */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -7,18 +7,19 @@
   --bg2: #16161b;
   --bg3: #1e1e26;
   --border: rgba(255,255,255,0.06);
-  --border-hover: rgba(99,102,241,0.35);
   --text: #e4e4f0;
   --text-2: #8b8ba8;
   --text-3: #5c5c78;
   --accent: #6366f1;
   --accent-2: #818cf8;
-  --accent-glow: rgba(99,102,241,0.12);
+  --accent-glow: color-mix(in srgb, var(--accent) 12%, transparent);
+  --border-hover: color-mix(in srgb, var(--accent) 35%, transparent);
   --green: #34d399;
   --red: #f87171;
   --amber: #fbbf24;
   --radius-sm: 4px;
   --radius-md: 6px;
+  --radius-lg: 8px;
   --radius-pill: 9999px;
   --font-mono: 'IBM Plex Mono', 'Fira Code', monospace;
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
@@ -184,11 +185,7 @@ body {
   border-color: var(--accent);
   color: white;
 }
-.mode-tab[data-mode="image"].active {
-  background: var(--green);
-  border-color: var(--green);
-  color: #0e0e11;
-}
+/* --green reserved for success/saved/AI-active states — mode tabs use --accent uniformly */
 
 .tab-icon { font-size: 14px; line-height: 1; }
 
@@ -269,7 +266,7 @@ body {
 .btn-primary:hover {
   background: var(--accent-2);
   border-color: var(--accent-2);
-  box-shadow: 0 0 24px rgba(99,102,241,0.25);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .btn-ghost {
@@ -782,6 +779,16 @@ body {
   font-family: var(--font-mono);
 }
 
+/* ─── Coverage bar ─── */
+.coverage-bar {
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ─── Save indicator ─── */
 .save-indicator {
   display: flex;
@@ -875,8 +882,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: rgba(99,102,241,0.06);
-  border-bottom: 1px solid rgba(99,102,241,0.12);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-bottom: 1px solid var(--accent-glow);
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-3);
@@ -909,9 +916,9 @@ body {
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: rgba(99,102,241,0.12);
-  color: #818cf8;
-  border: 1px solid rgba(99,102,241,0.2);
+  background: var(--accent-glow);
+  color: var(--accent-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 /* ─── History item: provider indicator ─── */

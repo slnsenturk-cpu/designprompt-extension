@@ -1,92 +1,14 @@
-// DesignPrompt v3 — Content Script (fixed token extraction)
+// VibeDesign v3 — Content Script (fixed token extraction)
 
 (function () {
-  if (window.__designPromptInjected) return;
-  window.__designPromptInjected = true;
+  if (window.__vibeDesignInjected) return;
+  window.__vibeDesignInjected = true;
 
-  let pickerActive = false;
-  let imagePickerActive = false;
-  let highlightEl = null;
-  let tooltip = null;
+  // Noise filter functions loaded from lib/noise-filter.js
+  const { isNoisyVar, hasUsefulValue } = window.__vibeDesign || {};
 
-  // ─── Framework noise filter ────────────────────────────────────────────────
-  // Internal vars from Framer, Webflow, Tailwind, Bootstrap, Swiper, etc.
-  const NOISE_PREFIXES = [
-    // CSS frameworks
-    '--tw-', '--bs-', '--wp-',
-    // Design tools
-    '--framer-', '--wf-', '--webflow-',
-    // Component libraries
-    '--chakra-', '--mui-', '--ant-', '--el-', '--van-', '--vp-',
-    '--sl-', '--sd-', '--spectrum-', '--calcite-', '--pfe-', '--fast-', '--fluent-',
-    '--mdb-', '--daisyui-', '--radix-',
-    // UI utility libraries (toasts, modals, tooltips etc.)
-    '--toastify-', '--toast-', '--sonner-', '--hot-toast-',
-    '--tippy-', '--popper-', '--floating-',
-    '--swiper-', '--glide-', '--splide-',
-    '--nprogress-', '--notistack-',
-    // Generic internal markers
-    '--internal-', '--private-',
-  ];
-
-  const NOISE_PATTERNS = [
-    /text-decoration/,
-    /skip-ink/,
-    /underline-offset/,
-    /decoration-thickness/,
-    /decoration-color/,
-    /decoration-style/,
-    /current-color/,
-    /link-current/,
-    /ring-inset/,
-    /ring-offset/,
-    /ring-shadow/,
-    /ring-color/,
-    /prose-/,
-    /preloader/,
-    /navigation-size/,
-    /pagination-/,
-    /scrollbar-/,
-    // Toast/notification lib internals
-    /spinner-color/,
-    /toast-background/,
-    /toast-shadow/,
-    /toast-bd-/,
-    /bounce-in/,
-    /bounce-out/,
-    /track-progress/,
-    // Animation library internals
-    /aos-/,
-    /gsap-/,
-  ];
-
-  function isNoisyVar(key) {
-    if (NOISE_PREFIXES.some(p => key.startsWith(p))) return true;
-    if (NOISE_PATTERNS.some(p => p.test(key))) return true;
-    // Webflow/Figma deleted variable markers
-    if (key.includes('<deleted|') || key.includes('|variable-') || key.includes('|>')) return true;
-    // Internal tool variables with special characters
-    if (/[<>|]/.test(key)) return true;
-    return false;
-  }
-
-  // Only keep vars with concrete design values (not references to other vars)
-  function hasUsefulValue(val) {
-    if (!val) return false;
-    const v = val.trim();
-    // Reject pure var() references — they're not useful without resolution
-    if (/^var\(/.test(v)) return false;
-    // Reject none/initial/inherit
-    if (/^(none|initial|inherit|unset|auto|normal)$/.test(v)) return false;
-    return (
-      /^#[0-9a-f]{3,8}$/i.test(v) ||
-      /^rgb/.test(v) ||
-      /^hsl/.test(v) ||
-      /\d+(px|rem|em|ms|s|vh|vw|%)/.test(v) ||
-      // Font family names — quoted or unquoted
-      (/^["']?[A-Z][\w\s-]+["']?/.test(v) && v.length < 80)
-    );
-  }
+  // Expose extraction functions for lib/picker.js
+  window.__vibeDesign = window.__vibeDesign || {};
 
   // ─── Color helpers ─────────────────────────────────────────────────────────
   // Canvas element for converting any CSS color (oklch, lab, lch, etc.) to RGB
@@ -1320,21 +1242,27 @@
 
   // ─── Breakpoint extraction from CSS media queries ────────────────────────
   function extractBreakpoints() {
-    const bps = new Set();
+    const bpMap = {};
     try {
       for (const sheet of document.styleSheets) {
         try {
           for (const rule of sheet.cssRules) {
             if (rule.type === CSSRule.MEDIA_RULE) {
-              const m = rule.conditionText ? rule.conditionText.match(/(\d{3,4})px/) : null;
-              if (m) bps.add(parseInt(m[1]));
+              const cond = rule.conditionText || rule.media?.mediaText || '';
+              const m = cond.match(/(\d{3,4})px/);
+              if (m) {
+                const px = parseInt(m[1]);
+                if (px >= 320 && px <= 1920) {
+                  if (!bpMap[px]) bpMap[px] = { px, ruleCount: 0, condition: cond };
+                  bpMap[px].ruleCount += rule.cssRules.length;
+                }
+              }
             }
           }
         } catch(e) { /* cross-origin sheet, skip */ }
       }
     } catch(e) { console.debug('[VibeDesign]', e.message); }
-    // Return sorted breakpoints in typical responsive range (320-1920)
-    return [...bps].filter(b => b >= 320 && b <= 1920).sort((a,b) => a-b);
+    return Object.values(bpMap).sort((a,b) => a.px - b.px).slice(0, 8);
   }
 
   // ─── Dark mode token extraction ───────────────────────────────────────────
@@ -5732,197 +5660,9 @@
     };
   }
 
-  // ─── Overlay / Picker ──────────────────────────────────────────────────────
-  function createHighlight(color) {
-    const h = document.createElement('div');
-    h.id = '__dp_highlight';
-    const isGreen = color === 'green';
-    h.style.cssText = `position:fixed;pointer-events:none;z-index:2147483647;
-      border:2px solid ${isGreen ? '#34d399' : '#6366f1'};
-      background:${isGreen ? 'rgba(52,211,153,0.08)' : 'rgba(99,102,241,0.08)'};
-      border-radius:4px;transition:top .08s,left .08s,width .08s,height .08s;display:none;`;
-    document.body.appendChild(h);
-    return h;
-  }
-
-  function createTooltip(color) {
-    const t = document.createElement('div');
-    t.id = '__dp_tooltip';
-    t.style.cssText = `position:fixed;pointer-events:none;z-index:2147483647;
-      background:#18181b;color:${color === 'green' ? '#34d399' : '#a5b4fc'};
-      font-size:11px;font-family:monospace;padding:4px 8px;
-      border-radius:4px;border:1px solid #3f3f46;display:none;white-space:nowrap;`;
-    document.body.appendChild(t);
-    return t;
-  }
-
-  function positionHighlight(target) {
-    if (!highlightEl) return;
-    const rect = target.getBoundingClientRect();
-    highlightEl.style.display = 'block';
-    highlightEl.style.top = rect.top + 'px';
-    highlightEl.style.left = rect.left + 'px';
-    highlightEl.style.width = rect.width + 'px';
-    highlightEl.style.height = rect.height + 'px';
-    if (tooltip) {
-      tooltip.style.display = 'block';
-      tooltip.style.top = Math.max(0, rect.top - 26) + 'px';
-      tooltip.style.left = rect.left + 'px';
-    }
-  }
-
-  function removeOverlay() {
-    ['__dp_highlight','__dp_tooltip'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.remove();
-    });
-    highlightEl = null; tooltip = null;
-  }
-
-  // Element picker
-  function activatePicker() {
-    pickerActive = true;
-    highlightEl = createHighlight('purple');
-    tooltip = createTooltip('purple');
-    document.addEventListener('mousemove', onElemMove, true);
-    document.addEventListener('click', onElemClick, true);
-    document.addEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = 'crosshair';
-  }
-  function deactivatePicker() {
-    pickerActive = false; removeOverlay();
-    document.removeEventListener('mousemove', onElemMove, true);
-    document.removeEventListener('click', onElemClick, true);
-    document.removeEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = '';
-    chrome.runtime.sendMessage({ type: 'PICKER_CANCELLED' }).catch(() => {});
-  }
-  function onElemMove(e) {
-    if (!pickerActive || e.target.id?.startsWith('__dp_')) return;
-    positionHighlight(e.target);
-    if (tooltip) {
-      const t = e.target.tagName.toLowerCase();
-      const c = e.target.className?.toString().split(' ')[0] || '';
-      const r = e.target.getBoundingClientRect();
-      const text = (e.target.innerText || '').trim().slice(0, 20);
-      tooltip.textContent = `<${t}${c ? '.'+c : ''}> ${Math.round(r.width)}×${Math.round(r.height)}${text ? ' — "'+text+'"' : ''}`;
-    }
-  }
-  function onElemClick(e) {
-    if (!pickerActive || e.target.id?.startsWith('__dp_')) return;
-    e.preventDefault(); e.stopPropagation();
-    const data = extractElementData(e.target);
-    pickerActive = false;
-    document.removeEventListener('mousemove', onElemMove, true);
-    document.removeEventListener('click', onElemClick, true);
-    document.removeEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = '';
-    // Show confirmation animation before removing overlay
-    showSelectionConfirmation(e.target);
-    // Write to storage + send live message
-    chrome.storage.local.set({
-      dp_pending: { type: 'ELEMENT_PICKED', data, timestamp: Date.now() }
-    });
-    chrome.runtime.sendMessage({ type: 'ELEMENT_PICKED', data }).catch(() => {});
-  }
-
-  // Image picker
-  function activateImagePicker() {
-    imagePickerActive = true;
-    highlightEl = createHighlight('green');
-    tooltip = createTooltip('green');
-    document.addEventListener('mousemove', onImgMove, true);
-    document.addEventListener('click', onImgClick, true);
-    document.addEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = 'crosshair';
-  }
-  function deactivateImagePicker() {
-    imagePickerActive = false; removeOverlay();
-    document.removeEventListener('mousemove', onImgMove, true);
-    document.removeEventListener('click', onImgClick, true);
-    document.removeEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = '';
-    chrome.runtime.sendMessage({ type: 'PICKER_CANCELLED' }).catch(() => {});
-  }
-  function findImageTarget(el) {
-    let t = el;
-    while (t && t !== document.body) {
-      if (t.tagName === 'IMG') return t;
-      const bg = window.getComputedStyle(t).backgroundImage;
-      if (bg && bg !== 'none' && bg.startsWith('url')) return t;
-      const img = t.querySelector('img');
-      if (img) return img;
-      t = t.parentElement;
-    }
-    return el;
-  }
-  function onImgMove(e) {
-    if (!imagePickerActive || e.target.id?.startsWith('__dp_')) return;
-    const target = findImageTarget(e.target);
-    positionHighlight(target);
-    if (tooltip) {
-      if (target.tagName === 'IMG') {
-        const src = (target.src || target.currentSrc || '');
-        const filename = src.split('/').pop()?.split('?')[0]?.slice(0, 30) || '';
-        const r = target.getBoundingClientRect();
-        tooltip.textContent = `<img> ${Math.round(r.width)}×${Math.round(r.height)}${filename ? ' — '+filename : ''}`;
-      } else {
-        const r = target.getBoundingClientRect();
-        tooltip.textContent = `<${target.tagName.toLowerCase()}> ${Math.round(r.width)}×${Math.round(r.height)} — click to capture`;
-      }
-    }
-  }
-  function onImgClick(e) {
-    if (!imagePickerActive || e.target.id?.startsWith('__dp_')) return;
-    e.preventDefault(); e.stopPropagation();
-    const target = findImageTarget(e.target);
-    const data = extractImageData(target);
-    imagePickerActive = false;
-    document.removeEventListener('mousemove', onImgMove, true);
-    document.removeEventListener('click', onImgClick, true);
-    document.removeEventListener('keydown', onKeyDown, true);
-    document.body.style.cursor = '';
-    // Show confirmation animation
-    showSelectionConfirmation(target);
-    // Write to storage + send live message
-    chrome.storage.local.set({
-      dp_pending: { type: 'IMAGE_PICKED', data, timestamp: Date.now() }
-    });
-    chrome.runtime.sendMessage({ type: 'IMAGE_PICKED', data }).catch(() => {});
-  }
-
-  // ─── Selection confirmation animation ─────────────────────────────────────
-  function showSelectionConfirmation(target) {
-    // Turn existing highlight green + show "Selected" tooltip
-    if (highlightEl) {
-      const rect = target.getBoundingClientRect();
-      highlightEl.style.display = 'block';
-      highlightEl.style.top = rect.top + 'px';
-      highlightEl.style.left = rect.left + 'px';
-      highlightEl.style.width = rect.width + 'px';
-      highlightEl.style.height = rect.height + 'px';
-      highlightEl.style.borderColor = '#34d399';
-      highlightEl.style.background = 'rgba(52,211,153,0.12)';
-      highlightEl.style.transition = 'opacity 0.4s ease';
-    }
-    if (tooltip) {
-      tooltip.style.display = 'block';
-      tooltip.style.color = '#34d399';
-      tooltip.textContent = '✓ Selected — generating prompt...';
-    }
-    // Fade out and remove after 1.5s
-    setTimeout(() => {
-      if (highlightEl) highlightEl.style.opacity = '0';
-      if (tooltip) tooltip.style.opacity = '0';
-      setTimeout(() => removeOverlay(), 500);
-    }, 1200);
-  }
-
-  function onKeyDown(e) {
-    if (e.key !== 'Escape') return;
-    if (pickerActive) deactivatePicker();
-    if (imagePickerActive) deactivateImagePicker();
-  }
+  // Picker UI moved to lib/picker.js — expose extraction functions for it
+  window.__vibeDesign.extractElementData = extractElementData;
+  window.__vibeDesign.extractImageData = extractImageData;
 
   // ─── Multi-state interactive capture ───────────────────────────────────────
   async function extractAllInteractiveStates() {
@@ -6414,7 +6154,8 @@
     });
   }
 
-  // ─── Message listener ──────────────────────────────────────────────────────
+  // ─── Message listener — page extraction only ────────────────────────────────
+  // Picker commands (ACTIVATE_PICKER etc.) handled by lib/picker.js
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'EXTRACT_PAGE') {
       extractPageTokens().then(data => {
@@ -6423,10 +6164,6 @@
         sendResponse({ success: false, error: err.message || 'Extraction failed' });
       });
     }
-    if (msg.type === 'ACTIVATE_PICKER') { if (!pickerActive) activatePicker(); sendResponse({ success: true }); }
-    if (msg.type === 'DEACTIVATE_PICKER') { deactivatePicker(); sendResponse({ success: true }); }
-    if (msg.type === 'ACTIVATE_IMAGE_PICKER') { if (!imagePickerActive) activateImagePicker(); sendResponse({ success: true }); }
-    if (msg.type === 'DEACTIVATE_IMAGE_PICKER') { deactivateImagePicker(); sendResponse({ success: true }); }
     return true;
   });
 })();

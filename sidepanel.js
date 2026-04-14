@@ -1,4 +1,4 @@
-// DesignPrompt — Side Panel UI (sidepanel-specific overrides)
+// VibeDesign — Side Panel UI (sidepanel-specific overrides)
 // Shared code lives in lib/ui-helpers.js
 
 // ── Side panel: track tab switches to keep context current ────────────────
