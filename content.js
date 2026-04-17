@@ -153,6 +153,35 @@
 
   const JUNK_FONT_PATTERNS = [/^\d/, /^[a-z]{1,3}$/, /^-/, /inherit/, /initial/, /unset/];
 
+  // Standalone generic CSS family keywords — vibe coding tools (v0, Bolt) can't
+  // @import "Mono" or "Sans" as real fonts. If comma-splitting reduces a family
+  // value to one of these, the result is un-loadable and must be rejected.
+  const GENERIC_FAMILIES = new Set([
+    'mono', 'monospace', 'sans', 'sans-serif', 'serif',
+    'display', 'cursive', 'fantasy', 'system', 'system-ui',
+    'ui-sans-serif', 'ui-serif', 'ui-monospace', 'ui-rounded',
+  ]);
+
+  // Recover a real font name from the RAW CSS value when the first comma-segment
+  // turned out generic. Handles malformed stacks like `Mono, "Atlantic Mono"` where
+  // the usable name lives later in the list inside quotes.
+  function _firstQuotedFontName(raw) {
+    if (!raw) return null;
+    const m = raw.match(/["']([^"']+)["']/);
+    if (!m) return null;
+    const candidate = m[1].trim();
+    if (candidate.length <= 2) return null;
+    if (GENERIC_FAMILIES.has(candidate.toLowerCase())) return null;
+    return candidate;
+  }
+
+  // Expected behavior:
+  //   '"Atlantic Mono", monospace'                → "Atlantic Mono"
+  //   '"JetBrains Mono", ui-monospace, monospace' → "JetBrains Mono"
+  //   'monospace'                                 → null  (pure generic, rejected by SYSTEM_FONT_STACKS)
+  //   '"Mono"'                                    → null  (generic keyword in quotes, rejected by GENERIC_FAMILIES)
+  //   'Inter, sans-serif'                         → "Inter"
+  //   'Mono, "Atlantic Mono"'                     → "Atlantic Mono" (fallback recovery via _firstQuotedFontName)
   function cleanFont(rawFamily) {
     if (!rawFamily) return null;
     const first = rawFamily.split(',')[0].replace(/['"]/g, '').trim();
@@ -165,6 +194,13 @@
     if (/^__/.test(first) || /^[a-f0-9]{6,}$/i.test(first)) return null;
     // Filter out single-word generic names that aren't real font names
     if (/^(display|body|heading|text|primary|secondary|accent)$/i.test(first)) return null;
+    // Generic-family guard — catches "Mono", "Sans", "Display" standalone. These slip
+    // past SYSTEM_FONT_STACKS (which only holds the full canonical names like "monospace").
+    if (GENERIC_FAMILIES.has(first.toLowerCase().trim())) {
+      // Second-pass recovery: the RAW input may carry a real name in a later quoted
+      // segment even when the first comma-segment was generic.
+      return _firstQuotedFontName(rawFamily);
+    }
     return first;
   }
 
@@ -1854,6 +1890,10 @@
           transition: (cs.transition && cs.transition !== 'all 0s ease 0s' && cs.transition !== 'none 0s ease 0s' && cs.transition !== 'all' && cs.transition !== 'none') ? cs.transition : null,
           isNavCta, isAboveFold, cls, bgSat, bgLum,
           width: Math.round(rect.width),
+          // Absolute top position — used by hero-viewport bonus in the scoring loop.
+          // rect.top is viewport-relative; adding scrollY gives the document-coordinate
+          // position so the bonus fires correctly when the page has already been scrolled.
+          top: rect.top + window.scrollY,
           text: btn.innerText?.trim().slice(0, 30) || '',
         };
 
@@ -1874,7 +1914,22 @@
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
-    // Score-based classification
+    // Score-based classification.
+    // ── Weight stack (sum → primary ranking) ──────────────────────────────────
+    //  +2  has backgroundColor            +3  very dark bg (lum < 0.15)
+    //  +2  saturated bg (sat > 30)        +1  colored-ish bg (sat > 10, lum < 0.8)
+    //  +5  class hints: primary|cta|main|action|hero
+    //  +4  class hints: red|blue|accent|brand|start|signup|register|get-started
+    //  +1  fontWeight ≥ 700               +1  width > 140        +1  height > 44
+    //  +2  pill radius ≥ 100px
+    //  +3  CTA text: get started|start|sign up|try|begin|join|subscribe
+    //  +20 hero-viewport bonus: top < innerHeight * 1.2  (true hero CTAs)
+    //  +15 substantial size: 110 ≤ width ≤ 260 AND height ≥ 40  (button-shaped,
+    //      not tiny pill tags, not full-bleed banners)
+    //  -5  ghost/outline/secondary/subtle class hint
+    //  -3  no bg but has border            -30 isNavCta (nav sign-ups are never primary)
+    // Tiebreaker: equal _score → larger (width * height) wins.
+    const heroZone = window.innerHeight * 1.2;
     candidates.forEach(c => {
       let score = 0;
       // Has a visible background color = likely a filled button
@@ -1900,25 +1955,36 @@
       // Ghost indicators
       if (/ghost|outline|secondary|subtle|text/i.test(c.cls)) score -= 5;
       if (!c.backgroundColor && c.border) score -= 3;
-      // Nav buttons hard-demoted — nav "Sign up" must not beat a real hero CTA
-      if (c.isNavCta) score -= 25;
-      // Hero CTA signal: above-fold, non-nav, substantial width
-      if (!c.isNavCta && c.isAboveFold && c.width > 110) score += 3;
+      // Nav buttons hard-demoted — nav "Sign up" must never beat a real hero CTA.
+      // Raised from -25 to -30: at -25 a nav button with `primary` in its class
+      // (class hint +5) net +0 was still competitive with uncolored hero options.
+      if (c.isNavCta) score -= 30;
+      // Hero-viewport bonus — candidates within the top ~1.2 viewports of the document
+      // are where real hero CTAs live. Supersedes the earlier above-fold+width heuristic
+      // because a raw top check is more reliable than viewport-relative isAboveFold.
+      if (c.top < heroZone) score += 20;
+      // Substantial-size bonus — rewards button-shaped elements and penalizes tiny
+      // pill tags (width < 110) or full-bleed banners (width > 260). Height floor
+      // excludes single-line chip labels.
+      if (c.width >= 110 && c.width <= 260 && parseInt(c.height) >= 40) score += 15;
       c._score = score;
+      c._area = c.width * (parseInt(c.height) || 0);
     });
 
-    // Primary = highest score, preferring non-nav candidates when any viable one exists
-    const sorted = [...candidates].sort((a, b) => b._score - a._score);
+    // Primary = highest score, preferring non-nav candidates when any viable one exists.
+    // Tiebreaker: on equal _score, larger _area wins — prevents insertion-order instability
+    // when two candidates tie on the weight stack (e.g. two buttons with identical classes).
+    const sorted = [...candidates].sort((a, b) => (b._score - a._score) || (b._area - a._area));
     const nonNavViable = sorted.filter(c => !c.isNavCta && c._score > 0);
     if (nonNavViable.length > 0) {
       result.primary = nonNavViable[0];
     } else if (sorted.length > 0 && sorted[0]._score > 0) {
       result.primary = sorted[0];
     } else {
-      // Fallback: highest saturation, still preferring non-nav
+      // Fallback: highest saturation, still preferring non-nav, area as tiebreaker
       const withBg = candidates.filter(c => c.backgroundColor && c.bgSat > 10);
       if (withBg.length) {
-        withBg.sort((a, b) => (a.isNavCta - b.isNavCta) || (b.bgSat - a.bgSat));
+        withBg.sort((a, b) => (a.isNavCta - b.isNavCta) || (b.bgSat - a.bgSat) || (b._area - a._area));
         result.primary = withBg[0];
       }
     }
@@ -1975,9 +2041,11 @@
         delete result[key].bgSat;
         delete result[key].bgLum;
         delete result[key]._score;
+        delete result[key]._area;
         delete result[key].cls;
         delete result[key].isNavCta;
         delete result[key].isAboveFold;
+        delete result[key].top;
       }
     }
     return result;
@@ -2849,6 +2917,37 @@
     // we allow at most 2 reports per canvas (hero + one more prominent section) to avoid noise.
     const _fixedCanvasReportCount = new Map();
 
+    // Track heading strings already assigned to upstream sections. Prevents Section N
+    // from inheriting Section 1's heading when DOM nesting leaks — on sites where the
+    // extraction root traverses into sibling content (atlantic.vc's "We back the unknown"
+    // being reassigned to the text-block section below the hero).
+    const usedHeadings = new Set();
+
+    // Same pattern for visuals: a single team photo (or hero SVG) was describing itself
+    // into multiple sections because descendant queries don't respect section boundaries.
+    // WeakSet so entries are GC'd automatically when we're done; no manual cleanup needed.
+    const globallyUsedVisuals = new WeakSet();
+
+    // Plausibility guard — rejects text fragments that pass DOM/size checks but are
+    // obviously not real section headings. Real-world bugs this blocks:
+    // • "'Too" — hero text fragment picked up with an unmatched opening quote
+    // • "Into" — a single four-letter word is almost never a section heading
+    // • 14px spans in a Framer RichTextContainer that happen to be the largest non-body text
+    function _isPlausibleHeading(text, fontSize) {
+      if (!text) return false;
+      const t = text.trim();
+      if (t.length < 4) return false;
+      // Starts with an opening quote/bracket but never closes it — the extractor
+      // almost certainly grabbed a mid-sentence fragment.
+      if (/^[''""`‹«<\[\{\(]/.test(t) && !/[''""`›»>\]\}\)]/.test(t)) return false;
+      // Single very short word — too little signal to be a real heading.
+      const words = t.split(/\s+/).filter(Boolean);
+      if (words.length === 1 && words[0].length < 6) return false;
+      // Real section headings are display-sized; a 14px span is body copy.
+      if (fontSize && fontSize < 20) return false;
+      return true;
+    }
+
     for (const sec of sectionEls.slice(0, 16)) {
       const rect = sec.getBoundingClientRect();
       if (rect.height < 100 || rect.width < 300) continue;
@@ -2896,13 +2995,29 @@
         }
       }
 
-      // Pick first VISIBLE heading (skip display:none responsive clones)
+      // Verify an element belongs ONLY to this section — not leaked in from a parent
+      // or sibling via descendant traversal. closest() returns the nearest ancestor that
+      // itself matches any section-shaped selector; if that's `sec`, the element lives
+      // within sec's scope with no nested section boundary between them.
+      const _isOwnHeading = (h) => h.closest('section, [data-framer-name], main > div') === sec;
+
+      // Pick first VISIBLE heading that (a) belongs to THIS section (no DOM-leak from a
+      // nested or sibling section), (b) isn't already claimed by an upstream section,
+      // and (c) passes the plausibility guard (rejects "'Too", "Into", tiny-span fragments).
       let heading = Array.from(sec.querySelectorAll('h1, h2, h3')).find(el => {
         const cs = window.getComputedStyle(el);
         const r = el.getBoundingClientRect();
-        return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0 && r.height > 0;
+        if (cs.display === 'none' || cs.visibility === 'hidden' || r.width === 0 || r.height === 0) return false;
+        if (!_isOwnHeading(el)) return false;
+        const norm = (el.innerText || '').trim().toLowerCase();
+        if (!norm) return false;
+        if (usedHeadings.has(norm)) return false;
+        if (!_isPlausibleHeading(el.innerText, parseFloat(cs.fontSize) || 0)) return false;
+        return true;
       }) || null;
-      // Framer fallback: no semantic heading tags — find the largest visible text element
+      // Framer fallback: no semantic heading tags — find the largest visible text element.
+      // Same isolation + duplicate + plausibility checks apply so Framer sites don't recycle
+      // the hero headline or promote a 14px fragment just because it's the largest non-body text.
       if (!heading) {
         let bestEl = null, bestSize = 0;
         const _candidates = sec.querySelectorAll('[data-framer-component-type="RichTextContainer"], [data-framer-component-type="RichText"], div, p, span');
@@ -2915,13 +3030,20 @@
             if (fs < 24 || r.width < 100 || r.height < 20) continue; // only large text
             const text = el.innerText?.trim();
             if (!text || text.length < 3 || text.length > 120) continue;
+            if (!_isOwnHeading(el)) continue;
+            if (usedHeadings.has(text.toLowerCase())) continue;
+            if (!_isPlausibleHeading(text, fs)) continue;
             // Avoid picking up body paragraphs — must be significantly larger than 16px body
             if (fs > bestSize) { bestSize = fs; bestEl = el; }
           } catch(e) {}
         }
         if (bestEl) heading = bestEl;
       }
-      const headingText = heading?.innerText?.trim().slice(0, 60) || '';
+      // 60 → 80: real site headings frequently run 60–80 chars ("The most powerful
+      // customer data platform for modern product teams"). Truncating at 60 cut real
+      // headings mid-phrase; CTA labels still use their own slice(0, 30) elsewhere.
+      const headingText = heading?.innerText?.trim().slice(0, 80) || '';
+      if (headingText) usedHeadings.add(headingText.toLowerCase());
       let hasH1 = !!Array.from(sec.querySelectorAll('h1')).find(el => {
         const cs = window.getComputedStyle(el);
         return cs.display !== 'none' && cs.visibility !== 'hidden';
@@ -3194,9 +3316,23 @@
       // Classify section type — hero MUST take priority
       let type = 'content';
       const isFirstSection = map.length === 0;
-      const hasAnyHeading = !!sec.querySelector('h1, h2, h3') || !!headingText;
+      // hasAnyHeading reflects the ACCEPTED heading (post isolation + dedup), not a
+      // raw querySelector hit — otherwise a section whose "heading" was rejected as
+      // a duplicate could still be classified as hero/cta-section and re-introduce
+      // the bug upstream logic exists to prevent.
+      const hasAnyHeading = !!headingText;
+      // Decorative downgrade — a section with no unique heading, no eyebrow, and no
+      // CTAs carries no textual anchor of its own. Classify it as `decorative` so the
+      // downstream renderer treats it as a visual-only divider instead of inheriting
+      // hero/text-block/cta-section labels from adjacent sections.
+      if (!headingText && !eyebrowText && ctaButtons.length === 0) type = 'decorative';
+      // Headingless-but-not-empty guard — if the plausibility guard rejected every
+      // heading candidate, don't promote to hero/cta-section unless BOTH a real H1
+      // tag AND CTA buttons are present. Otherwise drop to plain 'content'. Prevents
+      // a section whose "heading" was actually "'Too" from carrying hero-tier weight.
+      else if (!headingText && !(hasH1 && ctaButtons.length > 0)) type = 'content';
       // Hero: FIRST section is ALWAYS hero if it has any heading or CTA or visual
-      if (isFirstSection && (hasH1 || hasAnyHeading || ctaButtons.length > 0 || hasVideo || hasCanvas)) type = 'hero';
+      else if (isFirstSection && (hasH1 || hasAnyHeading || ctaButtons.length > 0 || hasVideo || hasCanvas)) type = 'hero';
       else if (hasH1 && (hasForm || ctaButtons.length > 0)) {
         // Only classify as hero if near the top — avoids misclassifying mid-page h1+CTA sections (Framer sites repeat h1)
         const _secTop = sec.offsetTop !== undefined ? sec.offsetTop : (sec.getBoundingClientRect().top + window.scrollY);
@@ -3227,11 +3363,27 @@
 
       // ── Analyze images with full visual context ──
       if (type !== 'logo-strip' && type !== 'portfolio-split') {
+        // Isolation filter — an <img> satisfies this section only if:
+        // (a) its nearest section-shaped ancestor IS this section (no DOM leak from a
+        //     nested or sibling section that happens to share the query root), and
+        // (b) its vertical center falls inside this section's bounding rect (covers
+        //     absolute-positioned edge cases where the DOM ancestry looks right but
+        //     layout places it outside).
+        const _secRectVisual = sec.getBoundingClientRect();
         const significantImgs = Array.from(sec.querySelectorAll('img')).filter(i => {
           const r = i.getBoundingClientRect();
-          return r.width > 80 && r.height > 80;
+          if (!(r.width > 80 && r.height > 80)) return false;
+          const nearestSection = i.closest('section, [data-framer-name]');
+          if (nearestSection && nearestSection !== sec) return false;
+          const imgCenterY = r.top + r.height / 2;
+          if (imgCenterY < _secRectVisual.top || imgCenterY > _secRectVisual.top + _secRectVisual.height) return false;
+          return true;
         });
         for (const img of significantImgs.slice(0, 4)) {
+          // Skip visuals already attributed to an upstream section — prevents a single
+          // team headshot or hero illustration from being re-described in every section
+          // below it just because descendant queries overlap.
+          if (globallyUsedVisuals.has(img)) continue;
           const r = img.getBoundingClientRect();
           const cs = window.getComputedStyle(img);
           const alt = (img.alt || '').trim();
@@ -3289,15 +3441,25 @@
           if (framing.length > 0) desc += `, frame: {${framing.join(', ')}}`;
 
           visualDescriptions.push(desc);
+          globallyUsedVisuals.add(img);
         }
       }
 
       // ── Analyze large SVGs with structural content detection ──
+      // Same isolation + bbox + global-dedup rules as images: a Framer hero SVG was
+      // being re-attributed to every subsequent section whose DOM tree it poked into.
+      const _secRectSvg = sec.getBoundingClientRect();
       const largeSvgs = Array.from(sec.querySelectorAll('svg')).filter(s => {
         const r = s.getBoundingClientRect();
-        return r.width > 150 && r.height > 150;
+        if (!(r.width > 150 && r.height > 150)) return false;
+        const nearestSection = s.closest('section, [data-framer-name]');
+        if (nearestSection && nearestSection !== sec) return false;
+        const svgCenterY = r.top + r.height / 2;
+        if (svgCenterY < _secRectSvg.top || svgCenterY > _secRectSvg.top + _secRectSvg.height) return false;
+        return true;
       });
       for (const svg of largeSvgs.slice(0, 3)) {
+        if (globallyUsedVisuals.has(svg)) continue;
         const r = svg.getBoundingClientRect();
         // Use viewBox or width/height attributes for more accurate dimensions
         // (getBoundingClientRect may be clipped by overflow:hidden parent)
@@ -3369,6 +3531,7 @@
         }
 
         visualDescriptions.push(desc);
+        globallyUsedVisuals.add(svg);
       }
 
       // ── Canvas detection with size/placement and container styling ──
@@ -3880,16 +4043,45 @@
   }
 
   // ─── Footer content extraction ──────────────────────────────────────────
+  // Smart truncator for footer text — prefers natural boundaries (comma, whitespace)
+  // over character-level cuts that destroy addresses like "Rosenthaler Str. 13, 10119 Berlin".
+  // Preferred break order: comma in the last third → last whole word (with ellipsis) →
+  // hard cut (with ellipsis). Single-word labels that fit under maxLen pass through unchanged.
+  function _smartFooterTruncate(text, maxLen = 60) {
+    if (!text) return '';
+    const t = text.trim();
+    if (t.length <= maxLen) return t;
+    const commaIdx = t.lastIndexOf(',', maxLen);
+    if (commaIdx > maxLen * 0.5) return t.slice(0, commaIdx).trim();
+    const spaceIdx = t.lastIndexOf(' ', maxLen);
+    if (spaceIdx > maxLen * 0.5) return t.slice(0, spaceIdx).trim() + '…';
+    return t.slice(0, maxLen).trim() + '…';
+  }
+
+  // Known short social/app labels — keep the legacy 30-char slice for these since
+  // they're always terse and never contain addresses. Prevents the smart truncator
+  // from adding a useless ellipsis to labels that naturally fit.
+  const _KNOWN_SHORT_LINK_RE = /^(twitter|x|linkedin|facebook|instagram|github|youtube|tiktok|discord|slack|mastodon|threads|bluesky|reddit|medium|pinterest|vimeo|dribbble|behance)$/i;
+
   function extractFooterContentMap() {
     const footer = document.querySelector('footer, [class*="footer"], [class*="Footer"]');
     if (!footer) return null;
-    const links = Array.from(footer.querySelectorAll('a')).map(a => ({
-      text: a.textContent.trim().slice(0, 30),
-      href: a.href
-    })).filter(l => l.text.length > 0).slice(0, 10);
+    const links = Array.from(footer.querySelectorAll('a')).map(a => {
+      const raw = a.textContent.trim();
+      // 30-char slice for social/known-short labels OR compact 1-2 word items with
+      // no comma (e.g. "Home", "About", "Pricing"). 60-char smart-truncate for the
+      // rest — address lines and longer policy links survive word-boundary-aware.
+      const hasComma = raw.includes(',');
+      const wordCount = raw.split(/\s+/).filter(Boolean).length;
+      const isKnownShort = _KNOWN_SHORT_LINK_RE.test(raw);
+      const text = (isKnownShort || (!hasComma && wordCount <= 2))
+        ? raw.slice(0, 30)
+        : _smartFooterTruncate(raw, 60);
+      return { text, href: a.href };
+    }).filter(l => l.text.length > 0).slice(0, 10);
     const cols = Array.from(footer.querySelectorAll(':scope > div > div, :scope > div')).map(col => {
-      const label = col.querySelector('[class*="label"],[class*="uppercase"],[class*="heading"],h3,h4,h5')?.textContent?.trim();
-      return { label: label?.slice(0, 30) || null, content: col.textContent.trim().slice(0, 100) };
+      const rawLabel = col.querySelector('[class*="label"],[class*="uppercase"],[class*="heading"],h3,h4,h5')?.textContent?.trim();
+      return { label: rawLabel ? _smartFooterTruncate(rawLabel, 60) : null, content: col.textContent.trim().slice(0, 100) };
     }).filter(c => c.content.length > 5).slice(0, 4);
     const cs = window.getComputedStyle(footer);
     return {
