@@ -4,8 +4,8 @@
   if (window.__vibeDesignInjected) return;
   window.__vibeDesignInjected = true;
 
-  // Noise filter functions loaded from lib/noise-filter.js
-  const { isNoisyVar, hasUsefulValue } = window.__vibeDesign || {};
+  // Shared helpers loaded from lib/color-utils.js, lib/noise-filter.js, lib/shadow-utils.js
+  const { isNoisyVar, hasUsefulValue, splitShadowLayers, isRealShadowLayer, hexLum, hexSat } = window.__vibeDesign || {};
 
   // Expose extraction functions for lib/picker.js
   window.__vibeDesign = window.__vibeDesign || {};
@@ -376,14 +376,29 @@
       }
     }
 
+    // Second-pass priority: buttons/headings/links inside section or footer —
+    // prevents hero from consuming the whole scan budget before below-fold sections are sampled.
+    const belowFoldPriority = [];
+    try {
+      const belowFoldNodes = document.querySelectorAll('section button, section h1, section h2, section h3, footer button, footer a, footer h2, footer h3');
+      const priorityElSet = new Set(priorityEls);
+      for (const el of belowFoldNodes) {
+        if (!priorityElSet.has(el)) belowFoldPriority.push(el);
+      }
+    } catch(e) { /* skip */ }
+
+    // DOM-proportional cap: 45% of elements, clamped to [1200, 3500].
+    // Small sites keep old floor; large marketing pages get enough budget for below-fold sections.
+    const CAP = Math.max(1200, Math.min(Math.floor(allEls.length * 0.45), 3500));
+
     let scanned = 0;
     let diversityStale = 0;
     let lastDiversityCount = 0;
-    const scanBatch = [...priorityEls, ...otherEls];
+    const scanBatch = [...priorityEls, ...belowFoldPriority, ...otherEls];
     for (const el of scanBatch) {
-      if (scanned > 1200) break;
-      // Early exit on diversity plateau: no new tokens for 200 consecutive elements
-      if (scanned > 600 && diversityStale > 200) break;
+      if (scanned > CAP) break;
+      // Early exit on diversity plateau: no new tokens for 300 consecutive elements (raised from 200)
+      if (scanned > 800 && diversityStale > 300) break;
       try {
         const cs = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
@@ -487,13 +502,21 @@
     const neutralsClustered = _clusterByFrequency(neutralsRaw, colorFreq, 20);
 
     const accents = dedupeColors([...accentColors, ...accentSet]);
-    accents.sort((a, b) => colorSaturation(b) - colorSaturation(a));
+    // Rank accents by saturation weighted by usage frequency — a brand color used 200 times
+    // should beat a decorative flash used twice, even if the flash is more saturated.
+    // accentSet (border/outline) colors may be absent from colorFreq → default freq=0 (score=saturation).
+    const _accentScore = (c) => colorSaturation(c) * (1 + Math.log10((colorFreq.get(c) || 0) + 1));
+    accents.sort((a, b) => _accentScore(b) - _accentScore(a));
     tokens.colors = dedupeColors([...accents.slice(0, 6), ...neutralsClustered.slice(0, 4)]).slice(0, 10);
     tokens.accentColors = accents.slice(0, 5);
 
     tokens.fonts = [...fontSet].filter(Boolean).slice(0, 5);
     tokens.borderRadii = [...radiusSet].slice(0, 6);
-    tokens.shadows = [...shadowSet].slice(0, 8);
+    // Raised from 8 → 16: modern sites (Linear, Attio, Vercel) use 10-14 distinct
+    // elevation levels. Render-side consumers (prompt-builder, token-exporter) already
+    // slice further, so prompt size is unaffected; raising the extraction cap only
+    // prevents the export layer from losing the tail of the elevation scale.
+    tokens.shadows = [...shadowSet].slice(0, 16);
     tokens.transitions = [...transSet].slice(0, 6);
     tokens.textShadows = [...textShadowSet].slice(0, 6);
     tokens.letterSpacings = [...letterSpacingSet].slice(0, 6);
@@ -689,11 +712,16 @@
       '[class*="hero"], [class*="Hero"], main > section:first-child, section:first-of-type'
     );
     if (_heroEl) {
-      // Strategy 1: <img> tag
-      const _heroImg = _heroEl.querySelector('img:not([class*="avatar"]):not([class*="logo"])');
+      // Strategy 1: <img> tag — dropped [class*="logo"] exclusion because class
+      // names like "hero-logo-mark" or "brand-logo-hero" are the actual hero visual
+      // on wordmark/monogram-first sites. Size + center-of-viewport filters are
+      // sufficient to reject corner/nav logos without the class blacklist.
+      const _heroImg = _heroEl.querySelector('img:not([class*="avatar"])');
       if (_heroImg?.src) {
         const _heroRect = _heroImg.getBoundingClientRect();
-        if (_heroRect.width > 200 && _heroRect.height > 200) {
+        const _vwCenter = window.innerWidth / 2;
+        const _overlapsCenter = _heroRect.left < _vwCenter && _heroRect.right > _vwCenter;
+        if (_heroRect.width > 200 && _heroRect.height > 200 && _overlapsCenter) {
           tokens.heroImageUrl = _heroImg.src;
         }
       }
@@ -1796,6 +1824,7 @@
         const bgLum = bgHex ? (parseInt(bgHex.slice(1,3),16)*0.299+parseInt(bgHex.slice(3,5),16)*0.587+parseInt(bgHex.slice(5,7),16)*0.114)/255 : 1;
         const cls = (btn.className || '').toString();
         const isNavCta = !!btn.closest('nav, header, [class*="nav"], [class*="header"], [role="navigation"]');
+        const isAboveFold = rect.top < window.innerHeight * 0.6 && rect.bottom > 0;
 
         // Reconstruct accurate padding shorthand from individual sides
         // cs.padding can collapse to '8px' when sides differ (e.g. padding-inline set separately)
@@ -1823,7 +1852,7 @@
           fontFamily: cleanFont(cs.fontFamily) || null,
           clipPath: cs.clipPath !== 'none' ? cs.clipPath : null,
           transition: (cs.transition && cs.transition !== 'all 0s ease 0s' && cs.transition !== 'none 0s ease 0s' && cs.transition !== 'all' && cs.transition !== 'none') ? cs.transition : null,
-          isNavCta, cls, bgSat, bgLum,
+          isNavCta, isAboveFold, cls, bgSat, bgLum,
           width: Math.round(rect.width),
           text: btn.innerText?.trim().slice(0, 30) || '',
         };
@@ -1871,20 +1900,25 @@
       // Ghost indicators
       if (/ghost|outline|secondary|subtle|text/i.test(c.cls)) score -= 5;
       if (!c.backgroundColor && c.border) score -= 3;
-      // Nav buttons strongly penalized — hero CTAs should win primary slot
-      if (c.isNavCta) score -= 4;
+      // Nav buttons hard-demoted — nav "Sign up" must not beat a real hero CTA
+      if (c.isNavCta) score -= 25;
+      // Hero CTA signal: above-fold, non-nav, substantial width
+      if (!c.isNavCta && c.isAboveFold && c.width > 110) score += 3;
       c._score = score;
     });
 
-    // Primary = highest score
+    // Primary = highest score, preferring non-nav candidates when any viable one exists
     const sorted = [...candidates].sort((a, b) => b._score - a._score);
-    if (sorted.length > 0 && sorted[0]._score > 0) {
+    const nonNavViable = sorted.filter(c => !c.isNavCta && c._score > 0);
+    if (nonNavViable.length > 0) {
+      result.primary = nonNavViable[0];
+    } else if (sorted.length > 0 && sorted[0]._score > 0) {
       result.primary = sorted[0];
     } else {
-      // Fallback: highest saturation
+      // Fallback: highest saturation, still preferring non-nav
       const withBg = candidates.filter(c => c.backgroundColor && c.bgSat > 10);
       if (withBg.length) {
-        withBg.sort((a, b) => b.bgSat - a.bgSat);
+        withBg.sort((a, b) => (a.isNavCta - b.isNavCta) || (b.bgSat - a.bgSat));
         result.primary = withBg[0];
       }
     }
@@ -1943,6 +1977,7 @@
         delete result[key]._score;
         delete result[key].cls;
         delete result[key].isNavCta;
+        delete result[key].isAboveFold;
       }
     }
     return result;
@@ -2085,11 +2120,14 @@
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
-    // Detect caption text (small text elements like figcaption, .caption)
+    // Detect caption text (small text elements like figcaption, .caption) —
+    // skip nav/footer to avoid utility labels leaking into the caption token
     const captionEls = document.querySelectorAll('figcaption, [class*="caption"], [class*="subtitle"], [class*="meta"], small, .text-sm, .text-xs');
     for (const el of Array.from(captionEls).slice(0, 30)) {
       try {
+        if (el.closest('nav, header, footer, [class*="nav"], [class*="footer"], [class*="cookie"]')) continue;
         const cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
         const fs = parseFloat(cs.fontSize) || 0;
         if (fs > 0 && fs <= 14) {
           const rect = el.getBoundingClientRect();
@@ -2109,23 +2147,28 @@
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
-    // Detect code/monospace text
-    const codeEls = document.querySelectorAll('code, pre, [class*="code"], kbd, samp');
-    for (const el of Array.from(codeEls).slice(0, 15)) {
+    // Detect code/monospace text — skip nav/footer, require real content
+    const codeEls = document.querySelectorAll('code, pre, [class*="code"], [class*="mono"], kbd, samp');
+    for (const el of Array.from(codeEls).slice(0, 20)) {
       try {
+        if (el.closest('nav, header, footer, [class*="nav"], [class*="footer"]')) continue;
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          const cs = window.getComputedStyle(el);
-          patterns.code = {
-            fontSize: cs.fontSize,
-            fontWeight: cs.fontWeight,
-            lineHeight: cs.lineHeight,
-            fontFamily: cleanFont(cs.fontFamily),
-            backgroundColor: cs.backgroundColor && !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
-            borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
-          };
-          break;
-        }
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        if (!el.innerText || el.innerText.trim().length < 2) continue;
+        const cs = window.getComputedStyle(el);
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        // Require actual monospace family — filters false positives from utility classes like "code-tag"
+        const fam = (cs.fontFamily || '').toLowerCase();
+        if (!/mono|courier|consolas|menlo|monaco|source-code|fira|jetbrains|ubuntu mono/.test(fam)) continue;
+        patterns.code = {
+          fontSize: cs.fontSize,
+          fontWeight: cs.fontWeight,
+          lineHeight: cs.lineHeight,
+          fontFamily: cleanFont(cs.fontFamily),
+          backgroundColor: cs.backgroundColor && !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
+          borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+        };
+        break;
       } catch(e) { console.debug('[VibeDesign]', e.message); }
     }
 
@@ -2190,7 +2233,10 @@
 
     // Classify hero visual
     if (heroEl) {
-      const heroImg = heroEl.querySelector('img:not([class*="avatar"]):not([class*="logo"]):not([width="1"])');
+      // Dropped [class*="logo"] exclusion — hero-logo-mark / brand-logo-hero are
+      // legitimate hero visuals on wordmark sites. Center-of-viewport check below
+      // in the size gate filters out off-center corner logos.
+      const heroImg = heroEl.querySelector('img:not([class*="avatar"]):not([width="1"])');
       const heroVideo = heroEl.querySelector('video[autoplay], video[data-autoplay]');
       const heroCanvas = heroEl.querySelector('canvas');
       const heroSvg = heroEl.querySelector('svg:not([class*="icon"])');
@@ -2204,7 +2250,9 @@
       } else if (heroImg) {
         try {
           const rect = heroImg.getBoundingClientRect();
-          if (rect.width > 100 && rect.height > 100) result.heroVisual = classifyImage(heroImg);
+          const vwCenter = window.innerWidth / 2;
+          const overlapsCenter = rect.left < vwCenter && rect.right > vwCenter;
+          if (rect.width > 100 && rect.height > 100 && overlapsCenter) result.heroVisual = classifyImage(heroImg);
         } catch(e) { console.debug('[VibeDesign]', e.message); }
       } else {
         // Check for background gradient/pattern as hero visual
@@ -2732,10 +2780,11 @@
       });
       const _isYCovered = (y) => _ranges.some(r => y > r.top && y < r.bottom);
 
-      // Sub-component names that should NOT be promoted to sections
-      // Keep: Heading, Content, Features, Screen, System, Blog, Section, Hero, Footer, CTA
-      // Reject: visual/layout sub-components only
-      const _SUB_NAMES = /^(Image|BG|Decoration|Button|Icon|Logo|Badge|Label|Tablet|Desktop|Mobile|Dark mode|Green|Primary|Nav|Bottom|Info|Container)\b/i;
+      // Allowlist of section-like Framer names — inverted from the prior blocklist
+      // because the blocklist kept missing common layout wrappers (Wrapper, Row, Col,
+      // Module, Block, Group, Frame) that Framer templates use for sub-components.
+      // Section-shaped names only: a wrapper/row/col won't match, so it can't be promoted.
+      const _SECTION_NAMES = /^(Hero|Features?|CTA|Pricing|Footer|Header|Testimonials?|Steps|Content|System|Blog|Section|Contact|Benefits|Stats|FAQ|About|Team|Gallery|Logos|Integrations|Newsletter|Reviews|Process)\b/i;
 
       // Find the "Main" Framer component and scan for section-level children
       // that live in uncovered Y-ranges
@@ -2746,7 +2795,7 @@
       const sectionCandidates = Array.from(_searchRoot.querySelectorAll('[data-framer-name]'))
         .filter(el => {
           const name = el.getAttribute('data-framer-name');
-          if (!name || _SUB_NAMES.test(name)) return false;
+          if (!name || !_SECTION_NAMES.test(name)) return false;
           if (merged.includes(el)) return false;
           const r = el.getBoundingClientRect();
           const h = r.height;
@@ -2803,6 +2852,14 @@
     for (const sec of sectionEls.slice(0, 16)) {
       const rect = sec.getBoundingClientRect();
       if (rect.height < 100 || rect.width < 300) continue;
+
+      // Capture vertical padding at section boundary — used for spacing-system
+      // annotation in the prompt ("96px (8×12)") so LLMs produce systematic rhythm
+      // instead of arbitrary per-section values.
+      const _secCs = window.getComputedStyle(sec);
+      const _pTop = parseInt(_secCs.paddingTop) || 0;
+      const _pBot = parseInt(_secCs.paddingBottom) || 0;
+      const sectionPaddingY = Math.max(_pTop, _pBot) || null;
 
       // ── Detect eyebrow/overline label (e.g. "OUR APPROACH", "PHILOSOPHY") ──
       let eyebrowText = null;
@@ -3796,6 +3853,7 @@
         floatingIllustrations: floatingIllustrations || null,
         floatingPattern: entry_floatingPattern || null,
         entryCount: sec.querySelectorAll('[class*="entry"], [class*="item"], [class*="card"]').length,
+        paddingY: sectionPaddingY ? `${sectionPaddingY}px` : null,
       };
 
       // Dedup: skip this section if it's a responsive clone of the previous one
@@ -4157,14 +4215,7 @@
       } catch(e) { return null; }
     }
 
-    function hexLum2(hex) {
-      if (!hex || hex.length < 4) return 0.5;
-      const h = hex.length === 4
-        ? '#' + hex[1]+hex[1] + hex[2]+hex[2] + hex[3]+hex[3]
-        : hex;
-      const r = parseInt(h.slice(1,3),16), g = parseInt(h.slice(3,5),16), b = parseInt(h.slice(5,7),16);
-      return (0.299*r + 0.587*g + 0.114*b) / 255;
-    }
+    // hexLum moved to lib/color-utils.js — destructured at top of IIFE.
 
     // ── Step 0: Text color cross-check ──
     // Sample content text color (h1, h2, p) rather than document.body.color.
@@ -4255,13 +4306,13 @@
     }
 
     const sorted = Object.entries(areaByColor)
-      .filter(([hex]) => hexLum2(hex) > 0.01)
+      .filter(([hex]) => hexLum(hex) > 0.01)
       .sort(([, a], [, b]) => b - a);
 
     // ── Step 3: Cross-check result against text color ──
     if (sorted.length > 0) {
       const dominantHex = sorted[0][0];
-      const dominantLum = hexLum2(dominantHex);
+      const dominantLum = hexLum(dominantHex);
 
       // CONFLICT CHECK: dominant bg is dark but body text is also dark?
       // This means the detected bg is from a sub-section, not the main page.
@@ -4274,7 +4325,7 @@
           return '#ffffff';
         }
         // Look for a light color in the sorted list
-        const lightEntry = sorted.find(([hex]) => hexLum2(hex) > 0.5);
+        const lightEntry = sorted.find(([hex]) => hexLum(hex) > 0.5);
         if (lightEntry) return lightEntry[0];
         return '#ffffff'; // safe fallback — dark text means light bg
       }
@@ -4282,7 +4333,7 @@
       // CONFLICT CHECK: dominant bg is light but body text is also light?
       // Unlikely but handle: dark page with one large light section.
       if (dominantLum > 0.75 && bodyTextLum > 0.7) {
-        const darkEntry = sorted.find(([hex]) => hexLum2(hex) < 0.3);
+        const darkEntry = sorted.find(([hex]) => hexLum(hex) < 0.3);
         if (darkEntry) return darkEntry[0];
       }
 
@@ -5140,45 +5191,7 @@
     return (0.299*parseInt(m[1]) + 0.587*parseInt(m[2]) + 0.114*parseInt(m[3])) / 255;
   }
 
-  // ─── Shadow parsing helpers ───────────────────────────────────────────────
-  // Split box-shadow string at layer boundaries (commas at parenthesis depth 0)
-  function splitShadowLayers(shadow) {
-    const layers = [];
-    let depth = 0, current = '';
-    for (let i = 0; i < shadow.length; i++) {
-      const ch = shadow[i];
-      if (ch === '(') depth++;
-      else if (ch === ')') depth--;
-      else if (ch === ',' && depth === 0) {
-        const trimmed = current.trim();
-        if (trimmed) layers.push(trimmed);
-        current = '';
-        continue;
-      }
-      current += ch;
-    }
-    const last = current.trim();
-    if (last) layers.push(last);
-    return layers;
-  }
-
-  // Determine if a shadow layer has real visual output (not a Tailwind ring zero-filler)
-  function isRealShadowLayer(layer) {
-    const t = layer.trim();
-    if (!t) return false;
-    // Zero-alpha rgba = Tailwind ring filler, discard
-    if (/^rgba?\(\s*0[\s,]+0[\s,]+0[\s,]+0[\s,)]*\)/.test(t)) return false;
-    // oklab() = modern color, always real
-    if (t.includes('oklab(')) return true;
-    // rgba with non-zero alpha
-    if (/rgba\(\s*\d+[\s,]+\d+[\s,]+\d+[\s,]+(?:0\.[1-9]|[1-9])/.test(t)) return true;
-    // rgb with at least one non-zero channel (not pure black as zero-value)
-    // rgb(0,0,0) used as a real shadow is fine for inset, ignore otherwise
-    if (t.includes('inset') && /rgb\(/.test(t)) return true;
-    // hsl/oklch etc
-    if (/^(hsl|oklch|color)\(/.test(t)) return true;
-    return false;
-  }
+  // splitShadowLayers & isRealShadowLayer moved to lib/shadow-utils.js — see top of file.
 
   function isLowSaturation(hex) {
     return colorSaturation(hex) < 30;
