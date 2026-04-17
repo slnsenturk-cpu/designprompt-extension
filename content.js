@@ -2855,10 +2855,20 @@
 
       // Capture vertical padding at section boundary — used for spacing-system
       // annotation in the prompt ("96px (8×12)") so LLMs produce systematic rhythm
-      // instead of arbitrary per-section values.
-      const _secCs = window.getComputedStyle(sec);
-      const _pTop = parseInt(_secCs.paddingTop) || 0;
-      const _pBot = parseInt(_secCs.paddingBottom) || 0;
+      // instead of arbitrary per-section values. On Framer/Next.js sites the outer
+      // <section> is often a zero-padding wrapper and the actual padding lives on
+      // a single large child container — probe that child when the outer is empty.
+      const _secPadCs = window.getComputedStyle(sec);
+      let _pTop = parseInt(_secPadCs.paddingTop) || 0;
+      let _pBot = parseInt(_secPadCs.paddingBottom) || 0;
+      if (_pTop < 8 && _pBot < 8) {
+        const _firstBigChild = Array.from(sec.children).find(c => c.getBoundingClientRect().height > rect.height * 0.5);
+        if (_firstBigChild) {
+          const _childCs = window.getComputedStyle(_firstBigChild);
+          _pTop = Math.max(_pTop, parseInt(_childCs.paddingTop) || 0);
+          _pBot = Math.max(_pBot, parseInt(_childCs.paddingBottom) || 0);
+        }
+      }
       const sectionPaddingY = Math.max(_pTop, _pBot) || null;
 
       // ── Detect eyebrow/overline label (e.g. "OUR APPROACH", "PHILOSOPHY") ──
