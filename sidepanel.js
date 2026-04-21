@@ -118,7 +118,7 @@ _uiHooks.afterListeners = async function () {
     // is ever invoked a second time (e.g. via a future re-init path).
     if (!_vdAuthSubscribed && self.VD_AUTH && typeof self.VD_AUTH.onAuthStateChange === 'function') {
       _vdAuthSubscribed = true;
-      self.VD_AUTH.onAuthStateChange(() => {
+      self.VD_AUTH.onAuthStateChange((event, _session) => {
         try {
           const host = document.getElementById('vd-auth-pill-container');
           if (host && typeof renderAuthPill === 'function') renderAuthPill(host);
@@ -131,8 +131,32 @@ _uiHooks.afterListeners = async function () {
           if (host && typeof renderUsageCounter === 'function') renderUsageCounter(host);
           if (typeof updateAnalyzeButton === 'function') updateAnalyzeButton();
         } catch (_) { /* noop */ }
+        // One-shot migration on SIGNED_IN. The function is self-gated by
+        // the cloud_migration_completed_at flag in chrome.storage.local,
+        // so firing this on every SIGNED_IN is idempotent.
+        try {
+          if (event === 'SIGNED_IN' && self.VD_CLOUD && typeof self.VD_CLOUD.migrateAnonymousHistory === 'function') {
+            self.VD_CLOUD.migrateAnonymousHistory()
+              .catch((e) => console.warn('[vd-cloud] migration rejected', e));
+          }
+        } catch (_) { /* noop */ }
       });
     }
+
+    // Defensive initial-load migration: covers the case where a user
+    // signed in before this code shipped — SIGNED_IN won't fire again
+    // until they sign out/back in. Migration is flag-gated so this is
+    // a cheap no-op after the first run.
+    try {
+      if (self.VD_AUTH && typeof self.VD_AUTH.isAuthenticated === 'function'
+          && self.VD_CLOUD && typeof self.VD_CLOUD.migrateAnonymousHistory === 'function') {
+        const alreadyAuthed = await self.VD_AUTH.isAuthenticated();
+        if (alreadyAuthed) {
+          self.VD_CLOUD.migrateAnonymousHistory()
+            .catch((e) => console.warn('[vd-cloud] initial-load migration rejected', e));
+        }
+      }
+    } catch (_) { /* noop */ }
 
     // Kick server auth polling (immediate check, then every 30s) and the
     // one-shot re-check on visibility change.
