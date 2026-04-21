@@ -1,52 +1,72 @@
 # Privacy Policy — VibeDesign
 
-**Last updated:** March 30, 2026
+**Effective date:** April 21, 2026
 
-## Overview
+This privacy policy describes how VibeDesign ("the extension," "we") handles your information.
 
-VibeDesign is a Chrome extension that extracts visual design tokens from websites and generates AI-ready design prompts. We are committed to protecting your privacy.
+The canonical version of this policy lives at [vibedesign.tech/privacy](https://vibedesign.tech/privacy). This file mirrors that content for GitHub visibility.
 
-## Data Collection
+## What we collect
 
-VibeDesign does **not** collect, store, or transmit any personal data. Specifically:
+### Anonymous use (no account)
+- API keys (Claude, Gemini, or OpenAI) — stored locally in your browser only
+- Design extraction cache (colors, fonts, prompts) — stored locally in your browser only
+- Usage counter (number of prompts generated this month) — stored locally in your browser only
 
-- **No analytics or tracking** — We do not use Google Analytics, telemetry, or any tracking scripts.
-- **No user accounts** — The extension does not require sign-up or login.
-- **No data transmission to our servers** — We do not operate any servers. All processing happens locally in your browser.
+### Signed-in use (optional free account)
+When you create an account, we additionally collect and store on our servers:
+- Email address
+- Display name (if provided)
+- Password (hashed, never stored in plain text)
+- URLs of websites you analyze
+- Design tokens extracted from those sites
+- Generated prompts
+- Timestamps of your analyses
 
-## What the Extension Accesses
+## What we never collect
 
-When you click "Analyze Page", the extension reads the following from the active webpage:
+- Your API keys (these stay in your browser)
+- Page content of sites you visit (we read DOM structure and CSS styles for token extraction, but not article text, form inputs, or personal data on the page)
+- Your browsing history outside of the sites you explicitly analyze
+- Any data from sites you have not chosen to analyze
+- Chrome profile, Google account, or browser identity information beyond the email you provide during sign-up
 
-- CSS computed styles (colors, fonts, shadows, spacing, animations)
-- CSS custom properties (variables)
-- DOM structure for layout analysis
-- Typography and component patterns
+## How we use your data
 
-This data is processed entirely within your browser and is never sent to external servers controlled by us.
+- **Account data (email, password hash):** to authenticate your sign-in sessions
+- **Analysis history (URLs, tokens, prompts):** to display your history on the dashboard and enable cross-device sync
+- We do not use your data for advertising, profiling, behavioral tracking, or resale
 
-## Local Storage
+## Third parties
 
-The extension uses `chrome.storage.local` to store:
+- **Supabase (via Lovable Cloud):** Our authentication and database provider. Your account data and analysis history are stored on Supabase's infrastructure. Supabase acts as a data processor on our behalf.
+- **AI providers (Anthropic, Google, OpenAI):** When you generate prompts, your extracted design tokens are sent to the AI provider you selected, using your own API key. We do not intermediate or log these requests. Data handling by the AI provider is subject to their own policies.
 
-- Your selected AI provider preference (Gemini, Claude, OpenAI, or None)
-- Your selected model preference
-- API keys you provide (stored locally, never transmitted to us)
-- Prompt history (up to 30 domains, stored locally)
+## Data retention
 
-All stored data remains on your device and can be cleared by uninstalling the extension.
+- **Anonymous users:** No data is retained on our servers.
+- **Signed-in users:** Your account and history are retained until you delete them. You can delete individual analyses or clear your entire history at any time from the dashboard at [vibedesign.tech/dashboard](https://vibedesign.tech/dashboard).
 
-## Optional AI API Calls
+## Your rights (GDPR and similar regulations)
 
-If you choose to use an AI provider (Gemini, Claude, or OpenAI), the extension sends extracted design token data directly to the selected provider's API using your own API key. These requests go directly from your browser to the AI provider — we do not proxy, intercept, or log these requests. Please refer to each provider's privacy policy for their data handling practices.
+If you are in the European Economic Area, United Kingdom, or other jurisdictions with similar protections, you have the right to:
+- Access the personal data we hold about you
+- Correct inaccurate data
+- Delete your data ("right to erasure")
+- Export your data in a machine-readable format
+- Object to processing
 
-## Third-Party Services
+To exercise these rights, email us at hello@vibedesign.tech or use the delete controls in your dashboard. Account deletion removes all associated analyses, prompts, and profile data from our servers.
 
-The extension does not integrate with any third-party services beyond the optional AI APIs mentioned above.
+## Security
 
-## Changes to This Policy
+- Passwords are hashed using industry-standard algorithms before storage (handled by Supabase)
+- All network traffic between the extension, our dashboard, and Supabase uses HTTPS
+- Row-level security policies ensure you can only access your own data on our servers
 
-We may update this privacy policy from time to time. Changes will be reflected in the "Last updated" date above.
+## Changes to this policy
+
+We will update this policy if our data practices change. Material changes will be announced on [vibedesign.tech](https://vibedesign.tech) and in the extension's store listing notes. The effective date at the top of this page reflects the latest version.
 
 ## Contact
 
