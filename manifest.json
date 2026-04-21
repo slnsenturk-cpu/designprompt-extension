@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "VibeDesign",
-  "version": "1.6.28",
+  "version": "2.0.0-beta.1",
   "description": "Analyze any website and generate detailed design prompts for AI tools like v0, Lovable, Bolt, and Figma Make. No API key required.",
-  "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel"],
+  "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel", "identity", "alarms"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_icon": {
