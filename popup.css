@@ -1134,3 +1134,76 @@ body {
   transition: color var(--transition);
 }
 .vd-welcome-card__link:hover { color: var(--text-2); }
+
+/* ═══════════════════════════════════════════════════════════════
+   USAGE COUNTER (v2.0.0-beta.2) — anonymous freemium gate.
+   Sits between focus tabs and Analyze button inside the template.
+   All selectors namespaced .vd-usage-* / .vd-analyze-disabled so
+   no existing rule is overridden.
+   ═══════════════════════════════════════════════════════════════ */
+
+#vd-usage-container {
+  padding: 0 16px 8px;
+  font-family: var(--font-sans);
+}
+#vd-usage-container:empty { padding: 0; }
+
+.vd-usage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  text-align: center;
+}
+
+.vd-usage--ok {
+  color: var(--text-3);
+}
+
+.vd-usage--warn {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+  background: color-mix(in srgb, var(--amber) 8%, var(--bg2));
+}
+
+.vd-usage--over {
+  color: var(--text-2);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg2));
+  flex-wrap: wrap;
+}
+
+.vd-usage__text { color: var(--text-2); }
+
+.vd-usage__cta {
+  background: transparent;
+  color: var(--accent-2);
+  border: none;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+.vd-usage__cta:hover { color: var(--accent); text-decoration: underline; }
+.vd-usage__cta:disabled { opacity: 0.6; cursor: wait; }
+
+/* Disabled Analyze button (limit reached) — adds to existing .btn styles
+   without overriding them. Native :disabled attribute is also set. */
+#analyzeBtn.vd-analyze-disabled,
+#analyzeBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+#analyzeBtn.vd-analyze-disabled:hover,
+#analyzeBtn:disabled:hover {
+  transform: none;
+}

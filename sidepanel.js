@@ -101,6 +101,19 @@ _uiHooks.afterListeners = async function () {
       }
     }
 
+    // v2.0.0-beta.2 — usage meter: month-rollover check, then render
+    // counter + sync Analyze button disabled state with canGenerate().
+    try {
+      if (self.VD_USAGE && typeof self.VD_USAGE.resetIfNeeded === 'function') {
+        await self.VD_USAGE.resetIfNeeded();
+      }
+      const usageHost = document.getElementById('vd-usage-container');
+      if (usageHost && typeof renderUsageCounter === 'function') {
+        await renderUsageCounter(usageHost);
+      }
+      if (typeof updateAnalyzeButton === 'function') await updateAnalyzeButton();
+    } catch (e) { console.warn('[vd-usage-ui] initial usage render failed', e); }
+
     // Subscribe exactly once — guards against re-entrancy if afterListeners
     // is ever invoked a second time (e.g. via a future re-init path).
     if (!_vdAuthSubscribed && self.VD_AUTH && typeof self.VD_AUTH.onAuthStateChange === 'function') {
@@ -109,6 +122,14 @@ _uiHooks.afterListeners = async function () {
         try {
           const host = document.getElementById('vd-auth-pill-container');
           if (host && typeof renderAuthPill === 'function') renderAuthPill(host);
+        } catch (_) { /* noop */ }
+        // On sign-in: hide counter + enable button. On sign-out: show
+        // counter + re-check limit. Both paths go through the same
+        // renderers; they branch on current auth state internally.
+        try {
+          const host = document.getElementById('vd-usage-container');
+          if (host && typeof renderUsageCounter === 'function') renderUsageCounter(host);
+          if (typeof updateAnalyzeButton === 'function') updateAnalyzeButton();
         } catch (_) { /* noop */ }
       });
     }
