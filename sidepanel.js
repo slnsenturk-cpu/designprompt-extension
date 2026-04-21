@@ -23,6 +23,7 @@ _uiHooks.afterListeners = () => {
 // auth UI renders. Every path is try/catch-wrapped — a failure here must
 // not block the existing sidepanel from rendering.
 const _vdPrevAfterListeners = _uiHooks.afterListeners;
+let _vdAuthSubscribed = false;
 _uiHooks.afterListeners = async function () {
   try {
     if (typeof _vdPrevAfterListeners === 'function') _vdPrevAfterListeners();
@@ -43,7 +44,10 @@ _uiHooks.afterListeners = async function () {
       }
     }
 
-    if (self.VD_AUTH && typeof self.VD_AUTH.onAuthStateChange === 'function') {
+    // Subscribe exactly once — guards against re-entrancy if afterListeners
+    // is ever invoked a second time (e.g. via a future re-init path).
+    if (!_vdAuthSubscribed && self.VD_AUTH && typeof self.VD_AUTH.onAuthStateChange === 'function') {
+      _vdAuthSubscribed = true;
       self.VD_AUTH.onAuthStateChange(() => {
         try {
           const host = document.getElementById('vd-auth-pill-container');
