@@ -18,5 +18,43 @@ _uiHooks.afterListeners = () => {
   });
 };
 
+// ── v2.0.0-beta.1: auth pill + welcome card wiring ────────────────────────
+// Wrap the existing afterListeners hook so tab tracking runs first, then
+// auth UI renders. Every path is try/catch-wrapped — a failure here must
+// not block the existing sidepanel from rendering.
+const _vdPrevAfterListeners = _uiHooks.afterListeners;
+_uiHooks.afterListeners = async function () {
+  try {
+    if (typeof _vdPrevAfterListeners === 'function') _vdPrevAfterListeners();
+  } catch (e) {
+    console.warn('[vd-auth-ui] prev afterListeners threw', e);
+  }
+
+  try {
+    const pillHost = document.getElementById('vd-auth-pill-container');
+    if (pillHost && typeof renderAuthPill === 'function') {
+      await renderAuthPill(pillHost);
+    }
+
+    if (typeof shouldShowWelcomeCard === 'function' && typeof renderWelcomeCard === 'function') {
+      const cardHost = document.getElementById('vd-welcome-card-container');
+      if (cardHost && (await shouldShowWelcomeCard())) {
+        await renderWelcomeCard(cardHost);
+      }
+    }
+
+    if (self.VD_AUTH && typeof self.VD_AUTH.onAuthStateChange === 'function') {
+      self.VD_AUTH.onAuthStateChange(() => {
+        try {
+          const host = document.getElementById('vd-auth-pill-container');
+          if (host && typeof renderAuthPill === 'function') renderAuthPill(host);
+        } catch (_) { /* noop */ }
+      });
+    }
+  } catch (e) {
+    console.warn('[vd-auth-ui] afterListeners auth wiring failed', e);
+  }
+};
+
 // ── Init ──────────────────────────────────────────────────────────────────
 initUI();
