@@ -20,11 +20,8 @@ Connect your own API key (Gemini, Claude, or OpenAI) for AI-powered design direc
 DESIGN SYSTEM EXPORT
 Generate a reusable design system reference with derivation rules. Build pricing pages, docs, settings — any sub-page that stays true to the original design language.
 
-PRIVACY-FIRST
-Zero data collection, zero tracking, zero analytics
-API keys stored locally, never transmitted to us
-All processing happens in your browser
-Select "None" as AI provider for zero network requests
+PRIVACY
+Works fully anonymously by default — no account required. Optional sign-in enables cross-device sync via our Supabase backend. API keys for AI providers are stored locally and never transmitted to us. Select "None" as the AI provider for zero AI-provider network requests. See our full privacy policy for details.
 
 HOW TO USE
 1. Navigate to any website
@@ -32,24 +29,14 @@ HOW TO USE
 3. Choose your focus (All, Colors, Type, Shadow, Motion, Layout, Components)
 4. Click "Analyze Page" — your prompt is ready to paste into v0.dev, Bolt, or Lovable
 
-WHAT'S NEW IN 1.5.3
-
-Design Brief Summary — every prompt now starts with a 3-word brand personality snapshot, visual strategy, motion philosophy, and design constraints
-Interaction Paradigm section — describes whether the site is scroll-driven or click-driven, hover feedback philosophy, and timing intent
-Color semantic role matrix — maps extracted colors to actionable roles: primary-action, surface, border, text-primary, text-secondary, disabled
-Typography semantic roles — each font level (H1-H4, body, caption, code) includes its usage context and intent
-Visual classification — detects whether visuals are photography, illustration, abstract/geometric, video, or 3D
-Card style extraction — captures card padding, radius, shadow system, border, and hover effects
-CSS filter and blend mode detection — identifies grayscale, saturation, blur, and glassmorphism effects
-Shadow system analysis — classifies shadows as elevation, glow, brutalist, or inset with depth scoring
-Section eyebrow labels — captures overline text like "OUR APPROACH" per section
-Numbered step content — captures each step's label and heading (STEP 01, STEP 02...)
-Improved canvas animation scoping — prevents background animations from leaking into wrong sections
-Global Tokens tab fix — now correctly shows the design system output
-Increased extraction depth — more colors, shadows, animations, and transitions captured from complex sites
-Enhanced AI prompts — richer context sent to AI providers for more precise design direction
-52 silent error catches replaced with debug logging for better developer diagnostics
-Full accessibility upgrade — aria-labels, semantic roles, screen reader support across all UI
+KEY FEATURES
+Optional free account for cross-device history
+Dashboard at vibedesign.tech to view and manage your analyses
+5 free prompts per month for anonymous users (sign in for unlimited)
+Support for Gemini 2.5 family + Gemini 3.1 Pro Preview, Claude Opus/Sonnet/Haiku, OpenAI GPT-4o family
+Built-in rule engine generates detailed structured prompts — no API key required
+Element picker for targeted component extraction
+Design system export with derivation rules
 
 ===== CATEGORY =====
 Developer Tools

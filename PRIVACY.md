@@ -1,53 +1,65 @@
 # Privacy Policy — VibeDesign
 
-**Last updated:** March 30, 2026
+**Last updated:** April 24, 2026
 
 ## Overview
 
-VibeDesign is a Chrome extension that extracts visual design tokens from websites and generates AI-ready design prompts. We are committed to protecting your privacy.
+VibeDesign is a Chrome extension that extracts visual design tokens from websites and generates AI-ready design prompts. It operates in two modes: **anonymous** (default, fully local) and **authenticated** (opt-in, enables cross-device sync via our Supabase backend). This policy describes what data is collected in each mode.
 
-## Data Collection
+## Anonymous mode (default)
 
-VibeDesign does **not** collect, store, or transmit any personal data. Specifically:
+When you install the extension and do not sign in:
 
-- **No analytics or tracking** — We do not use Google Analytics, telemetry, or any tracking scripts.
-- **No user accounts** — The extension does not require sign-up or login.
-- **No data transmission to our servers** — We do not operate any servers. All processing happens locally in your browser.
+- All processing happens locally in your browser.
+- Extracted design tokens, generated prompts, and your preferences are stored only in `chrome.storage.local` on your device.
+- No data is transmitted to our servers.
+- If you choose to use an AI provider (Gemini / Claude / OpenAI) with your own API key, the extracted design tokens are sent directly from your browser to the provider you selected, using your key. We do not proxy, intercept, or log these requests.
+- A local usage counter tracks 5 free prompts per calendar month (stored in `chrome.storage.local` as `usage_meter`). The counter tracks the device; it is never transmitted.
 
-## What the Extension Accesses
+## Authenticated mode (opt-in)
 
-When you click "Analyze Page", the extension reads the following from the active webpage:
+If you choose to sign in (click "Sign in to sync" in the sidepanel):
+
+- We collect and store on our Supabase backend:
+  - Your email address and an auto-generated user ID
+  - Each analysis you run (URL, hostname, extracted design tokens, primary color, page title, page background, extraction version, timestamp)
+  - Each prompt you generate (prompt text, target platform, focus, AI provider used, timestamp)
+- An authentication session token is stored locally in `chrome.storage.local` so you remain signed in between sidepanel opens. The token is refreshed periodically in the background.
+- This data is used solely to enable cross-device history via the dashboard at `https://vibedesign.tech/dashboard`. It is never sold, shared with third parties, or used for advertising, profiling, or any purpose other than delivering the cross-device sync feature.
+
+## What the extension accesses on the page
+
+When you click "Analyze Page", the extension reads the following from the active webpage using standard browser APIs:
 
 - CSS computed styles (colors, fonts, shadows, spacing, animations)
 - CSS custom properties (variables)
 - DOM structure for layout analysis
 - Typography and component patterns
 
-This data is processed entirely within your browser and is never sent to external servers controlled by us.
+It does **not** read form inputs, cookies, authenticated page content, or any personal data typed into the page.
 
-## Local Storage
+## Third-party services
 
-The extension uses `chrome.storage.local` to store:
+- **Supabase** (`*.supabase.co`) — our authentication and database backend for authenticated users only. Privacy policy: https://supabase.com/privacy
+- **AI providers** (Gemini / Claude / OpenAI) — called directly from your browser with your own API key when you opt into AI-enhanced direction. Each provider has its own privacy policy.
+- **Chrome Identity API** — used only to capture the OAuth callback when you sign in. No identity data is persisted outside of the Supabase session described above.
 
-- Your selected AI provider preference (Gemini, Claude, OpenAI, or None)
-- Your selected model preference
-- API keys you provide (stored locally, never transmitted to us)
-- Prompt history (up to 30 domains, stored locally)
+## Analytics and tracking
 
-All stored data remains on your device and can be cleared by uninstalling the extension.
+We do not use Google Analytics, Mixpanel, Segment, telemetry, or any tracking scripts. No usage data leaves your device beyond what is explicitly described in "Authenticated mode" above.
 
-## Optional AI API Calls
+## Data retention and deletion
 
-If you choose to use an AI provider (Gemini, Claude, or OpenAI), the extension sends extracted design token data directly to the selected provider's API using your own API key. These requests go directly from your browser to the AI provider — we do not proxy, intercept, or log these requests. Please refer to each provider's privacy policy for their data handling practices.
+- **Anonymous users:** all data stays on your device. Uninstalling the extension clears it.
+- **Authenticated users:** your email, analyses, and prompts remain in our Supabase database until you delete them. You can delete individual analyses from the dashboard or the extension's history panel. To delete your entire account and all associated data, email support@vibedesign.tech with the subject "Account deletion" from the email address linked to your account.
 
-## Third-Party Services
+## Changes to this policy
 
-The extension does not integrate with any third-party services beyond the optional AI APIs mentioned above.
-
-## Changes to This Policy
-
-We may update this privacy policy from time to time. Changes will be reflected in the "Last updated" date above.
+We may update this privacy policy from time to time. Material changes affecting what we collect or how we use it will be announced in the extension's sidepanel. The "Last updated" date above always reflects the current version.
 
 ## Contact
 
-If you have questions about this privacy policy, please open an issue on our GitHub repository: https://github.com/slnsenturk-cpu/designprompt-extension/issues
+Questions or requests related to your data:
+
+- Email: support@vibedesign.tech
+- GitHub: https://github.com/slnsenturk-cpu/designprompt-extension/issues
