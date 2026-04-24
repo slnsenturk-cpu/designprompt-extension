@@ -1,65 +1,78 @@
-# Privacy Policy — VibeDesign
+# Privacy Policy
 
-**Last updated:** April 24, 2026
+**Effective date:** April 21, 2026
 
-## Overview
+This privacy policy describes how VibeDesign ("the extension," "we") handles your information.
 
-VibeDesign is a Chrome extension that extracts visual design tokens from websites and generates AI-ready design prompts. It operates in two modes: **anonymous** (default, fully local) and **authenticated** (opt-in, enables cross-device sync via our Supabase backend). This policy describes what data is collected in each mode.
+## What we collect
 
-## Anonymous mode (default)
+**Anonymous use (no account):**
 
-When you install the extension and do not sign in:
+- API keys (Claude, Gemini, or OpenAI) — stored locally in your browser only
+- Design extraction cache (colors, fonts, prompts) — stored locally in your browser only
+- Usage counter (number of prompts generated this month) — stored locally in your browser only
 
-- All processing happens locally in your browser.
-- Extracted design tokens, generated prompts, and your preferences are stored only in `chrome.storage.local` on your device.
-- No data is transmitted to our servers.
-- If you choose to use an AI provider (Gemini / Claude / OpenAI) with your own API key, the extracted design tokens are sent directly from your browser to the provider you selected, using your key. We do not proxy, intercept, or log these requests.
-- A local usage counter tracks 5 free prompts per calendar month (stored in `chrome.storage.local` as `usage_meter`). The counter tracks the device; it is never transmitted.
+**Signed-in use (optional free account):**
 
-## Authenticated mode (opt-in)
+When you create an account, we additionally collect and store on our servers:
 
-If you choose to sign in (click "Sign in to sync" in the sidepanel):
+- Email address
+- Display name (if provided)
+- Password (hashed, never stored in plain text)
+- URLs of websites you analyze
+- Design tokens extracted from those sites
+- Generated prompts
+- Timestamps of your analyses
 
-- We collect and store on our Supabase backend:
-  - Your email address and an auto-generated user ID
-  - Each analysis you run (URL, hostname, extracted design tokens, primary color, page title, page background, extraction version, timestamp)
-  - Each prompt you generate (prompt text, target platform, focus, AI provider used, timestamp)
-- An authentication session token is stored locally in `chrome.storage.local` so you remain signed in between sidepanel opens. The token is refreshed periodically in the background.
-- This data is used solely to enable cross-device history via the dashboard at `https://vibedesign.tech/dashboard`. It is never sold, shared with third parties, or used for advertising, profiling, or any purpose other than delivering the cross-device sync feature.
+## What we never collect
 
-## What the extension accesses on the page
+- Your API keys (these stay in your browser)
+- Page content of sites you visit (we read DOM structure and CSS styles for token extraction, but not article text, form inputs, or personal data on the page)
+- Your browsing history outside of the sites you explicitly analyze
+- Any data from sites you have not chosen to analyze
+- Chrome profile, Google account, or browser identity information beyond the email you provide during sign-up
 
-When you click "Analyze Page", the extension reads the following from the active webpage using standard browser APIs:
+## How we use your data
 
-- CSS computed styles (colors, fonts, shadows, spacing, animations)
-- CSS custom properties (variables)
-- DOM structure for layout analysis
-- Typography and component patterns
+- Account data (email, password hash): to authenticate your sign-in sessions
+- Analysis history (URLs, tokens, prompts): to display your history on the dashboard and enable cross-device sync
+- We do not use your data for advertising, profiling, behavioral tracking, or resale
 
-It does **not** read form inputs, cookies, authenticated page content, or any personal data typed into the page.
+## Third parties
 
-## Third-party services
+- **Supabase (via Lovable Cloud):** Our authentication and database provider. Your account data and analysis history are stored on Supabase's infrastructure. Supabase acts as a data processor on our behalf.
+- **AI providers (Anthropic, Google, OpenAI):** When you generate prompts, your extracted design tokens are sent to the AI provider you selected, using your own API key. We do not intermediate or log these requests. Data handling by the AI provider is subject to their own policies.
 
-- **Supabase** (`*.supabase.co`) — our authentication and database backend for authenticated users only. Privacy policy: https://supabase.com/privacy
-- **AI providers** (Gemini / Claude / OpenAI) — called directly from your browser with your own API key when you opt into AI-enhanced direction. Each provider has its own privacy policy.
-- **Chrome Identity API** — used only to capture the OAuth callback when you sign in. No identity data is persisted outside of the Supabase session described above.
+## Data retention
 
-## Analytics and tracking
+- **Anonymous users:** No data is retained on our servers.
+- **Signed-in users:** Your account and history are retained until you delete them. You can delete individual analyses or clear your entire history at any time from the dashboard at vibedesign.tech/dashboard.
 
-We do not use Google Analytics, Mixpanel, Segment, telemetry, or any tracking scripts. No usage data leaves your device beyond what is explicitly described in "Authenticated mode" above.
+## Your rights (GDPR and similar regulations)
 
-## Data retention and deletion
+If you are in the European Economic Area, United Kingdom, or other jurisdictions with similar protections, you have the right to:
 
-- **Anonymous users:** all data stays on your device. Uninstalling the extension clears it.
-- **Authenticated users:** your email, analyses, and prompts remain in our Supabase database until you delete them. You can delete individual analyses from the dashboard or the extension's history panel. To delete your entire account and all associated data, email support@vibedesign.tech with the subject "Account deletion" from the email address linked to your account.
+- Access the personal data we hold about you
+- Correct inaccurate data
+- Delete your data ("right to erasure")
+- Export your data in a machine-readable format
+- Object to processing
+
+To exercise these rights, email us at selen@ourway.design or use the delete controls in your dashboard. Account deletion removes all associated analyses, prompts, and profile data from our servers.
+
+## Security
+
+- Passwords are hashed using industry-standard algorithms before storage (handled by Supabase)
+- All network traffic between the extension, our dashboard, and Supabase uses HTTPS
+- Row-level security policies ensure you can only access your own data on our servers
 
 ## Changes to this policy
 
-We may update this privacy policy from time to time. Material changes affecting what we collect or how we use it will be announced in the extension's sidepanel. The "Last updated" date above always reflects the current version.
+We will update this policy if our data practices change. Material changes will be announced on vibedesign.tech and in the extension's store listing notes. The effective date at the top of this page reflects the latest version.
 
 ## Contact
 
-Questions or requests related to your data:
+Questions or data requests: selen@ourway.design
 
-- Email: support@vibedesign.tech
-- GitHub: https://github.com/slnsenturk-cpu/designprompt-extension/issues
+VibeDesign by Selen Şentürk  
+Istanbul, Turkey
