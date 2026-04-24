@@ -53,3 +53,25 @@ if (chrome.alarms && chrome.alarms.onAlarm) {
     }
   });
 }
+
+// --- v2.0.1: externally_connectable ping/pong for dashboard detection ---
+// Responds to messages from pages whitelisted in manifest's
+// externally_connectable. Used by vibedesign.tech/dashboard to detect
+// whether the extension is installed (chrome.runtime.sendMessage sends
+// { ping: true }; we reply with { pong: true, version }). Sender URL
+// is validated against the apex domain regardless of what the manifest
+// matches allow, so subdomain requests are silently ignored.
+if (chrome.runtime && chrome.runtime.onMessageExternal) {
+  chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResponse) {
+    try {
+      if (sender && typeof sender.url === 'string' && sender.url.startsWith('https://vibedesign.tech/')) {
+        if (message && message.ping === true) {
+          sendResponse({ pong: true, version: chrome.runtime.getManifest().version });
+          return true; // keep the message channel open (per spec)
+        }
+      }
+    } catch (e) {
+      console.warn('[vd-bg] onMessageExternal handler threw', e);
+    }
+  });
+}
