@@ -89,7 +89,7 @@ else echo "  ✓ no key-shaped strings"; fi
 staged_ver=$(node -p "require('./dist/stage/manifest.json').version")
 if [ "$staged_ver" != "$VERSION" ]; then
   echo "  ✗ the staged manifest says $staged_ver but the zip will be named $VERSION"; staged_fail=1
-else echo "  ✓ manifest version $staged_ver matches the zip name"; fi
+else echo "  ✓ staged manifest version $staged_ver"; fi
 
 # The Developer section must be unreachable in a packaged build. It is gated
 # on isUnpackedBuild(), which reads update_url — so the gate has to survive
@@ -123,5 +123,17 @@ if unzip -p "$OUT" '*' 2>/dev/null | grep -qE "sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Z
   echo "  ✗ a key-shaped string survived into the zip"; exit 1
 else echo "  ✓ no key-shaped strings in the zip"; fi
 unzip -tq "$OUT" && echo "  ✓ the archive is readable"
+
+# The version INSIDE the finished zip against the name ON it. This is the
+# check that catches a stale artefact: a zip whose filename says one release
+# and whose manifest says another is the kind of thing that gets uploaded to
+# the store and then cannot be explained.
+zip_ver=$(unzip -p "$OUT" manifest.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+name_ver=$(basename "$OUT" .zip | sed 's/^vibedesign-//')
+if [ "$zip_ver" != "$name_ver" ]; then
+  echo "  ✗ the zip is named $name_ver but its manifest says $zip_ver"
+  exit 1
+fi
+echo "  ✓ the manifest inside the zip ($zip_ver) matches its filename"
 echo
 echo "package.sh: $OUT"
