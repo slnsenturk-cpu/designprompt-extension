@@ -26,6 +26,8 @@ const model = require(path.join(__dirname, '..', 'lib', 'design-model.js'));
 const ROOT = path.join(__dirname, '..');
 const fixture = n => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n + '.json'), 'utf8'));
 const rig = model.buildDesignModel(fixture('rig-ai'));
+const WORDMARK = 'data:image/png;base64,'
+  + fs.readFileSync(path.join(ROOT, 'icons', 'wordmark.png')).toString('base64');
 
 // The widths that matter: Chrome's side panel floor, a common drag width, and
 // a comfortably wide one.
@@ -38,15 +40,14 @@ function page(surface, panelHtml, opts) {
   const bar = surface === 'sidepanel'
     ? `<nav class="vd-tabbar-slot">${U.tabBar({ active: 'overview', ready: true, signedOut: true })}</nav>`
     : '';
-  // A 1x1 transparent GIF stands in for the wordmark so the test does not
-  // depend on reading a binary, with the real asset's aspect declared exactly
-  // as the panel declares it.
+  // The REAL wordmark, inlined. A placeholder would make the alignment test
+  // meaningless: what moved the mark off the content edge was transparent
+  // pixels inside the asset, and only the asset has those.
   return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head>
 <body data-context="${surface}"><div class="app">
   <header class="vd-header">
     <div class="vd-header__top">
-      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-           alt="VibeDesign" class="vd-header__logo" width="317" height="108" />
+      <img src="${WORDMARK}" alt="VibeDesign" class="vd-header__logo" width="254" height="48" />
       <div class="vd-header__account">${U.accountControl({ authed: false })}</div>
     </div>
     <div class="vd-header__status">
@@ -204,7 +205,7 @@ test('the tab bar is six equal columns that fit at 320px', async () => {
 
 // ── the wordmark ──────────────────────────────────────────────────────────
 
-test('the wordmark renders at exactly 32px, centred on the brand row', async () => {
+test('the wordmark renders at exactly 20px, centred on the brand row', async () => {
   for (const width of WIDTHS) {
     const r = await withPage(SURFACES.overview(), width, p => p.evaluate(async () => {
       const img = document.querySelector('.vd-header__logo');
@@ -220,7 +221,7 @@ test('the wordmark renders at exactly 32px, centred on the brand row', async () 
         declared: { w: img.getAttribute('width'), h: img.getAttribute('height') },
       };
     }));
-    assert.equal(r.height, 32, `${width}px: the wordmark is ${r.height}px tall, not 32px`);
+    assert.equal(r.height, 20, `${width}px: the wordmark is ${r.height}px tall, not 20px`);
     assert.ok(r.offCentre <= 0.5,
       `${width}px: the wordmark sits ${r.offCentre}px off the brand row's centre line`);
     // Intrinsic size declared, so the header cannot reflow when the image loads.
@@ -229,16 +230,89 @@ test('the wordmark renders at exactly 32px, centred on the brand row', async () 
   }
 });
 
-test('the wordmark asset has a real intrinsic size and enough resolution', async () => {
+test('the wordmark asset is trimmed, sized and sharp enough', async () => {
   // If this ever fails, the asset is the thing to fix — not the CSS.
-  const png = fs.readFileSync(path.join(ROOT, 'icons', 'logo-light.png'));
+  const png = fs.readFileSync(path.join(ROOT, 'icons', 'wordmark.png'));
   assert.equal(png.slice(1, 4).toString('ascii'), 'PNG', 'the wordmark is not a PNG');
   const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
   assert.ok(w > 0 && h > 0, 'the wordmark has no intrinsic size');
-  // Rendered at 32px tall, this is the pixel density available. Below 2x it
+  // Rendered at 20px tall, this is the pixel density available. Below 2x it
   // would look soft on a retina display and should be replaced with an SVG.
-  assert.ok(h / 32 >= 2,
-    `the wordmark is ${w}x${h}: only ${(h / 32).toFixed(1)}x at a 32px slot — replace it with an SVG`);
+  assert.ok(h / 20 >= 2,
+    `the wordmark is ${w}x${h}: only ${(h / 20).toFixed(1)}x at a 20px slot — replace it with an SVG`);
+
+  // And it must have no transparent margin. A padded asset makes `height`
+  // describe a mostly-empty box: the original carried 32px of transparent
+  // pixels on its left, which both shrank the visible mark to two-thirds of
+  // its set size and pushed it right of the content edge.
+  const trimmed = await withPage(
+    `<!doctype html><html><body><img id="m" src="data:image/png;base64,${png.toString('base64')}"></body></html>`,
+    360,
+    p => p.evaluate(async () => {
+      const img = document.getElementById('m');
+      if (!img.complete) await new Promise(r => { img.onload = r; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let minX = c.width, maxX = -1, minY = c.height, maxY = -1;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+        if (d[(y * c.width + x) * 4 + 3] > 8) {
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+      return { w: c.width, h: c.height, minX, maxX, minY, maxY };
+    }));
+  assert.equal(trimmed.minX, 0, `${trimmed.minX}px of transparent margin on the left`);
+  assert.equal(trimmed.minY, 0, `${trimmed.minY}px of transparent margin on the top`);
+  assert.equal(trimmed.maxX, trimmed.w - 1, 'transparent margin on the right');
+  assert.equal(trimmed.maxY, trimmed.h - 1, 'transparent margin on the bottom');
+});
+
+test('the wordmark starts on the same line as the content below it', async () => {
+  // The header and the panel both sit at the 16px content edge, so the
+  // wordmark, the domain, the tab title and the summary strip should all
+  // begin at exactly the same x. They did not: the asset's transparent margin
+  // indented the mark by ~9px while every box measured correctly.
+  for (const width of WIDTHS) {
+    const r = await withPage(SURFACES.overview(), width, p => p.evaluate(async () => {
+      const left = s => {
+        const el = document.querySelector(s);
+        return el ? +el.getBoundingClientRect().left.toFixed(2) : null;
+      };
+      // Where the wordmark's first VISIBLE pixel lands, not where its box
+      // does. A transparent margin inside the asset moves the mark without
+      // moving the element, so measuring the box alone would have passed
+      // straight through the bug this test exists for.
+      const img = document.querySelector('.vd-header__logo');
+      if (!img.complete) await new Promise(res => { img.onload = res; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let inkX = c.width;
+      for (let y = 0; y < c.height; y++) for (let x = 0; x < inkX; x++) {
+        if (d[(y * c.width + x) * 4 + 3] > 8 && x < inkX) inkX = x;
+      }
+      const box = img.getBoundingClientRect();
+      const scale = box.width / c.width;
+      return {
+        logoBox: +box.left.toFixed(2),
+        logoInk: +(box.left + inkX * scale).toFixed(2),
+        domain: left('.vd-header__domain'),
+        title: left('.vd-tabtitle'),
+        stats: left('.vd-stats'),
+        swatches: left('.vd-swatches'),
+      };
+    }));
+    ['domain', 'title', 'stats', 'swatches'].forEach(key => {
+      if (r[key] === null) return;
+      assert.ok(Math.abs(r[key] - r.logoInk) < 0.5,
+        `${width}px: the wordmark's first visible pixel is at ${r.logoInk}px `
+        + `(box at ${r.logoBox}px) but ${key} starts at ${r[key]}px`);
+    });
+  }
 });
 
 // ── the popup keeps its own width ─────────────────────────────────────────
@@ -356,8 +430,8 @@ test('the header is two lines and the domain stays on one of them', async () => 
         domainEllipsis: getComputedStyle(domain).textOverflow,
       };
     }));
-    assert.equal(r.height, 68, `${width}px: the header is ${r.height}px, not 68`);
-    assert.equal(r.logoH, 32, `${width}px: the wordmark is ${r.logoH}px, not 32`);
+    assert.equal(r.height, 60, `${width}px: the header is ${r.height}px, not 60`);
+    assert.equal(r.logoH, 20, `${width}px: the wordmark is ${r.logoH}px, not 20`);
     assert.ok(r.statusBelowTop, `${width}px: the header is not two lines`);
     assert.ok(r.acctOnTopRow, `${width}px: the account control is not on the brand row`);
     assert.equal(r.statusLines, 1, `${width}px: the page line wrapped`);

@@ -1402,7 +1402,7 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
   --vd-h-primary: 40px;
   --vd-h-chip:    28px;
   --vd-h-row:     32px;
-  --vd-h-header:  68px;   /* §3: two lines — 32px brand row + the page line */
+  --vd-h-header:  60px;   /* §3: two lines — brand + account, then the page */
   --vd-h-tabbar:  56px;
 
   /* §5 — type scale. Base 13px, ratio ≈1.2. */
@@ -1437,11 +1437,13 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
    The intrinsic size is 317x108, so width:auto gives 58.7px and the aspect is
    never guessed. align-self:center puts its optical centre on the row's. */
 .vd-header__logo {
-  /* 32px. This is taller than the account control beside it, so the wordmark
-     — not the control — now sets the brand row's height, and the header grew
-     to 68px to keep the page line at its natural leading. At 60px the domain
-     line was being squeezed from 19.5px to 15px to make room. */
-  height: 32px; width: auto; flex: 0 0 auto;
+  /* icons/wordmark.png is icons/logo-light.png with its transparent margin
+     removed, so this height is the height of the MARK — not of a box that is
+     mostly empty. The old asset carried 32px of transparent padding on the
+     left, which pushed the visible wordmark ~9px right of the 16px content
+     edge and made every size look two-thirds smaller than it was set to.
+     20px of actual wordmark now starts exactly where "rig.ai" below it does. */
+  height: 20px; width: auto; flex: 0 0 auto;
   display: block; align-self: center;
 }
 /* One line, and it ellipses rather than pushing the panel wider. */
