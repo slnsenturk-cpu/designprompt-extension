@@ -1497,11 +1497,6 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
 .vd-tab.is-dim { opacity: 0.4; }
 .vd-tab.is-dim:hover { color: var(--vd-text-muted); }
 
-/* Signed out is advertised here and nowhere else — no floating pill (§3). */
-.vd-tab__dot {
-  position: absolute; top: 8px; left: 50%; margin-left: 6px;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--vd-accent);
-}
 .vd-sr {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
@@ -1793,3 +1788,26 @@ body[data-context="popup"] .app { width: 380px; overflow: hidden; }
 @media (max-width: 379px) {
   .vd-stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* §3: sign-in state at the header's right edge — a control, not a badge.
+   Both forms are the state AND the way to change it. */
+.vd-header__account { flex: 0 0 auto; display: flex; align-items: center; }
+
+.vd-account {
+  width: 24px; height: 24px; padding: 0; flex: 0 0 auto;
+  border: 0; border-radius: 50%; cursor: pointer; overflow: hidden;
+  background: var(--vd-accent-soft); color: var(--vd-text-primary);
+  display: flex; align-items: center; justify-content: center;
+}
+.vd-account__photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vd-account__initial { font: var(--vd-label); line-height: 1; }
+.vd-account__signin { height: 28px; padding: 0 var(--vd-space-3); flex: 0 0 auto; }
+
+/* §3: the anonymous cap. A caption under the action — never a banner, and the
+   offer is always something you can press. */
+.vd-cap { font: var(--vd-caption); color: var(--vd-text-muted); margin: 0; }
+.vd-cap__link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: var(--vd-caption); color: var(--vd-accent);
+}
+.vd-cap__reached { font: var(--vd-body); color: var(--vd-text-secondary); margin: 0; }

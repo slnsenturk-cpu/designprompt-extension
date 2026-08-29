@@ -34,6 +34,12 @@ const STATES = {
   'home-page':        () => V.homeView({ mode: 'page', recent: [], context: 'none',
                              aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5' }),
   'home-ai-off':      () => V.homeView({ mode: 'page', recent: [], context: 'none' }),
+  'home-cap-under':   () => V.homeView({ mode: 'page', recent: [], context: 'none',
+                             authed: false, usage: { used: 4, limit: 5 } }),
+  'home-cap-reached': () => V.homeView({ mode: 'page', recent: [], context: 'none',
+                             authed: false, usage: { used: 5, limit: 5 } }),
+  'home-signed-in':   () => V.homeView({ mode: 'page', recent: [], context: 'none',
+                             authed: true, usage: null }),
   'overview-other':   () => V.overviewView(rig, { output: 'prompt', context: 'other',
                              domain: 'posthog.com', resultDomain: 'rig.ai',
                              resultTime: '12:41', aiEnabled: false }),
@@ -181,7 +187,9 @@ test('the panel says nothing that is not in the dictionary', () => {
 test('the copy is sentence case and free of the phrases §3 removes', () => {
   Object.keys(STATES).forEach(name => {
     const text = STATES[name]().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-    ['Paid.', 'RAW capture', 'of 5 free', 'FULL PAGE', 'GLOBAL TOKENS']
+    // "N of 5 free prompts" was the removed BANNER; §3 reinstates the count as
+    // a caption reading "free analyses". The banner wording stays banned.
+    ['Paid.', 'RAW capture', 'free prompts', 'FULL PAGE', 'GLOBAL TOKENS']
       .forEach(banned => assert.ok(!text.includes(banned),
         `${name} still says "${banned}"`));
     // No SHOUTING in body copy. Uppercase is a CSS treatment on the label
@@ -317,12 +325,12 @@ test('every tab entry carries an icon and a label', () => {
   assert.equal((bar.match(/vd-tab__icon/g) || []).length, U.TABS.length);
   assert.equal((bar.match(/vd-tab__label/g) || []).length, U.TABS.length);
 
-  // The signed-out dot rides on Settings and nowhere else.
-  assert.ok(!bar.includes('vd-tab__dot'), 'a dot appeared while signed in');
-  const out = U.tabBar({ active: 'overview', ready: true, signedOut: true });
-  assert.equal((out.match(/vd-tab__dot/g) || []).length, 1);
-  const settingsTab = out.slice(out.lastIndexOf('<button', out.indexOf('vd-tab__dot')));
-  assert.match(settingsTab, /data-tab="settings"/);
+  // §3: the tab bar carries no sign-in state. A dot on a tab is a
+  // notification badge — it says "something happened" and gives nothing to
+  // press. The header's account control is both the state and the action.
+  assert.ok(!bar.includes('vd-tab__dot'), 'a badge is back on the tab bar');
+  assert.ok(!U.tabBar({ active: 'overview', ready: true, signedOut: true }).includes('dot'),
+    'the tab bar still reacts to sign-in state');
 });
 
 test('every tab panel opens with its own title', () => {
@@ -380,4 +388,73 @@ test('the sparse warning and the page-context notice never appear together', () 
   // And a sparse model never gets a strip of ones either way.
   assert.ok(!elsewhere.includes('vd-stats') && !athome.includes('vd-stats'),
     'a sparse model was given a summary strip');
+});
+
+// ── PROMPT 3d ─────────────────────────────────────────────────────────────
+
+test('the cap caption appears only for a signed-out user under the limit', () => {
+  const under = { authed: false, usage: { used: 4, limit: 5 } };
+  const at = { authed: false, usage: { used: 5, limit: 5 } };
+  const inn = { authed: true, usage: null };
+
+  const home = o => V.homeView(Object.assign({ mode: 'page', context: 'none' }, o));
+
+  assert.match(home(under), /4 of 5 free analyses this month/);
+  assert.ok(home(under).includes('Analyze page'), 'the action was taken away early');
+
+  // At the limit the caption is replaced by the block, not stacked with it.
+  assert.ok(!home(at).includes('of 5 free analyses'), 'both the caption and the block rendered');
+  // Compared against the escaped string: the renderer escapes every value it
+  // prints, so the apostrophe arrives as &#39; — matching the raw sentence
+  // would fail for the right reason and look like the wrong one.
+  assert.ok(home(at).includes(U.esc(U.COPY.capReached(5))),
+    'the limit sentence is missing');
+
+  // Signed in: neither, at any count.
+  assert.ok(!home(inn).includes('free analyses'), 'a signed-in user sees a counter');
+  assert.ok(!home(inn).includes("You've used"), 'a signed-in user sees the limit');
+  assert.ok(!V.homeView({ mode: 'page', context: 'none', authed: true, usage: { used: 5, limit: 5 } })
+    .includes('free analyses'), 'usage leaked through for a signed-in account');
+});
+
+test('at the cap the screen still has exactly one primary action', () => {
+  const at = V.homeView({ mode: 'page', context: 'none', authed: false, usage: { used: 5, limit: 5 } });
+  assert.equal((at.match(/vd-btn--primary/g) || []).length, 1);
+  assert.match(at, /id="vdSignInUnlimited"/);
+  assert.ok(!at.includes('id="analyzeBtn"'), 'Analyze is still offered at the limit');
+  assert.ok(!/disabled/.test(at), 'a disabled button says no without saying what to do');
+});
+
+test('the header account control is a control in both states', () => {
+  const out = U.accountControl({ authed: false });
+  assert.match(out, /^<button/, 'the signed-out state is not pressable');
+  assert.match(out, /data-action="signIn"/);
+  assert.match(out, />Sign in</);
+
+  const inn = U.accountControl({ authed: true, email: 'user@example.com' });
+  assert.match(inn, /^<button/);
+  assert.match(inn, /data-action="openAccount"/);
+  assert.match(inn, /vd-account__initial" aria-hidden="true">U</, 'no initial for a photoless account');
+
+  const photo = U.accountControl({ authed: true, email: 'user@example.com', avatarUrl: 'https://e.com/a.png' });
+  assert.match(photo, /vd-account__photo/);
+  assert.ok(!photo.includes('vd-account__initial'), 'both a photo and an initial were drawn');
+
+  // The avatar is 24px and the button 28px (§3).
+  const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
+  const rule = re => (css.match(re) || [''])[0];
+  assert.match(rule(/\.vd-account \{[^}]*\}/), /width: 24px; height: 24px/);
+  assert.match(rule(/\.vd-account__signin \{[^}]*\}/), /height: 28px/);
+});
+
+test('no screen asks the user to sign in without something to press', () => {
+  // §3. The one allowed sentence is Settings' explanation, which sits directly
+  // above its own Sign in button.
+  Object.keys(STATES).forEach(name => {
+    const html = STATES[name]();
+    const text = html.replace(/<[^>]+>/g, ' ');
+    if (!/Sign in/.test(text)) return;
+    const inControl = /<button[^>]*>[^<]*Sign in|data-action="signIn"/.test(html);
+    assert.ok(inControl, `${name}: "Sign in" appears with nothing to press`);
+  });
 });

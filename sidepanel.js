@@ -140,25 +140,17 @@ _uiHooks.afterListeners = async function () {
     // The account lives in Settings now (§3); there is no pill to mount.
     if (typeof refreshAccount === 'function') await refreshAccount();
 
-    if (typeof shouldShowWelcomeCard === 'function' && typeof renderWelcomeCard === 'function') {
-      const cardHost = document.getElementById('vd-welcome-card-container');
-      if (cardHost && (await shouldShowWelcomeCard())) {
-        await renderWelcomeCard(cardHost);
-      }
-    }
-
-    // v2.0.0-beta.2 — usage meter: month-rollover check, then render
-    // counter + sync Analyze button disabled state with canGenerate().
+    // The welcome card and the standalone usage counter are gone. The cap is
+    // presented in the panel itself (§3) and the account lives in Settings, so
+    // there is nothing here to mount — only the month-rollover check, whose
+    // result refreshAccount() then reads.
     try {
       if (self.VD_USAGE && typeof self.VD_USAGE.resetIfNeeded === 'function') {
         await self.VD_USAGE.resetIfNeeded();
+        if (typeof refreshUsage === 'function') await refreshUsage();
+        if (typeof renderPanel === 'function') renderPanel();
       }
-      const usageHost = document.getElementById('vd-usage-container');
-      if (usageHost && typeof renderUsageCounter === 'function') {
-        await renderUsageCounter(usageHost);
-      }
-      if (typeof updateAnalyzeButton === 'function') await updateAnalyzeButton();
-    } catch (e) { console.warn('[vd-usage-ui] initial usage render failed', e); }
+    } catch (e) { console.warn('[vd-usage-ui] month rollover check failed', e); }
 
     // Subscribe exactly once — guards against re-entrancy if afterListeners
     // is ever invoked a second time (e.g. via a future re-init path).
@@ -168,14 +160,9 @@ _uiHooks.afterListeners = async function () {
         try {
           if (typeof refreshAccount === 'function') refreshAccount();
         } catch (_) { /* noop */ }
-        // On sign-in: hide counter + enable button. On sign-out: show
-        // counter + re-check limit. Both paths go through the same
-        // renderers; they branch on current auth state internally.
-        try {
-          const host = document.getElementById('vd-usage-container');
-          if (host && typeof renderUsageCounter === 'function') renderUsageCounter(host);
-          if (typeof updateAnalyzeButton === 'function') updateAnalyzeButton();
-        } catch (_) { /* noop */ }
+        // Signing in lifts the cap and signing out reinstates it, and both
+        // change what the header shows. refreshAccount() reads the account and
+        // the usage together and re-renders, so one call covers all of it.
         // One-shot migration on SIGNED_IN. The function is self-gated by
         // the cloud_migration_completed_at flag in chrome.storage.local,
         // so firing this on every SIGNED_IN is idempotent.

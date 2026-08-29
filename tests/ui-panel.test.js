@@ -27,6 +27,7 @@ const TEST_EMAIL = 'user@example.com';
 const LIBS = [
   'lib/color-utils.js', 'lib/noise-filter.js', 'lib/shadow-utils.js',
   'lib/prompt-builder.js', 'lib/ai-caller.js', 'lib/model-discovery.js',
+  'lib/usage-meter.js',
   'lib/download.js', 'lib/data/google-fonts.js', 'lib/design-model.js',
   'lib/token-exporter.js', 'lib/design-md-builder.js', 'lib/zip-lite.js',
   'lib/skill-builder.js', 'lib/ui-components.js', 'lib/ui-helpers.js',
@@ -88,6 +89,11 @@ async function boot(t, o) {
   const captured = { downloads: [], warnings: [], clipboard: [] };
 
   win.chrome = makeChrome(opts.storage || {});
+  // The account is read through VD_AUTH.peekSession, so a test signs in by
+  // handing the panel a session rather than by poking state.
+  if (opts.session !== undefined) {
+    win.__vdSession = opts.session;
+  }
   win.self = win;
   win.console = { warn: (...a) => captured.warnings.push(a.join(' ')), log() {}, error() {}, debug() {} };
   win.URL.createObjectURL = () => 'blob:stub';
@@ -109,6 +115,17 @@ async function boot(t, o) {
   LIBS.forEach(f => {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   });
+  // VD_AUTH is not in LIBS (it pulls in the Supabase bundle), so the panel
+  // sees exactly the surface it uses: peekSession, openAuthFlow, signOut.
+  vm.runInContext(`self.VD_AUTH = {
+    peekSession: () => Promise.resolve(self.__vdSession || null),
+    isAuthenticated: () => Promise.resolve(!!self.__vdSession),
+    openAuthFlow: () => { self.__vdSession = { access_token: 't', user: { email: 'user@example.com' } };
+                          return Promise.resolve({ ok: true }); },
+    signOut: () => { self.__vdSession = null; return Promise.resolve(); },
+    getRefreshStatus: () => Promise.resolve(null),
+    onAuthStateChange: () => {},
+  };`, ctx);
 
   await new Promise((resolve, reject) => {
     ctx.__done = resolve; ctx.__fail = reject;
@@ -150,9 +167,11 @@ test('the side panel is a header, one scrolling area, and a sticky tab bar', asy
   assert.deepEqual(p.$$('.vd-tab').map(t => t.dataset.tab),
     ['overview', 'colors', 'type', 'components', 'motion', 'settings']);
 
-  // §3: the header carries no controls at all — wordmark, domain, status.
-  // Re-analyze is the panel's primary action, labelled; a bare ↺ is forbidden.
-  assert.equal(p.$$('.vd-header button').length, 0);
+  // §3: the header carries exactly one control — the account, at its right
+  // edge. Re-analyze is the panel's primary action, labelled; a bare ↺ is
+  // forbidden, and there are no navigation icons.
+  assert.equal(p.$$('.vd-header button').length, 1);
+  assert.ok(p.$('.vd-header__account button'), 'the one control is not the account');
 });
 
 test('category tabs are dimmed until an analysis exists, and say so when tapped', async t => {
@@ -182,7 +201,9 @@ test('Home shows one primary action and no settings whatsoever', async t => {
   assert.equal(p.$('#vdProviderSelect'), null, 'a provider select is on the main flow');
   assert.equal(p.$('#settingsDev'), null, 'the Developer section is on the main flow');
   const onScreen = p.text();
-  ['Paid.', 'RAW', 'of 5 free', 'GLOBAL TOKENS', 'FULL PAGE']
+  // "N of 5 free prompts" was the old BANNER. §3 reinstates the count as a
+  // caption under the action — "free analyses", not a box shouting "prompts".
+  ['Paid.', 'RAW', 'free prompts', 'GLOBAL TOKENS', 'FULL PAGE']
     .forEach(gone => assert.ok(!onScreen.includes(gone), `"${gone}" still appears on Home`));
 });
 
@@ -717,25 +738,6 @@ test('the analyzing line shows a stage name and never AI content', async t => {
     'the prompt builder still writes streamed AI text into the status line');
 });
 
-test('no floating sign-in pill; signed-out is a dot on the Settings tab', async t => {
-  // 3b#3.
-  const p = await boot(t);
-  assert.ok(!p.text().includes('Sign in to sync'), 'the floating pill is back');
-  assert.equal(p.$('.vd-auth-pill'), null, 'a pill element was rendered');
-
-  // Nothing renders above or below the header row (§3 / 3b#4).
-  const header = p.$('.vd-header');
-  assert.equal(header.previousElementSibling, null, 'something sits above the header');
-
-  assert.ok(p.$('.vd-tab__dot'), 'no signed-out badge on the Settings tab');
-  const dotTab = p.$('.vd-tab__dot').closest('.vd-tab');
-  assert.equal(dotTab.dataset.tab, 'settings', 'the badge is on the wrong tab');
-
-  // Account itself is in Settings, as a row with a labelled action.
-  p.click('[data-tab="settings"]');
-  assert.ok(p.$('#vdSignIn'), 'no way to sign in from Settings');
-});
-
 test('every tab keeps its label, and each tab titles its own content', async t => {
   // 3b#1 and 3b#5.
   const p = await boot(t);
@@ -777,4 +779,166 @@ test('sparse means genuinely sparse, not merely unfinished', async t => {
   thin.run('state.currentUrl = "https://tiny.example/";');
   thin.analyze('sparse');
   assert.match(thin.text(), /Very little design data/);
+});
+
+// ── PROMPT 3d: the cap and sign-in state ──────────────────────────────────
+
+// The cap is real product behaviour, so these drive the real meter through
+// storage rather than stubbing panel state: lib/usage-meter.js reads
+// chrome.storage.local under `usage_meter`, and stamps the period as the first
+// instant of the current UTC month. A wrong shape here would silently reset
+// the count to zero and the tests would pass for the wrong reason, so the
+// period is computed the same way the meter computes it.
+function currentPeriodStart() {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0)).toISOString();
+}
+const usageStore = count => ({
+  usage_meter: { count, periodStart: currentPeriodStart() },
+});
+
+test('under the cap, signed out: a caption that offers a way out', async t => {
+  const p = await boot(t, { storage: usageStore(4) });
+  assert.match(p.text(), /4 of 5 free analyses this month/);
+
+  // §3: the offer is a control, never prose telling the user to go elsewhere.
+  const link = p.$('.vd-cap__link');
+  assert.ok(link, '"Sign in for unlimited" is not pressable');
+  assert.equal(link.tagName, 'BUTTON');
+  assert.equal(link.dataset.action, 'signIn');
+
+  // The panel still works normally: Analyze is the primary action.
+  assert.equal(p.$('#analyzeBtn').textContent.trim(), 'Analyze page');
+  assert.ok(p.$('#analyzeBtn').classList.contains('vd-btn--primary'));
+  assert.equal(p.$('#vdSignInUnlimited'), null, 'the limit block appeared early');
+});
+
+test('at the cap, signed out: the action becomes the way out of it', async t => {
+  const p = await boot(t, { storage: usageStore(5) });
+
+  assert.match(p.text(), /You've used your 5 free analyses this month\./);
+  const cta = p.$('#vdSignInUnlimited');
+  assert.ok(cta, 'no "Sign in for unlimited" button');
+  assert.ok(cta.classList.contains('vd-btn--primary'), 'the way out is not the primary action');
+  assert.equal(cta.textContent.trim(), 'Sign in for unlimited');
+
+  // §4.5: no Analyze button, and no "Try again" — retrying hits the same wall.
+  assert.equal(p.$('#analyzeBtn'), null, 'Analyze is still offered at the limit');
+  // The error surface owns the only "Try again" and it is not on screen —
+  // textContent includes hidden nodes, so visibility is what to assert.
+  assert.equal(p.$('#errorSection').style.display, 'none',
+    'the error surface is showing at the limit');
+  assert.equal(p.$('#vdPanel').querySelector('#errorRetryBtn'), null,
+    '"Try again" is offered inside the panel at the limit');
+  // Still one primary action on the screen (§1.1).
+  assert.equal(p.$$('.vd-btn--primary').length, 1);
+  // And it is not merely a disabled button, which says no without saying why.
+  assert.equal(p.$$('.vd-btn[disabled]').length, 0);
+});
+
+test('at the cap, the last result and every tab keep working', async t => {
+  const p = await boot(t, { storage: usageStore(5) });
+  p.analyze('rig-ai');
+
+  assert.equal(p.$$('.vd-stat').length, 4, 'the existing result stopped rendering');
+  assert.ok(p.$('#vdExportBtn'), 'export was taken away at the limit');
+  p.click('#vdExportBtn');
+  assert.equal(p.captured.clipboard.length, 1, 'copying the existing result was blocked');
+
+  ['colors', 'type', 'components', 'motion', 'settings'].forEach(tab => {
+    p.click(`[data-tab="${tab}"]`);
+    assert.equal(p.run('state.tab'), tab, `${tab} stopped working at the limit`);
+  });
+});
+
+test('analysing at the cap does not produce an error screen', async t => {
+  const p = await boot(t, { storage: usageStore(5) });
+  p.analyze('rig-ai');
+  // The keyboard shortcut bypasses the button, so the guard behind it must
+  // hold — and must not replace the result with an error.
+  await p.run('handleAnalyze()');
+  await new Promise(r => setImmediate(r));
+  assert.equal(p.$('#errorSection').style.display, 'none', 'the cap showed an error screen');
+  assert.equal(p.$$('.vd-stat').length, 4, 'the result was replaced');
+  assert.ok(p.$('#vdSignInUnlimited'), 'the way out is not on screen');
+});
+
+test('signed in: no counter anywhere, at any count', async t => {
+  const p = await boot(t, {
+    storage: usageStore(5),
+    session: { access_token: 't', user: { email: TEST_EMAIL } },
+  });
+  const text = p.text();
+  assert.ok(!/free analyses this month/.test(text), 'a signed-in user was shown the counter');
+  assert.ok(!/You've used your/.test(text), 'a signed-in user was shown the limit');
+  assert.equal(p.$('#vdSignInUnlimited'), null, 'a signed-in user was asked to sign in');
+  assert.equal(p.$('.vd-cap'), null);
+  assert.equal(p.$('#analyzeBtn').textContent.trim(), 'Analyze page');
+  assert.equal(p.run('state.usage'), null, 'usage is counted for an unlimited account');
+});
+
+test('the header shows an avatar when signed in and a button when not', async t => {
+  const out = await boot(t);
+  const btn = out.$('#vdHeaderSignIn');
+  assert.ok(btn, 'no sign-in control in the header');
+  assert.equal(btn.tagName, 'BUTTON');
+  assert.equal(btn.textContent.trim(), 'Sign in');
+  assert.equal(out.$('#vdHeaderAccount'), null);
+
+  const inn = await boot(t, { session: { access_token: 't', user: { email: TEST_EMAIL } } });
+  const acct = inn.$('#vdHeaderAccount');
+  assert.ok(acct, 'no account control in the header');
+  assert.equal(inn.$('#vdHeaderSignIn'), null, 'still offering sign-in to a signed-in user');
+  // No photo on this account, so the initial stands in for one.
+  assert.equal(acct.querySelector('.vd-account__initial').textContent, 'U');
+  assert.match(acct.getAttribute('aria-label'), /Account/);
+
+  // With a photo, the photo is used.
+  const withPhoto = await boot(t, {
+    session: { access_token: 't', user: { email: TEST_EMAIL, user_metadata: { avatar_url: 'https://example.com/a.png' } } },
+  });
+  assert.ok(withPhoto.$('#vdHeaderAccount .vd-account__photo'), 'the avatar photo was not used');
+});
+
+test('the account control opens Settings → Account', async t => {
+  const p = await boot(t, { session: { access_token: 't', user: { email: TEST_EMAIL } } });
+  p.click('#vdHeaderAccount');
+  assert.equal(p.run('state.tab'), 'settings');
+  assert.ok(p.$('#vdAccount'), 'Settings did not open on Account');
+});
+
+test('Settings → Account reads differently signed in and out', async t => {
+  const out = await boot(t);
+  out.click('[data-tab="settings"]');
+  assert.match(out.text(), /Sign in to keep history on all your devices\./);
+  assert.ok(out.$('#vdSignIn'), 'the invitation is not a button');
+  assert.equal(out.$('#vdSignOut'), null);
+
+  const inn = await boot(t, { session: { access_token: 't', user: { email: TEST_EMAIL } } });
+  inn.click('[data-tab="settings"]');
+  assert.match(inn.text(), new RegExp(`Signed in as ${TEST_EMAIL.replace('.', '\\.')}`));
+  assert.ok(inn.$('#vdSessionStatus'), 'no session status line');
+  assert.ok(inn.$('#vdSignOut'), 'no way to sign out');
+  assert.equal(inn.$('#vdSignIn'), null);
+});
+
+test('every invitation to sign in is pressable, never plain text', async t => {
+  // §3: "Giriş isteyen her mesaj bir düğmedir, metin değil."
+  for (const store of [usageStore(4), usageStore(5), {}]) {
+    const p = await boot(t, { storage: store });
+    for (const tab of ['overview', 'settings']) {
+      p.click(`[data-tab="${tab}"]`);
+      const html = p.win.document.body.innerHTML;
+      // Find every occurrence of the phrase and prove each sits inside a
+      // button — an <a> would be acceptable too, but text alone is not.
+      [...html.matchAll(/Sign in[^<]*/g)].forEach(m => {
+        const before = html.slice(Math.max(0, m.index - 400), m.index);
+        const open = before.lastIndexOf('<button');
+        const close = before.lastIndexOf('</button>');
+        const inSentence = /keep history on all your devices/.test(m[0]);
+        assert.ok(open > close || inSentence,
+          `${tab}: "${m[0].slice(0, 40)}" is text with nothing to press`);
+      });
+    }
+  }
 });

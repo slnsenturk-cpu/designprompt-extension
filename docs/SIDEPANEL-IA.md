@@ -48,7 +48,7 @@ Kural: bir alan modelde yoksa UI'da da yoktur. UI için yeni veri uydurulmaz.
 ## 3. Bilgi mimarisi — ekranlar ve gezinme
 
 ```
-Header (sabit, 48px):   [logo]  [domain · durum]                              [↺]
+Header (sabit, 48px):   [logo]  [domain · durum]                    [avatar | Sign in]
 
 İçerik (kayar):         seçili sekmenin içeriği
 
@@ -57,7 +57,9 @@ Alt sekme çubuğu (sticky, 56px, ikon + kısa etiket):
 ```
 
 - **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok.
-- **Header ölçüleri:** logo 20px yüksekliğinde (wordmark), domain 13px `body`, durum `caption`. Header'ın üstünde/altında başka satır yoktur; "Sign in" hapı yoktur (hesap Settings'te, giriş yapılmamışsa Settings sekmesinde nokta rozeti).
+- **Header ölçüleri:** logo 20px yüksekliğinde (wordmark), domain 13px `body`, durum `caption`. Header'ın üstünde/altında başka satır yoktur.
+- **Giriş durumu header'ın sağında görünür:** giriş yapılmışsa 24px avatar (yoksa ilk harf); yapılmamışsa 28px ghost düğme **Sign in**. İkisi de Settings → Account'a gider (Sign in düğmesi doğrudan giriş akışını başlatır). Giriş isteyen her mesaj bir düğmedir, metin değil.
+- **Anonim sınır: ayda 5 analiz; ücretsiz kayıt = sınırsız.** Kalan hak, giriş yapılmamışken Analyze düğmesinin altında `caption` olarak görünür: "3 of 5 free analyses this month · Sign in for unlimited". Sınıra gelince Analyze düğmesinin yerini birincil **Sign in for unlimited** düğmesi alır, üstünde tek cümle: "You've used your 5 free analyses this month." "Try again" gibi bir düğme yoktur. Giriş yapılmışsa sayaç hiç görünmez.
 - **Alt çubuk ölçüleri:** 6 sekme, her biri ikon (20px) + **etiket** (`label`, 11px); ikon-yalnız çubuk kabul edilmez. Aktif sekme: accent renk + etiket 600; pasif: `text-muted`; analiz yokken kategori sekmeleri %40 opaklık. Dokunma alanı en az 48px yükseklik.
 - **"Neredeyim" iki kez cevaplanır:** aktif sekme + her sekme içeriğinin en üstünde `title` (18px) başlık: "Overview", "Colors", "Type", "Components", "Motion", "Settings".
 - **Durum, sekmeleri etkiler.** Analiz yokken Overview "Home" içeriğini gösterir (Analyze düğmesi + Recent); kategori sekmeleri soluktur, dokununca "Analyze this page first" notice'ı. Analiz gelince kategoriler açılır.
@@ -233,6 +235,7 @@ Settings'te son 3; "See all" tam listeyi sheet olarak açar: favicon · domain �
 | Sayfa okunamadı | Notice (uyarı): "Couldn't read this page. Some sites block extensions; try reloading, or pick an element instead." + "Try again". |
 | İzin gerekiyor | Notice: "VibeDesign needs permission to read rig.ai." + "Allow" (Prompt 6 akışı). |
 | Çevrimdışı / AI hatası | Sonuç yine gelir (kural motoru yereldir); Export meta satırında "AI enhancement skipped — offline". |
+| Aylık sınır (anonim) | Analyze düğmesi yerine birincil "Sign in for unlimited"; üstünde "You've used your 5 free analyses this month." Diğer her şey (son sonuç, sekmeler) çalışmaya devam eder. |
 | Boş model (çok az veri) | Yalnızca model gerçekten seyrekse (ör. < 3 renk rolü ve hiç bileşen yok): Summary strip yerine tek satır "Very little design data on this page. Try a page with more UI." Sayfa henüz yüklenmediyse bu uyarı yerine "Page is still loading — try again" gösterilir; sayfa yüklenmeden analiz başlatılmaz. |
 
 ---
@@ -330,6 +333,8 @@ Bileşen token'ı sadece gerekince: `--button-primary-bg: var(--accent)`. Ham he
 | Yer | Metin |
 |---|---|
 | Home açıklama | Reads colors, type, spacing, components, motion and hover states from this page. |
+| Kalan hak (anonim) | 3 of 5 free analyses this month · Sign in for unlimited |
+| Sınır doldu | You've used your 5 free analyses this month. |
 | Output · Prompt | Rebuild this page in a chat tool. |
 | Output · DESIGN.md | A style guide your project keeps. |
 | Output · Skill | DESIGN.md + tokens, packaged for coding agents. |
@@ -362,6 +367,17 @@ Branch v3.0. First copy the spec I attach as docs/SIDEPANEL-IA.md and read it fu
 9. Popup: header + segmented + Analyze + "Open side panel"; no tab bar; starting an analysis from the popup opens the side panel and runs there.
 10. Keep everything working: Analyze, Pick element, image analysis, sign in/out, history, cloud sync, model discovery, downloads. Tests: DOM-stub render tests for each surface and state, a test that no component is used outside its allowed contexts (grep-level is fine), and snapshot tests of rendered HTML per state. Run, show output, commit in 3–4 readable commits (structure · export card · settings/history · tokens & copy), push.
 Report with a plain-language walkthrough and a list of any spec ambiguities you had to resolve.
+```
+
+### PROMPT 3d — sınır ve giriş durumu
+
+```text
+PROMPT 3d — Remove the monthly cap; make sign-in state visible
+
+1. Keep the anonymous cap (5 analyses per month; signed-in accounts unlimited) — the product rule from 2.0.1 stands. Fix its presentation per spec §3: signed-out users see a caption under the Analyze button "N of 5 free analyses this month · Sign in for unlimited" (the sign-in part is a link that starts the auth flow); at the limit, the Analyze button is replaced by a primary "Sign in for unlimited" button with the sentence "You've used your 5 free analyses this month." above it. No "Try again". The last result and all tabs keep working at the limit. Signed-in users never see the counter. Tests for 4/5, 5/5 and signed-in.
+2. Header right: signed in → 24px avatar (initial if no photo); signed out → 28px ghost button "Sign in" that starts the existing auth flow. Both open Settings → Account after. Remove the dot badge on the Settings tab. Any message that asks the user to sign in must be a button that starts the flow, never plain text.
+3. Settings → Account shows the email, "Signed in as", session status line, Sign out; signed out shows one sentence "Sign in to keep history on all your devices." + Sign in button.
+Commit "fix: remove monthly cap, sign-in state in header", push, report.
 ```
 
 ### PROMPT 3b — ilk tarayıcı testinden çıkan düzeltmeler
