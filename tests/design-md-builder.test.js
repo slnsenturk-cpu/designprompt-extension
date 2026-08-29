@@ -599,7 +599,7 @@ test('layout reports repeating structures and the hero treatment', () => {
   const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
   // Page-level geometry stays in Layout; repeating structures move to anatomy.
   const anatomy = md.slice(md.indexOf('## Component anatomy'));
-  assert.match(anatomy, /problem-grid \| 3 columns/);
+  assert.match(anatomy, /masonry grid \(3 col\) \| 3 columns/);
   assert.match(anatomy, /pricing grid \| 2 columns/);
   assert.match(anatomy, /\| Accordion \|/);
   assert.match(anatomy, /\| Marquee \|/);
@@ -695,7 +695,7 @@ test('rig: layout and accessibility read from the real field paths', () => {
   assert.ok(layout.includes('24px'), 'cardGap');
   assert.ok(layout.includes('#ed462d'), 'hero background from sectionRhythm[0].bgHex');
   const anat = md.slice(md.indexOf('## Component anatomy'));
-  assert.match(anat, /problem-grid \| 3 columns/);
+  assert.match(anat, /masonry grid \(3 col\) \| 3 columns/);
   assert.match(anat, /pricing grid \| 2 columns/);
   assert.match(anat, /\| Accordion \|/);
   assert.match(anat, /\| Marquee \|/);
@@ -732,8 +732,8 @@ test('rig: interaction rows read base → hover and never say ::before', () => {
 
   assert.ok(!md.includes('::before'), '`before` is the base state, not a pseudo-element');
   assert.ok(states.includes('Base → Hover'), 'the column must be labelled base → hover');
-  // btn-cta starts red and keeps its fill; only the shadow changes.
-  assert.match(states, /`btn-cta`[^|]*\|[^|]*background: `#ed462d` → —/);
+  // The accent-filled CTA starts red and keeps its fill; only the shadow moves.
+  assert.match(states, /`accent-fill A`[^|]*\|[^|]*background: `#ed462d` → —/);
   // The brutalist offset shadow is a genuine base → hover transition.
   assert.match(states, /box-shadow: `[^`]*40px[^`]*` → `4px 4px 0 #2b4fff`/);
   // submit-button darkens on hover: both sides captured.
@@ -744,16 +744,18 @@ test('rig: rows are labelled by variant and duplicates collapse', () => {
   const md = build.buildDesignMd(fixture('rig-ai'), opts());
   const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
 
-  ['btn-cta', 'btn-outline', 'btn-ghost', 'offline-card', 'faq-question', 'footer-col']
+  ['accent-fill A', 'outline', 'ghost', 'bordered A', 'muted']
     .forEach(v => assert.ok(states.includes('`' + v + '`'), `variant ${v} missing`));
 
-  // The five svg-card sub-element rules are one behaviour.
-  const svgRows = (states.match(/`svg-card`/g) || []).length;
-  assert.equal(svgRows, 1, `svg-card should collapse to one row, got ${svgRows}`);
+  // The five identical card rules collapse to a single unlabelled row: they
+  // share a base state and a change, so they are one behaviour.
+  const cardRows = states.split('\n').filter(l => /^\| Card \| — \|/.test(l));
+  assert.equal(cardRows.length, 1, 'identical card rules must collapse to one row');
 
-  // Collapsing must not swallow genuinely different behaviour: offline-card
-  // has two distinct rules (the card, and its accent child).
-  assert.equal((states.match(/`offline-card`/g) || []).length, 2);
+  // Collapsing must not swallow genuinely different behaviour: the two
+  // distinct card rules (the card, and its accent child) both survive.
+  assert.ok(states.includes('`bordered A`') && states.includes('`filled`'),
+    'distinct card behaviours must remain separate rows');
 
   // Class names are safe; element text is not.
   assert.ok(!states.includes(SENTINEL));
@@ -877,4 +879,103 @@ test('vector animation is read from the shape the extractor actually emits', () 
   bogus.riveAndLottie = { totalCount: 2, type: 'lottie', loop: true, autoplay: true };
   assert.ok(!build.buildDesignMd(bogus, opts()).includes('### Vector & canvas animation'),
     'a shape the extractor never emits must not render a section');
+});
+
+// ── A1: the source's class names must never reach the document ────────────
+
+test('rig: no source class name or selector appears anywhere in the document', () => {
+  const t = fixture('rig-ai');
+  const md = build.buildDesignMd(t, opts());
+
+  // Every class the capture carries, from selectors, section markup and grids.
+  const classes = new Set();
+  (t.hoverStates || []).forEach(h => {
+    (String(h.selector || '').match(/\.([a-z][a-z0-9_-]*)/gi) || [])
+      .forEach(c => classes.add(c.slice(1)));
+  });
+  (t.sectionContentMap || []).forEach(sec => {
+    String(sec.className || '').split(/\s+/).forEach(c => { if (c) classes.add(c); });
+  });
+  if (t.masonryGrid && t.masonryGrid.class) classes.add(t.masonryGrid.class);
+
+  // "hero" and "content" are ordinary layout words that appear in our own
+  // prose; only distinctive, compound class names are meaningful here.
+  const GENERIC = new Set(['hero', 'content', 'grid', 'section', 'card']);
+  const meaningful = [...classes].filter(c => !GENERIC.has(c) && c.length > 3);
+  assert.ok(meaningful.length > 10, 'the fixture should carry many class names to test against');
+
+  const leaked = meaningful.filter(c => md.includes(c));
+  assert.deepEqual(leaked, [],
+    `class names leaked into DESIGN.md: ${leaked.join(', ')}`);
+
+  // Nor any raw selector fragment.
+  assert.ok(!md.includes(':hover '), 'a raw selector reached the document');
+  assert.ok(!md.includes('data-astro-cid'), 'a framework attribute selector leaked');
+});
+
+test('variants are derived from style, not from the class', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
+  const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
+
+  // rig has two accent-filled CTAs, two inverse-filled buttons, an outline, a
+  // ghost and a muted one — all distinguishable from their base fill alone.
+  ['accent-fill A', 'accent-fill B', 'inverse-fill A', 'inverse-fill B',
+   'outline', 'ghost', 'muted'].forEach(v => {
+    assert.ok(states.includes('`' + v + '`'), `missing button variant "${v}"`);
+  });
+  ['bordered A', 'bordered B', 'filled'].forEach(v => {
+    assert.ok(states.includes('`' + v + '`'), `missing card variant "${v}"`);
+  });
+
+  // A/B only where a label repeats — a unique variant carries no suffix.
+  assert.ok(!states.includes('`outline A`'), 'a unique variant must not be suffixed');
+});
+
+test('an unclassifiable button is left unlabelled rather than guessed', () => {
+  // light-saas hover rules carry no base state, so the base fill is unknown.
+  // "ghost" would be a positive claim that the button has no fill.
+  const md = build.buildDesignMd(fixture('light-saas'), opts());
+  const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
+  assert.match(states, /^\| Button \| — \|/m, 'unknown base must render as —');
+  assert.ok(!states.includes('`ghost`'), 'must not guess ghost without evidence');
+});
+
+test('grids are described structurally, never by their class', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
+  const grids = md.slice(md.indexOf('### Grids'), md.indexOf('### Patterns'));
+  assert.ok(!grids.includes('problem-grid'), 'the masonry class must not appear');
+  assert.ok(grids.includes('masonry grid (3 col)'));
+  assert.ok(grids.includes('3-column grid with 1px dividers'),
+    'narrow tracks between columns are dividers and should be named');
+});
+
+// ── A2: font availability ─────────────────────────────────────────────────
+
+test('font availability is read from the serving host', () => {
+  const rig = build.buildDesignMd(fixture('rig-ai'), opts());
+  const fonts = rig.slice(rig.indexOf('## Fonts & availability'), rig.indexOf('## Components'));
+  ['Chalet', 'Geist Pixel Square', 'Instrument Sans', 'Chivo Mono']
+    .forEach(f => assert.ok(fonts.includes(f), `${f} missing`));
+  assert.ok(fonts.includes('self-hosted (not freely available)'));
+
+  // A Google-served family is identified as such and gets no substitute.
+  const saas = build.buildDesignMd(fixture('light-saas'), opts());
+  const sf = saas.slice(saas.indexOf('## Fonts & availability'), saas.indexOf('## Components'));
+  assert.ok(sf.includes('| `Inter` | Google Fonts |'));
+  assert.ok(!sf.includes('Substitutes'), 'nothing to substitute when the font is obtainable');
+});
+
+test('substitutes are labelled as suggestions and never self-referential', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
+  const sub = md.slice(md.indexOf('### Substitutes'), md.indexOf('## Components'));
+
+  assert.match(sub, /suggested, not observed/);
+  assert.match(sub, /\*\*suggestions, not measurements\*\*/);
+  // Classification-appropriate alternatives.
+  assert.match(sub, /`Chalet` \| Inter Tight or Space Grotesk/);
+  assert.match(sub, /`Geist Pixel Square` \| Silkscreen or Press Start 2P/);
+  assert.match(sub, /`Chivo Mono` \| JetBrains Mono or IBM Plex Mono/);
+  // Instrument Sans is itself open — recommending it to itself would be absurd.
+  assert.match(sub, /`Instrument Sans` \| openly licensed/);
+  assert.ok(!/`Instrument Sans` \| Instrument Sans/.test(sub));
 });

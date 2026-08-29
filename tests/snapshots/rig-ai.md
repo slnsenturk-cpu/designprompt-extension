@@ -102,6 +102,26 @@ Weights in use: `400`, `600`, `700`.
 
 Each step above carries its own tracking — negative on display headings, positive on labels. Apply them together, and never substitute a family that is not listed here.
 
+## Fonts & availability
+
+| Family | Source | Used for |
+|---|---|---|
+| `Chalet` | self-hosted (not freely available) | `h1`, `h2`, `h3` |
+| `Geist Pixel Square` | self-hosted (not freely available) | `label` |
+| `Instrument Sans` | self-hosted (not freely available) | `body` |
+| `Chivo Mono` | self-hosted (not freely available) | `code` |
+
+### Substitutes — suggested, not observed
+
+The families above marked self-hosted are licensed to the source site and cannot be reused. These are open alternatives with a comparable classification. They are **suggestions, not measurements** — nothing here was seen on the page.
+
+| Unavailable family | Open alternative (suggested) |
+|---|---|
+| `Chalet` | Inter Tight or Space Grotesk |
+| `Geist Pixel Square` | Silkscreen or Press Start 2P |
+| `Instrument Sans` | openly licensed — self-hosted here, but obtainable directly |
+| `Chivo Mono` | JetBrains Mono or IBM Plex Mono |
+
 ## Components
 
 ### Buttons
@@ -339,22 +359,22 @@ Observed on the live page. The capture's `before` object is the element's **base
 
 | Component | Variant | Base → Hover |
 |---|---|---|
-| Button | `btn-cta` | background: `#ed462d` → —<br>color: `#0a0a0a` → —<br>box-shadow: `#ed462d 0px 0px 40px 0px` → `4px 4px 0 #2b4fff` |
-| Button | `btn-dark` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #ed462d` |
-| Button | `btn-ghost` | background: — → `#2d2c2b` |
-| Button | `btn-outline` | background: — → `#161515`<br>border-color: — → `#f0ede6` |
-| Button | `btn-red` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #2b4fff` |
-| Button | `copy-button` | background: `#131313` → —<br>color: `#7d7c78` → `#ed462d`<br>border-color: — → `#ed462d` |
-| Button | `submit-button` | background: `#ed462d` → `#d93d26`<br>color: `#0a0a0a` → — |
-| Card | `illust-card` | background: `#0f0f0f` → `#110c0b`<br>color: `#f0ede6` → —<br>border-color: — → `#371611` |
-| Card | `offline-card` | background: `#0a0a0a` → —<br>color: `#666562` → `#ffffff`<br>border-color: — → `#4a4a48` |
-| Card | `offline-card` | background: `#0a0a0a` → —<br>color: `#666562` → `#4ade80`<br>opacity: — → `1` |
-| Card | `svg-card` | color: `#f0ede6` → — |
-| FAQ / accordion | `faq-question` | color: `#f0ede6` → `#7d7c78` |
-| Footer link | `footer-col` | color: `#7d7c78` → `#ed462d` |
-| Illustration | `problem-eye-col` | color: `#f0ede6` → —<br>opacity: — → `0.28` |
-| Link | `prose` | color: — → `#f0ede6` |
-| Navigation | `site-nav-links` | color: `#0a0a0a` → —<br>opacity: `0.7` → `1` |
+| Button | `accent-fill A` | background: `#ed462d` → —<br>color: `#0a0a0a` → —<br>box-shadow: `#ed462d 0px 0px 40px 0px` → `4px 4px 0 #2b4fff` |
+| Button | `accent-fill B` | background: `#ed462d` → `#d93d26`<br>color: `#0a0a0a` → — |
+| Button | `ghost` | background: — → `#2d2c2b` |
+| Button | `inverse-fill A` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #2b4fff` |
+| Button | `inverse-fill B` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #ed462d` |
+| Button | `muted` | background: `#131313` → —<br>color: `#7d7c78` → `#ed462d`<br>border-color: — → `#ed462d` |
+| Button | `outline` | background: — → `#161515`<br>border-color: — → `#f0ede6` |
+| Card | `bordered A` | background: `#0a0a0a` → —<br>color: `#666562` → `#ffffff`<br>border-color: — → `#4a4a48` |
+| Card | `bordered B` | background: `#0f0f0f` → `#110c0b`<br>color: `#f0ede6` → —<br>border-color: — → `#371611` |
+| Card | `filled` | background: `#0a0a0a` → —<br>color: `#666562` → `#4ade80`<br>opacity: — → `1` |
+| Card | — | color: `#f0ede6` → — |
+| FAQ / accordion | — | color: `#f0ede6` → `#7d7c78` |
+| Footer link | — | color: `#7d7c78` → `#ed462d` |
+| Illustration | — | color: `#f0ede6` → —<br>opacity: — → `0.28` |
+| Link | — | color: — → `#f0ede6` |
+| Navigation | — | color: `#0a0a0a` → —<br>opacity: `0.7` → `1` |
 
 Buttons transition with `0.2s cubic-bezier(0.25, 1, 0.5, 1)`.
 
@@ -372,10 +392,10 @@ The extraction measured only `:hover`. Treat these as defaults, not as facts abo
 
 | Grid | Structure |
 |---|---|
-| problem-grid | 3 columns, css-grid, 5 entries, heights 210–420px, equal widths |
+| masonry grid (3 col) | 3 columns, css-grid, 5 entries, heights 210–420px, equal widths |
 | pricing grid | 2 columns |
-| feature-grid | 3 columns — `311.93px 1px 311.93px 1px 311.93px rows:216.016px` |
-| feature-grid | 3 columns — `280.594px 280.602px 280.602px rows:267.805px 267.805px` |
+| 3-column grid with 1px dividers | `311.93px 1px 311.93px 1px 311.93px rows:216.016px` |
+| 3-column grid | `280.594px 280.602px 280.602px rows:267.805px 267.805px` |
 
 ### Patterns
 

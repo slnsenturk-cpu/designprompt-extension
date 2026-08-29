@@ -42,10 +42,14 @@ Add to global CSS:
 NOTE: "Chivo Mono", "Chalet", "Geist Pixel Square" are custom fonts not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "Chalet": https://example.com/SENTIN.woff2
-- "Geist Pixel Square": https://example.com/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
-@font-face { font-family: 'Chalet'; src: url('https://example.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Geist Pixel Square'; src: url('https://example.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+- "Chalet": https://rig.ai/fonts/SENTIN.woff2
+- "Geist Pixel Square": https://rig.ai/fonts/SENTIN.woff2
+- "Instrument Sans": https://rig.ai/fonts/SENTIN.woff2
+- "Chivo Mono": https://rig.ai/fonts/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+@font-face { font-family: 'Chalet'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
 :root { --background: #0a0a0a; --foreground: #f0eee6; --card: #121212; --card-foreground: #f0eee6; --popover: #121212; --popover-foreground: #f0eee6; --primary: #0a0a0a; --primary-foreground: #ffffff; --secondary: #1e1e1e; --secondary-foreground: #f0eee6; --muted: #191919; --muted-foreground: #767676; --accent: #232323; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #0a0a0a; --radius: 6px;
 }

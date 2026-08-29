@@ -1104,11 +1104,19 @@
     "fonts": [
       {
         "family": "Chalet",
-        "url": "https://example.com/SENTIN.woff2"
+        "url": "https://rig.ai/fonts/SENTIN.woff2"
       },
       {
         "family": "Geist Pixel Square",
-        "url": "https://example.com/SENTIN.woff2"
+        "url": "https://rig.ai/fonts/SENTIN.woff2"
+      },
+      {
+        "family": "Instrument Sans",
+        "url": "https://rig.ai/fonts/SENTIN.woff2"
+      },
+      {
+        "family": "Chivo Mono",
+        "url": "https://rig.ai/fonts/SENTIN.woff2"
       }
     ],
     "backgrounds": [],

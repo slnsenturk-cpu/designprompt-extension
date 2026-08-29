@@ -121,6 +121,12 @@ Weights in use: `400`, `500`, `600`, `700`.
 
 Each step above carries its own tracking — negative on display headings, positive on labels. Apply them together, and never substitute a family that is not listed here.
 
+## Fonts & availability
+
+| Family | Source | Used for |
+|---|---|---|
+| `Inter` | Google Fonts | `h1`, `h2`, `h3`, `h4`, `body`, `small` |
+
 ## Components
 
 ### Buttons
@@ -338,8 +344,8 @@ Observed on the live page. The capture's `before` object is the element's **base
 
 | Component | Variant | Base → Hover |
 |---|---|---|
-| Button | `btn-primary` | background: — → `#1d4ed8`<br>box-shadow: — → `0 4px 6px -1px #e7e8ea`<br>transform: — → `translateY(-1px)` |
-| Card | `card` | border-color: — → `#cbd5e1`<br>box-shadow: — → `0 20px 25px -5px #e7e8ea` |
+| Button | — | background: — → `#1d4ed8`<br>box-shadow: — → `0 4px 6px -1px #e7e8ea`<br>transform: — → `translateY(-1px)` |
+| Card | `bordered` | border-color: — → `#cbd5e1`<br>box-shadow: — → `0 20px 25px -5px #e7e8ea` |
 | Link | — | color: — → `#1d4ed8` |
 
 Buttons transition with `all 150ms cubic-bezier(0.4, 0, 0.2, 1)`.

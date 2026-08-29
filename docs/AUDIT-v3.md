@@ -131,6 +131,22 @@ through tabs. It is *not* hover/focus/active/disabled CSS diffs. Those are in
 neither should anything else that produces user-facing output. Worth renaming
 to `tabPanelContent` in a future pass.
 
+### Extractor gaps
+
+Places where `content.js` does not capture something a downstream document
+needs. Each one currently forces an omission or a recommendation rather than a
+measurement — none is a bug in the renderers.
+
+| Gap | Effect downstream | What would close it |
+|---|---|---|
+| **Only `:hover` is measured** | Focus, active and disabled states can only ever be *recommendations* in DESIGN.md, clearly fenced off from measured facts | Computed styles for `:focus-visible`, `:active` and `[disabled]` |
+| **Transparent bordered cards are not matched** | `cardStyles` is `null` for rig.ai despite the page clearly having cards (`hoverStates` proves it). The Cards block is omitted, and the card variant labels (bordered / tinted / filled) are exercised only by synthetic fixtures | Card detection that accepts a transparent background with a visible border |
+| **Ambient easing / iteration** | `ambientAnimations[]` carries `{name, duration, tag, class, location}` but no easing or iteration count. Those are parsed out of the single `animationDetails[]` shorthand string, so only the one animation named there gets them | `easing` and `iterationCount` on each `ambientAnimations` entry |
+| **Navigation metrics** | The Navigation block reports pattern and style only. `navPattern.hasVisibleLinks` is `false` on rig while `visibleLinks` has an entry — contradictory | Nav height, padding, background, and a consistent `hasVisibleLinks` |
+| **Per-component transitions** | Only `buttonStyles.primary.transition` exists. The six entries in `transitions[]` cannot be attributed to cards, links or the FAQ | A `transition` field on each component style block |
+| **Keyframes keep first and last frame only** | 5 of rig's 16 keyframes have identical first/last frames, so their motion is unrepresentable. DESIGN.md marks them "not fully captured" rather than implying a spec | All frames, or the extreme value per animated property |
+| **`interactiveStates` is misnamed** | It holds tab-panel copy, not CSS state diffs. Nothing may read it for a user-facing document | Rename to `tabPanelContent`; add a real interactive-states extractor |
+
 ---
 
 ## 3. Permissions review

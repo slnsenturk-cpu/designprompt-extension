@@ -324,8 +324,8 @@ Observed on the live page. The capture's `before` object is the element's **base
 
 | Component | Variant | Base → Hover |
 |---|---|---|
-| Button | `btn` | background: — → `#6d28d9`<br>box-shadow: — → `0 0 24px #331d5f` |
-| Card | `card` | border-color: — → `#7c3aed`<br>transform: — → `translateY(-2px)` |
+| Button | — | background: — → `#6d28d9`<br>box-shadow: — → `0 0 24px #331d5f` |
+| Card | `bordered` | border-color: — → `#7c3aed`<br>transform: — → `translateY(-2px)` |
 
 Buttons transition with `all 120ms ease-out`.
 
