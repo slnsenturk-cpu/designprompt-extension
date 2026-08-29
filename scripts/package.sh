@@ -47,6 +47,25 @@ done
 find dist/stage \( -name '*.map' -o -name '*.test.js' -o -name '.DS_Store' \) -delete
 rm -rf dist/stage/lib/hooks
 
+# lib/data/google-fonts.json is the canonical catalogue, but only Node reads
+# it — the browser gets the same list from its .js twin, because a classic
+# <script> cannot read JSON. Shipping both would carry 29KB twice.
+rm -f dist/stage/lib/data/google-fonts.json
+# icons/logo-light.png is the untrimmed source of icons/wordmark.png. The
+# panel renders the trimmed one; nothing loads this.
+rm -f dist/stage/icons/logo-light.png
+
+# Prove the runtime files that DID ship are enough: the font catalogue has to
+# be reachable the way the browser reaches it.
+node -e '
+  const fs=require("fs"), vm=require("vm");
+  const box={}; box.self=box; vm.createContext(box);
+  vm.runInContext(fs.readFileSync("dist/stage/lib/data/google-fonts.js","utf8"), box);
+  const n=(box.self.VD_GOOGLE_FONTS||[]).length;
+  if (n < 1000) { console.log("  ✗ the staged font catalogue has only "+n+" families"); process.exit(1); }
+  console.log("  ✓ the staged font catalogue loads as a plain script ("+n+" families)");
+' || exit 1
+
 echo "  staged $(find dist/stage -type f | wc -l | tr -d ' ') files"
 
 echo
