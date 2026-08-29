@@ -4,6 +4,28 @@ Run through this before packing a zip for the Chrome Web Store. The key-safety
 section is non-negotiable: a leaked provider key is the one bug in this
 extension that costs a user real money and can't be undone by a patch release.
 
+## Pre-commit hook
+
+`scripts/hooks/pre-commit` runs the test suite, syntax-checks staged `.js`
+files, and refuses a commit whose staged content looks like a provider API
+key. It is tracked in the repo, but `core.hooksPath` is per-clone local
+config, so **every clone must opt in once**:
+
+```bash
+git config core.hooksPath scripts/hooks
+```
+
+Verify it is active:
+
+```bash
+git config --get core.hooksPath
+```
+
+Must print `scripts/hooks`. If it prints nothing, the hook is not running and
+a failing test can reach a commit. `.git/hooks/` ships only Git's inert
+`*.sample` templates — Git executes a file named exactly `pre-commit`, so
+`pre-commit.sample` never runs.
+
 ## Key safety
 
 The invariant: **a user's provider API key never leaves the device except in a
