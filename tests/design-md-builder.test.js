@@ -446,79 +446,10 @@ test('both pages load the model before the builder', () => {
 
 // ── dev affordances must not reach packaged builds ─────────────────────────
 
-test('the Developer section is gated on an unpacked build', () => {
-  const ui = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ui-helpers.js'), 'utf8');
-
-  // The gate: a packaged Web Store build has an update_url; an unpacked one
-  // does not.
-  assert.match(ui, /function isUnpackedBuild\(\)[\s\S]{0,200}update_url/,
-    'isUnpackedBuild must key off manifest.update_url');
-
-  // It ships hidden and is revealed only behind the gate.
-  assert.match(ui, /id="settingsDev" style="display:none"/,
-    'the Developer section must be hidden in the template');
-
-  const gate = ui.indexOf('if (isUnpackedBuild())');
-  assert.notEqual(gate, -1, 'the reveal must be gated');
-  const open = ui.indexOf('{', gate);
-  let depth = 0, close = -1;
-  for (let k = open; k < ui.length; k++) {
-    if (ui[k] === '{') depth++;
-    else if (ui[k] === '}') { depth--; if (depth === 0) { close = k; break; } }
-  }
-  assert.notEqual(close, -1, 'the guard block must be balanced');
-  const inGuard = pos => pos > open && pos < close;
-
-  assert.ok(inGuard(ui.indexOf("devSection.style.display = 'block'")),
-    'the reveal must sit inside the gate');
-  assert.ok(inGuard(ui.indexOf("$('devTokensJsonBtn')")),
-    'the raw-capture button must only be wired up for unpacked builds');
-  assert.equal(ui.split("devSection.style.display = 'block'").length - 1, 1,
-    'the Developer section must be revealed in exactly one place');
-
-  // The old dashed dev strip is gone entirely.
-  ['devToolsRow', 'dev-tools-row', 'devDesignMdFreeBtn', 'devDesignMdProBtn',
-   'devDlFreeBtn', 'devDlProBtn'].forEach(gone => {
-    assert.ok(!ui.includes(gone), `the dev strip remnant "${gone}" must be removed`);
-  });
-});
-
-test('the result area exposes exactly three actions, for every user', () => {
-  const ui = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ui-helpers.js'), 'utf8');
-  const block = ui.slice(ui.indexOf('<div class="result-actions">'),
-                         ui.indexOf('</div>', ui.indexOf('<div class="result-actions">')));
-
-  // Button ids only — `copyIcon` is a span inside the copy button.
-  const ids = (block.match(/<button[^>]*\bid="([a-zA-Z]+)"/g) || [])
-    .map(m => m.match(/id="([a-zA-Z]+)"/)[1]);
-  assert.deepEqual(ids, ['copyBtn', 'downloadDesignBtn', 'downloadSkillBtn', 'resetBtn'],
-    'the result actions are Copy prompt, Download DESIGN.md, Download Skill (zip), and reset');
-  assert.ok(block.includes('Copy prompt'));
-  assert.ok(block.includes('Download DESIGN.md'));
-  assert.ok(block.includes('Download Skill (zip)'));
-
-  // None of the three is behind the dev guard — they are for all users.
-  const gate = ui.indexOf('if (isUnpackedBuild())');
-  assert.ok(ui.indexOf("$('downloadDesignBtn')") < gate,
-    'Download DESIGN.md must be wired up outside the unpacked guard');
-  assert.ok(ui.indexOf("$('downloadSkillBtn')") < gate,
-    'Download Skill must be wired up outside the unpacked guard');
-
-  // The narrow popup shortens every label it shows; a new action that forgets
-  // its ::after rule renders as an unlabelled icon there.
-  const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
-  ['copyBtn', 'downloadDesignBtn', 'downloadSkillBtn'].forEach(id => {
-    assert.match(css, new RegExp(`popup"\\] #${id} \\.btn-label::after`),
-      `${id} has no shortened popup label`);
-  });
-  assert.match(css, /#downloadSkillBtn \.btn-label::after \{\s*content: "Skill";/,
-    'the popup label for the skill bundle is "Skill"');
-
-  // The token export has no control of its own — tokens.json ships inside the
-  // bundle, so a second button would be a second door onto the same file.
-  assert.ok(!ui.includes('exportTokensBtn'), 'the JSON export button must be gone');
-  assert.ok(!ui.includes('downloadTokensJSON'), 'nothing in the UI may call the exporter directly');
-});
+// The result actions and the Developer gate are asserted against the REAL
+// rendered panel in tests/ui-panel.test.js now. They moved with the features:
+// the markup they used to grep for no longer exists, and a grep cannot tell a
+// rendered button from a string sitting in a template literal.
 
 test('the download filename is domain-only', () => {
   const dl = require(path.join(__dirname, '..', 'lib', 'download.js'));

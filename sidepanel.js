@@ -1,8 +1,23 @@
 // VibeDesign — Side Panel UI (sidepanel-specific overrides)
 // Shared code lives in lib/ui-helpers.js
 
+// ── Side panel: pick up an analysis handed over by the popup ──────────────
+// The popup opens the panel rather than analysing in place (§3), and leaves a
+// short-lived marker behind saying so. Anything older than 10s is stale — the
+// panel was opened by hand, not by that click.
+async function _vdConsumeAutorun() {
+  try {
+    const { vd_autorun } = await chrome.storage.local.get('vd_autorun');
+    if (!vd_autorun) return;
+    await chrome.storage.local.remove('vd_autorun');
+    if (Date.now() - (vd_autorun.at || 0) > 10000) return;
+    setTimeout(() => handleAnalyze(), 60);
+  } catch (e) { console.debug('[VibeDesign] autorun:', e.message); }
+}
+
 // ── Side panel: track tab switches to keep context current ────────────────
 _uiHooks.afterListeners = () => {
+  _vdConsumeAutorun();
   chrome.tabs.onActivated.addListener(async (activeInfo) => {
     try {
       const tab = await chrome.tabs.get(activeInfo.tabId);
