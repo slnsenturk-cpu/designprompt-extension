@@ -338,29 +338,44 @@
       {
         "tag": "canvas",
         "delay": 0,
-        "duration": 1200
+        "duration": 1200,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       },
       {
         "tag": "h1",
         "delay": 200,
-        "duration": 800
+        "duration": 800,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       },
       {
         "tag": "nav",
         "delay": 400,
-        "duration": 500
+        "duration": 500,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       }
     ],
     "hasCanvasAnimation": true,
     "canvasSize": "1440x900"
   },
   "riveAndLottie": {
-    "totalCount": 2,
-    "type": "lottie",
-    "loop": true,
-    "autoplay": true,
-    "size": "240x240",
-    "src": "anim.json"
+    "hasRive": false,
+    "hasLottie": true,
+    "hasDotLottie": false,
+    "details": [
+      {
+        "type": "lottie",
+        "count": 2,
+        "src": "anim.json",
+        "loop": true,
+        "autoplay": true
+      }
+    ]
   },
   "tabbedComponents": [
     {
@@ -431,6 +446,8 @@
   "assets": {
     "images": [
       "https://cdn.forge-cli.dev/og.png"
-    ]
+    ],
+    "backgrounds": [],
+    "icons": []
   }
 }

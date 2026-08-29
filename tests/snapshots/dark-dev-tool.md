@@ -310,9 +310,11 @@ The site is mobile-first — these are `min-width` queries.
 2. `h1` — delay 200ms — duration 800ms
 3. `nav` — delay 400ms — duration 500ms
 
-### Vector animation
+### Vector & canvas animation
 
-2 vector animation(s), type `lottie`, looping, autoplay.
+| Kind | Count | Size | Position |
+|---|---|---|---|
+| `lottie` | 2 | — | — |
 
 ## Interaction states
 

@@ -369,17 +369,26 @@
       {
         "tag": "h1",
         "delay": 0,
-        "duration": 600
+        "duration": 600,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       },
       {
         "tag": "p",
         "delay": 120,
-        "duration": 600
+        "duration": 600,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       },
       {
         "tag": "button",
         "delay": 240,
-        "duration": 400
+        "duration": 400,
+        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
+        "animName": "entrance",
+        "opacity": "starts-invisible"
       }
     ],
     "hasVideoBackground": false
@@ -455,11 +464,16 @@
   },
   "assets": {
     "fonts": [
-      "https://cdn.example.com/inter.woff2"
+      {
+        "family": "Inter",
+        "url": "https://fonts.gstatic.com/s/inter/v13/SENTIN.woff2"
+      }
     ],
     "images": [
       "https://cdn.example.com/hero.png"
-    ]
+    ],
+    "backgrounds": [],
+    "icons": []
   },
   "heroImageUrl": "https://cdn.example.com/hero.png"
 }

@@ -850,3 +850,31 @@ test('every snapshot contains the full section set — no tiering left', () => {
     assert.ok(!/\btier\b/i.test(snap), 'no tier language may remain');
   });
 });
+
+test('vector animation is read from the shape the extractor actually emits', () => {
+  // detectRiveAndLottie returns { hasRive, hasLottie, hasDotLottie,
+  // details: [{ type, location, size }] }. An earlier version of the builder
+  // read totalCount/type/loop/autoplay, a shape nothing produces, so the
+  // section silently never rendered for a real capture.
+  const t = fixture('dark-dev-tool');
+  t.riveAndLottie = {
+    hasRive: true, hasLottie: true, hasDotLottie: false,
+    details: [
+      { type: 'rive', location: 'above-fold', size: { w: 480, h: 320 } },
+      { type: 'lottie', location: 'below-fold', size: { w: 240, h: 240 } },
+      { type: 'dotlottie', count: 3 },
+    ],
+  };
+  const md = build.buildDesignMd(t, opts());
+  const sec = md.slice(md.indexOf('### Vector & canvas animation'));
+  assert.ok(md.includes('### Vector & canvas animation'));
+  assert.match(sec, /`rive` \| 1 \| 480×320 \| above-fold/);
+  assert.match(sec, /`lottie` \| 1 \| 240×240 \| below-fold/);
+  assert.match(sec, /`dotlottie` \| 3/, 'a details entry with its own count is honoured');
+
+  // The invented shape must produce nothing rather than a phantom section.
+  const bogus = fixture('dark-dev-tool');
+  bogus.riveAndLottie = { totalCount: 2, type: 'lottie', loop: true, autoplay: true };
+  assert.ok(!build.buildDesignMd(bogus, opts()).includes('### Vector & canvas animation'),
+    'a shape the extractor never emits must not render a section');
+});
