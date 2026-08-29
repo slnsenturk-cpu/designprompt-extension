@@ -388,19 +388,22 @@ test('a fully empty token object still produces a usable document', () => {
 // ── loads in the browser too ───────────────────────────────────────────────
 
 test('builder works via <script> load, with color-utils as plain globals', () => {
-  // In popup/sidepanel there is no require(): color-utils.js declares its
-  // helpers as top-level globals and design-md-builder.js picks them up off
-  // `self`. Simulate exactly that load order.
+  // In popup/sidepanel there is no require(): each file declares its exports as
+  // top-level globals and the next picks them up off `self`. The builder is a
+  // renderer over lib/design-model.js, so the model must load first. Simulate
+  // exactly that load order.
   const vm = require('node:vm');
   const sandbox = { console: { warn() {}, log() {}, error() {} }, Math, JSON, Date, URL, RegExp,
-    Object, Array, String, Number, parseInt, parseFloat, isNaN, Infinity };
+    Object, Array, String, Number, Set, Map, parseInt, parseFloat, isNaN, Infinity };
   sandbox.self = sandbox;
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   const read = f => fs.readFileSync(path.join(__dirname, '..', 'lib', f), 'utf8');
   vm.runInContext(read('color-utils.js'), sandbox, { filename: 'lib/color-utils.js' });
+  vm.runInContext(read('design-model.js'), sandbox, { filename: 'lib/design-model.js' });
   vm.runInContext(read('design-md-builder.js'), sandbox, { filename: 'lib/design-md-builder.js' });
 
+  assert.ok(sandbox.VD_MODEL, 'the model must expose self.VD_MODEL');
   assert.ok(sandbox.VD_DESIGN_MD, 'the builder must expose self.VD_DESIGN_MD');
   sandbox.__tokens = fixture('posthog');
   const md = vm.runInContext(
@@ -413,6 +416,24 @@ test('builder works via <script> load, with color-utils as plain globals', () =>
   assert.match(md, /## Accessibility notes/);
   assert.match(md, /\d+\.\d\d:1/);
 });
+
+test('both pages load the model before the builder', () => {
+  // The sandbox test above proves the order works; only the HTML proves the
+  // order ships. A missing <script> here is a blank result panel, not a
+  // test failure, so it gets its own assertion.
+  ['popup.html', 'sidepanel.html'].forEach(page => {
+    const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
+    const at = f => html.indexOf(`lib/${f}`);
+    assert.ok(at('color-utils.js') !== -1, `${page} does not load color-utils.js`);
+    assert.ok(at('design-model.js') !== -1, `${page} does not load design-model.js`);
+    assert.ok(at('design-md-builder.js') !== -1, `${page} does not load design-md-builder.js`);
+    assert.ok(at('color-utils.js') < at('design-model.js'),
+      `${page} loads the model before color-utils.js`);
+    assert.ok(at('design-model.js') < at('design-md-builder.js'),
+      `${page} loads the builder before the model it reads`);
+  });
+});
+
 
 // ── dev affordances must not reach packaged builds ─────────────────────────
 
