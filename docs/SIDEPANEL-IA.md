@@ -56,12 +56,31 @@ Alt sekme çubuğu (sticky, 56px, ikon + kısa etiket):
    Overview · Colors · Type · Components · Motion · Settings
 ```
 
-- **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok (yalnız yeniden analiz).
+- **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok.
+- **Header ölçüleri:** logo 20px yüksekliğinde (wordmark), domain 13px `body`, durum `caption`. Header'ın üstünde/altında başka satır yoktur; "Sign in" hapı yoktur (hesap Settings'te, giriş yapılmamışsa Settings sekmesinde nokta rozeti).
+- **Alt çubuk ölçüleri:** 6 sekme, her biri ikon (20px) + **etiket** (`label`, 11px); ikon-yalnız çubuk kabul edilmez. Aktif sekme: accent renk + etiket 600; pasif: `text-muted`; analiz yokken kategori sekmeleri %40 opaklık. Dokunma alanı en az 48px yükseklik.
+- **"Neredeyim" iki kez cevaplanır:** aktif sekme + her sekme içeriğinin en üstünde `title` (18px) başlık: "Overview", "Colors", "Type", "Components", "Motion", "Settings".
 - **Durum, sekmeleri etkiler.** Analiz yokken Overview "Home" içeriğini gösterir (Analyze düğmesi + Recent); kategori sekmeleri soluktur, dokununca "Analyze this page first" notice'ı. Analiz gelince kategoriler açılır.
 - **Overview = özet + Export.** Kategori sekmeleri = tam listeler ("See all" katlaması gerekmez); her kategori sekmesinin üstünde küçük bir "Export ▸" kısayolu Overview'daki karta götürür.
 - **Settings bir sekmedir**, sheet değil. Account, AI enhancement, Defaults, History, Developer, About onun içinde.
 - **Sheet yalnızca geçici yüzeyler için:** "Preview raw output" ve History'nin uzun listesi.
 - **Popup = Overview'un kısa hâli.** Popup'ta yalnızca header + Page/Element + Analyze + "Open side panel"; alt çubuk popup'ta yok. Analiz popup'tan başlatılırsa yan panel açılır.
+
+### Sayfa bağlamı — sonuç hangi sayfanın?
+
+Bir sonuç bir sayfaya aittir; kullanıcı sekme değiştirebilir. Kural: **"Analyze page" analizden sonra da hep görünür ve etiketlidir.**
+
+| Durum | Header | Overview'un en üstü |
+|---|---|---|
+| Analiz yok | `posthog.com · Not analyzed` | Birincil düğme **Analyze page** |
+| Sonuç var, aynı sayfadayız | `rig.ai · Analyzed 09:04 PM` | İkincil (ghost) düğme **Re-analyze** — ↺ ikonlu ama etiketli |
+| Sonuç var, başka sayfaya geçildi | `posthog.com · Not analyzed` | Notice: "Showing rig.ai (analyzed 09:04 PM)." + birincil düğme **Analyze posthog.com** |
+
+Sekme değişince header anında güncellenir; sonuç silinmez (kullanıcı geri dönebilir). ↺ ikonu tek başına hiçbir yerde kullanılmaz.
+
+### AI göstergesi
+
+Hangi AI'ın çalıştığı ekranda tek satırla görünür; ayarlara gömülmez. Overview'da Analyze/Re-analyze düğmesinin altında `caption`: **"AI enhancement: Claude · Fable 5 · Change"** (Change → Settings sekmesi). Kapalıysa: **"AI enhancement off · Turn on"**. Analiz sürerken ilerleme satırında aynı bilgi.
 
 ### Neler gidiyor
 `FULL PAGE / GLOBAL TOKENS` sekmeleri · "N of 5 free prompts" kutusu · ana akıştaki AI sağlayıcı/model/anahtar bloğu · header'daki history/account/settings ikonları (Settings sekmesine) · sürüm çipi (Settings → About'a) · model dürtmesi ana akıştan (Settings içinde, tek satır) · Developer bölümü ana akıştan (Settings sonu, yalnız unpacked).
@@ -160,11 +179,12 @@ Kurallar: bu durumda hiçbir ayar yok. "Element" seçilince düğme "Pick elemen
 - **Motion:** ambient döngüler · keyframe listesi (etkisiyle) · geçişler · etkileşim durumları (measured / recommended ayrı).
 
 Kurallar:
-- Summary strip sayıları modelden gelir; sayı yoksa tile çizilmez (0 gösterilmez).
+- Summary strip ve palet şeridi Overview'un ilk iki öğesidir; model varsa **her zaman** çizilir. Sayı yoksa yalnızca o tile çizilmez (0 gösterilmez).
+- Snapshot değerleri iki satıra sarabilir (Style satırı kesilmez); uzun değer sağa değil, etiketin altına sarar.
 - Export kartı **tek** birincil düğme içerir; etiketi output'a göre değişir: *Copy prompt* / *Download DESIGN.md* / *Download Skill*.
 - Output açıklamaları sabittir: Prompt → "Rebuild this page in a chat tool." · DESIGN.md → "A style guide your project keeps." · Skill → "DESIGN.md + tokens, packaged for coding agents."
 - Target seçici yalnızca Prompt'ta görünür. DESIGN.md ve Skill'de yerine "Where to put it ▸" katlı satırı gelir (araç başına 1 satır).
-- Focus çipleri "Refine" altında katlıdır; açılınca seçim Export meta satırına yansır ("Layout · 7 sections · 5.7k chars").
+- Focus çipleri "Refine" altında katlıdır; açılınca seçim Export meta satırına yansır ("Layout · 7 sections · 5.7k chars"). Bölüm sayısı prompt-builder'ın ürettiği `##` bölüm sayısıdır (All için 17); "1 sections" gibi bir değer bir hatadır.
 - Overview kategori içeriğini tekrar etmez; kategoriler alt çubuktan açılır ve tam listedir. Her liste tek tip satır kullanır (KV row).
 - "Preview raw output" tam metni monospace bir alanda açar; Copy düğmesi orada da vardır.
 
@@ -209,11 +229,11 @@ Settings'te son 3; "See all" tam listeyi sheet olarak açar: favicon · domain �
 
 | Durum | Ne görünür |
 |---|---|
-| Analiz sürüyor | Analyze düğmesi ilerleme çubuğuna dönüşür: "Reading page… 2/6" (aşama adları: Reading · Colors · Type · Components · Motion · Building). İptal linki. |
+| Analiz sürüyor | Analyze düğmesi ilerleme çubuğuna dönüşür: "Reading page… 2/6" (aşama adları: Reading · Colors · Type · Components · Motion · Building · Generating direction). İptal linki. **AI'dan akan metin asla durum satırında gösterilmez**; yalnız aşama adı. |
 | Sayfa okunamadı | Notice (uyarı): "Couldn't read this page. Some sites block extensions; try reloading, or pick an element instead." + "Try again". |
 | İzin gerekiyor | Notice: "VibeDesign needs permission to read rig.ai." + "Allow" (Prompt 6 akışı). |
 | Çevrimdışı / AI hatası | Sonuç yine gelir (kural motoru yereldir); Export meta satırında "AI enhancement skipped — offline". |
-| Boş model (çok az veri) | Summary strip yerine tek satır: "Very little design data on this page. Try a page with more UI." |
+| Boş model (çok az veri) | Yalnızca model gerçekten seyrekse (ör. < 3 renk rolü ve hiç bileşen yok): Summary strip yerine tek satır "Very little design data on this page. Try a page with more UI." Sayfa henüz yüklenmediyse bu uyarı yerine "Page is still loading — try again" gösterilir; sayfa yüklenmeden analiz başlatılmaz. |
 
 ---
 
@@ -344,6 +364,31 @@ Branch v3.0. First copy the spec I attach as docs/SIDEPANEL-IA.md and read it fu
 Report with a plain-language walkthrough and a list of any spec ambiguities you had to resolve.
 ```
 
+### PROMPT 3b — ilk tarayıcı testinden çıkan düzeltmeler
+
+```text
+PROMPT 3b — Fix the deviations from docs/SIDEPANEL-IA.md found in the first browser test, plus the spec amendments (re-read §3 "Sayfa bağlamı", "AI göstergesi", header/tab bar sizes, §4.5).
+
+Deviations from spec (must match the spec exactly):
+1. Tab bar: icon + 11px label on every tab (no icon-only), active = accent + 600 label, dimmed 40% before analysis, ≥48px touch height.
+2. Overview after analysis MUST render the summary strip (counts) and the palette strip as the first two elements. They are missing on rig.ai. Find out why (likely counts/roles not read from the model) and add a render test that fails when either is absent for the rig fixture.
+3. Remove the floating "Sign in to sync" pill above the header. Account lives in Settings; show a dot badge on the Settings tab when signed out.
+4. Header: wordmark 20px tall, domain 13px, status caption. Nothing above or below the header row.
+5. Each tab's content starts with an 18px title (Overview, Colors, Type, Components, Motion, Settings).
+
+Spec amendments (new behaviour):
+6. Page context: header shows the CURRENT tab's domain; three states per the spec table — Analyze page (primary) / Re-analyze (ghost, labelled, with ↺ icon) / "Showing <old>" notice + "Analyze <current>" primary. Update on tab switch and on navigation; never drop the last result.
+7. AI indicator: under the Analyze/Re-analyze button, a caption "AI enhancement: <provider> · <model> · Change" linking to Settings; "AI enhancement off · Turn on" when off. Show the same in the analyzing progress line.
+
+Bugs:
+8. Export meta shows "1 sections"; it must count the prompt's ## sections (17 for All on rig). Test it.
+9. "Very little design data" fired on rig.ai at 09:02. Reproduce; likely the analysis ran before the page finished loading or on the wrong tab. Gate analysis on document readyState + a settle delay, show "Page is still loading — try again" in that case, and tighten the sparse rule to the spec definition.
+10. The analyzing status line streamed raw AI markdown. Show stage names only; never content.
+11. Snapshot "Style" value truncates; wrap to two lines under the label.
+
+Run the render and panel tests, show output, commit as one commit "fix: panel spec deviations and page context", push. Then report what I will see on rig.ai, on a second site, and while analyzing.
+```
+
 ---
 
 ## 11. Kabul kontrolü (senin testin)
@@ -352,7 +397,9 @@ Report with a plain-language walkthrough and a list of any spec ambiguities you 
 - **Yeni kullanıcı testi:** Paneli hiç görmemiş biri 5 saniyede "Analyze page"e basabiliyor mu?
 - **Ayar testi:** Ana ekranda anahtar, sağlayıcı, model, geliştirici satırı **hiç** görünmüyor mu?
 - **Özet testi:** Analizden sonra kaydırmadan sayıları, paleti ve Export düğmesini görüyor musun?
-- **Gezinme testi:** Alt çubuk her sekmede sabit mi; içerik kendi içinde kayıyor mu; analiz yokken kategori sekmeleri soluk mu?
+- **Gezinme testi:** Alt çubukta her sekmenin etiketi var mı; aktif sekme belli mi; içerik kendi içinde kayıyor mu; analiz yokken kategori sekmeleri soluk mu?
+- **Sayfa bağlamı testi:** rig.ai'yi analiz et, başka sekmeye geç: header yeni domain'i gösteriyor mu, "Analyze <site>" düğmesi görünüyor mu? Aynı sayfada "Re-analyze" etiketli mi?
+- **AI göstergesi testi:** Analyze düğmesinin altında "AI enhancement: Claude · Fable 5 · Change" yazıyor mu?
 - **Odak testi:** Refine'da Layout'u seçince meta satırı değişiyor mu ("7 sections · 5.7k chars")?
 - **Bileşen testi:** Model seçimi çip mi (yanlış) yoksa select mi (doğru)?
 - **Kopya testi:** Ekranda "Paid.", "RAW", "N of 5" geçen bir yer kaldı mı?
