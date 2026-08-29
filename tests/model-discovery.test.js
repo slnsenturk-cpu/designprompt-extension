@@ -161,3 +161,84 @@ test('fetchLiveModels: Gemini list is filtered to generateContent-capable models
   const live = await VD_MODELS.fetchLiveModels('gemini', 'AIza-test');
   assert.deepEqual(live, [{ id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' }]);
 });
+
+// ── nudge dismissal (v3.0) ─────────────────────────────────────────────────
+
+test('dismissNudge: persists the dismissal and getDismissedNudges reads it back', async () => {
+  const VD_MODELS = loadVDModels();
+  assert.deepEqual(await VD_MODELS.getDismissedNudges(), {});
+
+  await VD_MODELS.dismissNudge('claude-sonnet-5');
+  assert.deepEqual(await VD_MODELS.getDismissedNudges(), { 'claude-sonnet-5': true });
+
+  // Dismissals accumulate rather than replacing each other.
+  await VD_MODELS.dismissNudge('gpt-5.6-terra');
+  assert.deepEqual(await VD_MODELS.getDismissedNudges(), {
+    'claude-sonnet-5': true, 'gpt-5.6-terra': true,
+  });
+});
+
+test('checkNudge: hidden once the newer model has been dismissed', async () => {
+  const VD_MODELS = loadVDModels();
+  await VD_MODELS.dismissNudge('claude-sonnet-5');
+  const dismissed = await VD_MODELS.getDismissedNudges();
+
+  const nudge = VD_MODELS.checkNudge('claude-haiku-4-5-20251001', STATIC_CLAUDE, 'claude-sonnet-5', dismissed);
+  assert.equal(nudge.shouldNudge, false);
+});
+
+test('checkNudge: dismissal is per model id — a different newer model still nudges', async () => {
+  const VD_MODELS = loadVDModels();
+  await VD_MODELS.dismissNudge('claude-sonnet-5');
+  const dismissed = await VD_MODELS.getDismissedNudges();
+
+  // Same saved model, but the provider default has since moved on to Fable 5.
+  const nudge = VD_MODELS.checkNudge('claude-haiku-4-5-20251001', STATIC_CLAUDE, 'claude-fable-5', dismissed);
+  assert.equal(nudge.shouldNudge, true);
+  assert.equal(nudge.newer.id, 'claude-fable-5');
+});
+
+test('checkNudge: an unrelated dismissal does not suppress the nudge', async () => {
+  const VD_MODELS = loadVDModels();
+  const nudge = VD_MODELS.checkNudge(
+    'claude-haiku-4-5-20251001', STATIC_CLAUDE, 'claude-sonnet-5', { 'gpt-5.6-terra': true },
+  );
+  assert.equal(nudge.shouldNudge, true);
+});
+
+// ── per-provider cache (provider-tab switching, v3.0) ──────────────────────
+
+test('getMergedModels: cache is per provider — switching tabs fetches the new one, then reuses both', async () => {
+  const VD_MODELS = loadVDModels();
+  const STATIC_GEMINI = [
+    { id: 'gemini-3.7-flash', label: 'Flash 3.7', note: 'Free · Recommended' },
+    { id: 'gemini-3.1-pro-preview', label: '3.1 Pro', note: 'Paid · Preview · Frontier' },
+  ];
+  const calls = [];
+  global.fetch = async (url) => {
+    if (/anthropic/.test(url)) {
+      calls.push('claude');
+      return { ok: true, json: async () => ({ data: [
+        { id: 'claude-sonnet-5', display_name: 'Claude Sonnet 5', created_at: '2026-06-01T00:00:00Z' },
+      ] }) };
+    }
+    calls.push('gemini');
+    return { ok: true, json: async () => ({ models: [
+      { name: 'models/gemini-3.7-flash', displayName: 'Gemini 3.7 Flash', supportedGenerationMethods: ['generateContent'] },
+    ] }) };
+  };
+
+  // Opening settings on the Claude tab.
+  await VD_MODELS.getMergedModels('claude', 'sk-ant-test', STATIC_CLAUDE);
+  assert.deepEqual(calls, ['claude']);
+
+  // Switching to the Gemini tab must fetch — Claude's cache doesn't cover it.
+  const gem = await VD_MODELS.getMergedModels('gemini', 'AIza-test', STATIC_GEMINI);
+  assert.deepEqual(calls, ['claude', 'gemini']);
+  assert.equal(gem[0].id, 'gemini-3.7-flash');
+
+  // Switching back and forth within 24h is served entirely from cache.
+  await VD_MODELS.getMergedModels('claude', 'sk-ant-test', STATIC_CLAUDE);
+  await VD_MODELS.getMergedModels('gemini', 'AIza-test', STATIC_GEMINI);
+  assert.deepEqual(calls, ['claude', 'gemini']);
+});
