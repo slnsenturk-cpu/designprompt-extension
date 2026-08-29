@@ -187,6 +187,35 @@ that the `jwt_expired` change didn't break genuine revocation detection.)
 **G · Anonymous users see nothing new.** Signed out, the Settings status line
 must be absent entirely — no session, nothing to report.
 
+## DESIGN.md builder
+
+```bash
+node --test tests/design-md-builder.test.js
+```
+
+All tests must pass. They pin the properties that matter: valid frontmatter,
+deterministic output, pro sections absent on the free tier, and — most
+importantly — that no page copy escapes into the document. Every fixture plants
+a sentinel sentence in each copy-bearing field; the suite fails if it appears.
+
+### Dev buttons must not ship visible
+
+The result panel carries a dashed **dev** strip (Copy DESIGN.md free/pro, Copy
+raw tokens JSON) that is gated on `isUnpackedBuild()` — a packaged Web Store
+build has `update_url` in its manifest, an unpacked one does not.
+
+After loading the packed zip as an unpacked extension you WILL see the row
+(that build has no `update_url` either). To verify properly, install from the
+Web Store draft, or confirm by inspection:
+
+```bash
+grep -n 'devToolsRow' lib/ui-helpers.js
+```
+
+The template occurrence must carry `style="display:none"`, and the only reveal
+must sit inside the `isUnpackedBuild()` block. `tests/design-md-builder.test.js`
+asserts both.
+
 ## Standard release steps
 
 - [ ] Bump `version` in `manifest.json`.

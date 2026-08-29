@@ -1,0 +1,48 @@
+{
+  "url": "https://tiny.example",
+  "title": "SENTINEL Our platform helps teams ship faster than ever before.",
+  "colors": [],
+  "accentColors": [],
+  "fonts": [],
+  "borderRadii": [],
+  "shadows": [],
+  "transitions": [],
+  "cssVars": {},
+  "colorUsage": {},
+  "animations": [],
+  "hoverStates": [],
+  "animationDetails": [],
+  "layoutInfo": {},
+  "typographyPatterns": {},
+  "visualProfile": {},
+  "spacingScale": null,
+  "breakpoints": [],
+  "darkModeTokens": null,
+  "buttonStyles": null,
+  "cardStyles": null,
+  "inputStyles": null,
+  "badgeStyles": null,
+  "linkStyles": null,
+  "footerStyles": null,
+  "navPattern": {},
+  "iconographySystem": {},
+  "motionProfile": null,
+  "animationLibraries": [],
+  "heroEntranceSequence": null,
+  "riveAndLottie": null,
+  "tabbedComponents": [],
+  "fixedUIChrome": [],
+  "caseGridPattern": null,
+  "stickySections": null,
+  "interactiveStates": [
+    {
+      "trigger": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "heading": "SENTINEL Our platform helps teams ship faster than ever before."
+    }
+  ],
+  "sectionContentMap": [
+    {
+      "heading": "SENTINEL Our platform helps teams ship faster than ever before."
+    }
+  ]
+}
