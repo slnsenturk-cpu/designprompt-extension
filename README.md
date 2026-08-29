@@ -1,85 +1,67 @@
 # VibeDesign
 
-A Chrome extension that extracts visual design tokens from any website and generates AI-ready design prompts for vibe coding tools.
+Extract any website's design system into files an AI coding agent can actually
+use: a **DESIGN.md** style guide, a **Skill** bundle, or **design tokens**.
 
-**[Install from Chrome Web Store](https://chromewebstore.google.com/detail/vibedesign/peajencpkpgmidiooahoibfbhbjboobl)**
+Point it at a page, press Analyze, and read what it found — colour roles, the
+type scale, spacing, components, motion, contrast — then export it in the shape
+your tool wants.
 
----
-
-## How to Use
-
-### 1. Analyze a Page
-- Navigate to any website
-- Click the VibeDesign icon in the Chrome toolbar, or open the side panel
-- Select your **target platform** (v0.dev, Bolt, Lovable, Figma Make, or General)
-- Select a **focus** (All, Colors, Typography, Shadow, Motion, Layout, or Components)
-- Click **Analyze Page**
-
-### 2. Use the Prompt
-- Click **Copy** to copy to clipboard
-- Or use the **v0.dev / Bolt / Lovable** shortcut buttons — they copy and open the platform in a new tab
-
-### 3. Optional: AI-Enhanced Direction
-- Click the ⚙ settings icon
-- Enter your API key (Gemini, Claude, or OpenAI)
-- Keys are stored locally in `chrome.storage.local` and never transmitted to us
-- Works perfectly without an API key — the built-in rule engine covers all design patterns
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/vibedesign/peajencpkpgmidiooahoibfbhbjboobl)**
 
 ---
 
-## Supported Platforms
-- **v0.dev** — React + Tailwind + shadcn/ui
-- **Bolt.new** — Full-stack Vite + React
-- **Lovable** — React + Supabase
-- **Figma Make** — Component-level design
-- **General** — Any AI code tool
+## What you get
 
----
+Three outputs from the same analysis. They are three formats of one design
+model, so a colour reads the same in all of them.
 
-## What Gets Extracted
-- Colors, CSS variables, gradients
-- Typography: fonts, weights, sizes, line heights
-- Shadows, border radii, shape language
-- Transitions and animations
-- Hover states
-- Section layout and content map
-- Component patterns: buttons, inputs, nav, cards
+| Output | What it is | Where it goes |
+| --- | --- | --- |
+| **Prompt** | A written brief for a chat tool, tuned to the target you pick | Paste into Lovable, v0, Bolt, Stitch, Figma Make |
+| **DESIGN.md** | A style guide your project keeps: roles, scale, components, motion, accessibility | `CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, `GEMINI.md`, `replit.md` |
+| **Skill** | A zip an agent can be pointed at — DESIGN.md, DTCG `tokens.json`, `variables.css`, `theme.css`, Tailwind v3 config and v4 `@theme` | `.claude/skills/`, or the repo root |
 
----
+## How it works
+
+1. Open the side panel on any page and press **Analyze page**.
+2. Read the summary — counts, palette, and a Snapshot of theme, type, shape
+   and motion. The category tabs hold the full lists.
+3. Pick an output in **Export** and copy or download it.
+
+Nothing is invented. Every value is measured from the rendered page, and a
+value that was not observed is left out rather than filled in with a plausible
+default. Where the extension suggests something — an open-licence substitute
+for a proprietary typeface, say — it is labelled *suggested, not observed*.
+
+## What it costs
+
+Free. Five analyses a month signed out; a free account makes it unlimited.
+There is no paid tier and no payment of any kind today.
+
+The optional **AI enhancement** pass, which improves the prompt's direction
+paragraph, uses *your* API key with Claude, OpenAI or Gemini. That key stays in
+this browser. Without it the extension still works — the rule engine produces
+the same structured output, just without the written direction.
 
 ## Privacy
-- Zero data collection, zero tracking, zero analytics
-- API keys stored locally, never sent to our servers
-- All processing happens in your browser
-- Select "None" as AI provider for zero network requests
 
-See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
+VibeDesign asks for access to a site **when you analyze it**, one origin at a
+time, so installing it does not grant access to every website you visit. See
+[PRIVACY.md](PRIVACY.md).
 
----
+## Development
 
-## Technical Notes
-- Manifest V3 Chrome Extension
-- Content script is injected only when you click Analyze Page
-- Cross-origin iframe content cannot be scanned (browser security constraint)
-- For SPAs with dynamic styles, wait for the page to fully load before analyzing
-- Scroll-reveal sites (Framer, Webflow, AOS) are supported — the extension auto-scrolls to trigger animations before extracting
+No build step. Every file is a plain `<script>`, `importScripts`, or
+`chrome.scripting.executeScript` target that publishes a `VD_*` global.
 
----
+```bash
+npm install                       # test tooling only; the extension ships no dependencies
+node --test tests/*.test.js       # the full suite
+./scripts/verify.sh               # everything that must hold before a release
+./scripts/package.sh              # → dist/vibedesign-<version>.zip
+```
 
-## Troubleshooting
-
-**"Could not retrieve page data"**
-→ Refresh the page and try again. Does not work on `chrome://` pages.
-
-**API key error**
-→ Click ⚙, verify your key and selected provider.
-
-**Empty or weak prompt**
-→ The page may not use CSS custom properties. Try changing the Focus chip.
-
----
-
-## Links
-- [Chrome Web Store](https://chromewebstore.google.com/detail/vibedesign/peajencpkpgmidiooahoibfbhbjboobl)
-- [Privacy Policy](./PRIVACY.md)
-- [Issues & Feedback](https://github.com/slnsenturk-cpu/designprompt-extension/issues)
+Read [docs/AUDIT-v3.md](docs/AUDIT-v3.md) for the module map and
+[docs/SIDEPANEL-IA.md](docs/SIDEPANEL-IA.md) for the panel's information
+architecture. [CLAUDE.md](CLAUDE.md) carries the working rules for this repo.

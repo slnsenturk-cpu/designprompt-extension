@@ -1093,3 +1093,27 @@ test('the manifest version and description are within the store limits', () => {
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'the version is not x.y.z');
   assert.equal(manifest.manifest_version, 3);
 });
+
+test('the store listing and the manifest say the same thing', () => {
+  // The short description is submitted twice — once in manifest.json and once
+  // in the store form — and they must match, or the listing and the installed
+  // extension describe themselves differently.
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
+  const listing = fs.readFileSync(path.join(__dirname, '..', 'docs', 'STORE-LISTING.md'), 'utf8');
+
+  const short = (listing.match(/## Short description {2}\(limit 132\)\n\n```\n(.+)\n```/) || [])[1];
+  assert.ok(short, 'the listing has no short description block');
+  assert.equal(short, manifest.description,
+    'the listing and the manifest disagree about the short description');
+
+  const name = (listing.match(/## Name {2}\(limit 75\)\n\n```\n(.+)\n```/) || [])[1];
+  assert.ok(name, 'the listing has no name block');
+  assert.ok(name.length <= 75, `the store name is ${name.length} chars; the limit is 75`);
+
+  // Every stated character count must be true, since they are the only thing
+  // stopping a limit being crossed before upload.
+  assert.ok(listing.includes(`[${name.length} characters]`),
+    `the listing claims a name length that is not ${name.length}`);
+  assert.ok(listing.includes(`[${short.length} characters`),
+    `the listing claims a description length that is not ${short.length}`);
+});

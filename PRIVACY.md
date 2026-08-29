@@ -1,8 +1,24 @@
 # Privacy Policy
 
-**Effective date:** April 21, 2026
+**Effective date:** August 29, 2026
 
 This privacy policy describes how VibeDesign ("the extension," "we") handles your information.
+
+## Which sites the extension can read
+
+VibeDesign is installed with access to **no websites**. When you press Analyze
+or Pick element, Chrome asks whether to grant access to that one site, and the
+extension reads it only then. You can revoke any site from Chrome's extension
+settings at any time.
+
+Settings offers **Allow on all sites** if you would rather grant access once
+instead of answering the prompt per site. It is off by default, and turning it
+off again revokes the grant.
+
+The extension does declare permanent access to four API hosts —
+`api.anthropic.com`, `api.openai.com`, `generativelanguage.googleapis.com` and
+our Supabase project — because those are the services it calls itself. It does
+not read web pages through them.
 
 ## What we collect
 
@@ -19,10 +35,15 @@ When you create an account, we additionally collect and store on our servers:
 - Email address
 - Display name (if provided)
 - Password (hashed, never stored in plain text)
-- URLs of websites you analyze
-- Design tokens extracted from those sites
-- Generated prompts
+- The URL and hostname of each site you analyze
+- Its page title, primary colour and page background
+- The extracted design tokens (`tokens_json`) and the extractor version
+- The generated prompt text
 - Timestamps of your analyses
+
+Your API keys are never part of that payload. They are held in
+`chrome.storage.local` and excluded from every sync path; a test in this
+repository fails if a key-shaped field ever reaches the cloud payload.
 
 ## What we never collect
 
@@ -42,6 +63,15 @@ When you create an account, we additionally collect and store on our servers:
 
 - **Supabase (via Lovable Cloud):** Our authentication and database provider. Your account data and analysis history are stored on Supabase's infrastructure. Supabase acts as a data processor on our behalf.
 - **AI providers (Anthropic, Google, OpenAI):** When you generate prompts, your extracted design tokens are sent to the AI provider you selected, using your own API key. We do not intermediate or log these requests. Data handling by the AI provider is subject to their own policies.
+
+## Payment
+
+There is none. VibeDesign takes no payment, stores no payment details and has
+no paid tier. Five analyses a month without an account, unlimited with a free
+one — the account exists so your history can follow you between devices, not
+to bill you.
+
+If that ever changes, this policy changes first.
 
 ## Data retention
 
