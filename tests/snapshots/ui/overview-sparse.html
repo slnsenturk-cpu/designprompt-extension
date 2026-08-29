@@ -1,0 +1,65 @@
+<div class="vd-notice vd-notice--warn" role="status">
+<span class="vd-notice__text">Very little design data on this page. Try a page with more UI.</span>
+</div>
+<section class="vd-section">
+<div class="vd-section__head">
+<h2 class="vd-section__title">Snapshot</h2>
+</div>
+<div class="vd-section__body">
+<div class="vd-kv">
+<span class="vd-kv__label">Theme</span>
+<span class="vd-kv__value">Light</span>
+</div>
+</div>
+</section>
+<div class="vd-card" id="vdExportCard">
+<div class="vd-card__title">Export</div>
+<div class="vd-seg" role="radiogroup" id="vdOutputSeg" aria-label="Output">
+<button class="vd-seg__item is-on" role="radio" aria-checked="true" data-output="prompt">Prompt</button>
+<button class="vd-seg__item" role="radio" aria-checked="false" data-output="design-md">DESIGN.md</button>
+<button class="vd-seg__item" role="radio" aria-checked="false" data-output="skill">Skill</button>
+</div>
+<p class="vd-card__help">Rebuild this page in a chat tool.</p>
+<div class="vd-field">
+<span class="vd-field__label">For</span>
+<select class="vd-select" id="vdTargetSelect" aria-label="Target">
+<option value="Claude Code" selected>Claude Code</option>
+<option value="Cursor">Cursor</option>
+<option value="Codex">Codex</option>
+<option value="Stitch">Stitch</option>
+<option value="Antigravity">Antigravity</option>
+<option value="Gemini CLI">Gemini CLI</option>
+<option value="Kiro">Kiro</option>
+<option value="Lovable">Lovable</option>
+<option value="v0">v0</option>
+<option value="Bolt">Bolt</option>
+<option value="Replit">Replit</option>
+<option value="Claude Design">Claude Design</option>
+<option value="Figma Make">Figma Make</option>
+</select>
+</div>
+<details class="vd-disclose" id="vdRefine">
+<summary>Refine</summary>
+<div class="vd-chips" role="radiogroup" aria-label="Focus">
+<button class="vd-chip is-on" role="radio" aria-checked="true" data-focus="all">All</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="colors">Colors</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="typography">Type</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="shadows">Shadow</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="motion">Motion</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="layout">Layout</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="components">Components</button>
+</div>
+</details>
+<button class="vd-btn vd-btn--primary vd-btn--full" id="vdExportBtn" aria-label="Copy prompt">
+<span class="vd-btn__label">Copy prompt</span>
+</button>
+</div>
+<section class="vd-section">
+<div class="vd-section__head">
+<h2 class="vd-section__title">Layout</h2>
+</div>
+<div class="vd-section__body">
+<p class="vd-line">1 sections</p>
+</div>
+</section>
+<button class="vd-link" data-action="previewRaw">Preview raw output ▸</button>

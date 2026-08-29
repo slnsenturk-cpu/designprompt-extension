@@ -1,0 +1,119 @@
+<div class="vd-stats">
+<div class="vd-stat">
+<div class="vd-stat__value">10</div>
+<div class="vd-stat__label">Colors</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">4</div>
+<div class="vd-stat__label">Fonts</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">6</div>
+<div class="vd-stat__label">Comps</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">16</div>
+<div class="vd-stat__label">Keyframes</div>
+</div>
+</div>
+<div class="vd-swatches" role="list" aria-label="Colour roles">
+<button class="vd-swatch" style="background:#0a0a0a" title="background · #0a0a0a" aria-label="background #0a0a0a" data-role="background">
+</button>
+<button class="vd-swatch" style="background:#f0ede6" title="text-primary · #f0ede6" aria-label="text-primary #f0ede6" data-role="text-primary">
+</button>
+<button class="vd-swatch" style="background:#b7b4af" title="text-secondary · #b7b4af" aria-label="text-secondary #b7b4af" data-role="text-secondary">
+</button>
+<button class="vd-swatch" style="background:#aba9a4" title="text-muted · #aba9a4" aria-label="text-muted #aba9a4" data-role="text-muted">
+</button>
+<button class="vd-swatch" style="background:#ed462d" title="accent · #ed462d" aria-label="accent #ed462d" data-role="accent">
+</button>
+<button class="vd-swatch" style="background:#ed462d" title="primary · #ed462d" aria-label="primary #ed462d" data-role="primary">
+</button>
+<button class="vd-swatch" style="background:#2a2a29" title="border · #2a2a29" aria-label="border #2a2a29" data-role="border">
+</button>
+<button class="vd-swatch" style="background:#212120" title="border-subtle · #212120" aria-label="border-subtle #212120" data-role="border-subtle">
+</button>
+<button class="vd-swatch" style="background:#22c55e" title="success · #22c55e" aria-label="success #22c55e" data-role="success">
+</button>
+<button class="vd-swatch" style="background:#0000ee" title="accent-1 · #0000ee" aria-label="accent-1 #0000ee" data-role="accent-1">
+</button>
+</div>
+<section class="vd-section">
+<div class="vd-section__head">
+<h2 class="vd-section__title">Snapshot</h2>
+</div>
+<div class="vd-section__body">
+<div class="vd-kv">
+<span class="vd-kv__label">Theme</span>
+<span class="vd-kv__value">Dark · high contrast</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Style</span>
+<span class="vd-kv__value">dark high-contrast compact chamfered vivid animated interface</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Type</span>
+<span class="vd-kv__value">Chalet / Instrument Sans / Chivo Mono</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Shape</span>
+<span class="vd-kv__value vd-kv__value--mono">Chamfer 14px · radius 0px</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Motion</span>
+<span class="vd-kv__value">Ambient · 3 loops · 16 keyframes</span>
+</div>
+</div>
+</section>
+<div class="vd-card" id="vdExportCard">
+<div class="vd-card__title">Export</div>
+<div class="vd-seg" role="radiogroup" id="vdOutputSeg" aria-label="Output">
+<button class="vd-seg__item is-on" role="radio" aria-checked="true" data-output="prompt">Prompt</button>
+<button class="vd-seg__item" role="radio" aria-checked="false" data-output="design-md">DESIGN.md</button>
+<button class="vd-seg__item" role="radio" aria-checked="false" data-output="skill">Skill</button>
+</div>
+<p class="vd-card__help">Rebuild this page in a chat tool.</p>
+<div class="vd-field">
+<span class="vd-field__label">For</span>
+<select class="vd-select" id="vdTargetSelect" aria-label="Target">
+<option value="Claude Code" selected>Claude Code</option>
+<option value="Cursor">Cursor</option>
+<option value="Codex">Codex</option>
+<option value="Stitch">Stitch</option>
+<option value="Antigravity">Antigravity</option>
+<option value="Gemini CLI">Gemini CLI</option>
+<option value="Kiro">Kiro</option>
+<option value="Lovable">Lovable</option>
+<option value="v0">v0</option>
+<option value="Bolt">Bolt</option>
+<option value="Replit">Replit</option>
+<option value="Claude Design">Claude Design</option>
+<option value="Figma Make">Figma Make</option>
+</select>
+</div>
+<details class="vd-disclose" id="vdRefine">
+<summary>Refine</summary>
+<div class="vd-chips" role="radiogroup" aria-label="Focus">
+<button class="vd-chip is-on" role="radio" aria-checked="true" data-focus="all">All</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="colors">Colors</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="typography">Type</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="shadows">Shadow</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="motion">Motion</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="layout">Layout</button>
+<button class="vd-chip" role="radio" aria-checked="false" data-focus="components">Components</button>
+</div>
+</details>
+<button class="vd-btn vd-btn--primary vd-btn--full" id="vdExportBtn" aria-label="Copy prompt">
+<span class="vd-btn__label">Copy prompt</span>
+</button>
+<p class="vd-card__meta">17 sections · 32.6k chars</p>
+</div>
+<section class="vd-section">
+<div class="vd-section__head">
+<h2 class="vd-section__title">Layout</h2>
+</div>
+<div class="vd-section__body">
+<p class="vd-line">Container 1296px · Section 128px · 12 sections</p>
+</div>
+</section>
+<button class="vd-link" data-action="previewRaw">Preview raw output ▸</button>

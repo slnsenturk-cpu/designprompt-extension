@@ -525,8 +525,67 @@ test('no real email address appears anywhere in the panel', async t => {
   ['overview', 'settings'].forEach(tab => {
     p.click(`[data-tab="${tab}"]`);
     const html = p.win.document.body.innerHTML;
-    assert.ok(!/slnsenturk/i.test(html), `a real address is rendered on ${tab}`);
+    // Checked generically rather than by naming the address from §4.3 — that
+    // would put the very string this test exists to keep out into the repo.
+    // Any address other than the placeholder fails.
     const emails = html.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
     emails.forEach(e => assert.equal(e, TEST_EMAIL, `unexpected address ${e} on ${tab}`));
   });
+});
+
+// ── states (§4.5) ─────────────────────────────────────────────────────────
+
+test('analysing turns the action into named progress with a way out', async t => {
+  const p = await boot(t);
+  p.run('showStage(0)');
+  assert.equal(p.$('#vdPanel').style.display, 'none', 'the panel is still showing');
+  assert.match(p.$('#loadingText').textContent, /Reading… 1\/6/);
+  assert.ok(p.$('#vdCancelAnalyze'), 'no way to cancel');
+
+  p.run('showStage(4)');
+  assert.match(p.$('#loadingText').textContent, /Motion… 5\/6/);
+  assert.equal(p.$('#vdProgressFill').style.width, '83%');
+
+  // Cancel puts the panel back rather than leaving a dead progress bar.
+  p.click('#vdCancelAnalyze');
+  assert.equal(p.$('#loadingSection').style.display, 'none');
+  assert.notEqual(p.$('#vdPanel').style.display, 'none');
+});
+
+test('an unreadable page says what to try instead', async t => {
+  const p = await boot(t);
+  p.run('showError(VD_UI.COPY.unreadable)');
+  const text = p.$('#errorText').textContent;
+  assert.match(text, /Some sites block extensions/);
+  assert.match(text, /pick an element instead/);
+  assert.ok(p.$('#errorRetryBtn'), 'no way to try again');
+  // It is a state, not an alert dialog: the tab bar is still there.
+  assert.ok(p.$('.vd-tabbar'));
+});
+
+test('a page with almost no design data says so instead of showing ones', async t => {
+  const p = await boot(t);
+  p.analyze('sparse');
+  assert.match(p.text(), /Very little design data on this page/);
+  assert.equal(p.$$('.vd-stat').length, 0, 'a strip of ones is worse than a sentence');
+});
+
+test('an offline AI pass is reported, and the result still arrives', async t => {
+  const p = await boot(t, { storage: { vd_ai_enabled: true, apiKeys: { gemini: 'k' } } });
+  p.analyze('rig-ai');
+  // showResult was given no provider, which is what an AI skip looks like.
+  assert.match(p.text(), /AI enhancement skipped — offline/);
+  assert.ok(p.$('#vdExportBtn'), 'the rule-engine result must still be exportable');
+});
+
+// ── popup (§3) ────────────────────────────────────────────────────────────
+
+test('the popup is the short form: no tab bar, and a way into the panel', async t => {
+  const p = await boot(t, { surface: 'popup' });
+  assert.ok(p.$('.vd-header'), 'no header');
+  assert.equal(p.$('.vd-tabbar'), null, 'the popup must not carry the tab bar');
+  assert.ok(p.$('#analyzeBtn'), 'no Analyze');
+  assert.ok(p.$('.vd-seg'), 'no Page/Element switch');
+  assert.ok(p.$('#vdOpenPanel'), 'no way into the side panel');
+  assert.equal(p.$$('.vd-btn--primary').length, 1);
 });

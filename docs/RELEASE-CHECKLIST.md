@@ -245,12 +245,14 @@ After loading the packed zip as an unpacked extension you WILL see the section
 Web Store draft, or confirm by inspection:
 
 ```bash
-grep -n 'settingsDev' lib/ui-helpers.js
+node --test tests/ui-panel.test.js
 ```
 
-The template occurrence must carry `style="display:none"`, and the only reveal
-must sit inside the `isUnpackedBuild()` block. `tests/design-md-builder.test.js`
-asserts both.
+`tests/ui-panel.test.js` boots the real panel in jsdom and asserts the gate
+both ways round: a packaged build (manifest has `update_url`) renders no
+Developer section at all, and an unpacked one renders `Copy RAW capture`. That
+is a stronger check than grepping the source, which cannot tell a rendered
+button from a string sitting in a template literal.
 
 ### The three result actions are for everyone
 
