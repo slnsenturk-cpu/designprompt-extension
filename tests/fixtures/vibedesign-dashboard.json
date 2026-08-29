@@ -1,0 +1,908 @@
+{
+  "url": "https://vibedesign.tech/dashboard",
+  "title": "SENTINEL Our platform helps teams ship faster than ever before.",
+  "colors": [
+    "#3a1df5",
+    "#6b6b76",
+    "#c5c1b9",
+    "#ededed",
+    "#242424",
+    "#000000"
+  ],
+  "accentColors": [
+    "#3a1df5",
+    "#6b6b76",
+    "#c5c1b9",
+    "#ededed",
+    "#242424"
+  ],
+  "fonts": [
+    "Inter",
+    "CameraPlainVariable",
+    "JetBrains Mono"
+  ],
+  "borderRadii": [
+    "6px",
+    "8px",
+    "6px 0px 0px 6px",
+    "0px 6px 6px 0px",
+    "9999px",
+    "4px"
+  ],
+  "shadows": [
+    "rgba(0, 0, 0, 0.88) 0px 0px 0px 1px, rgba(0, 0, 0, 0.04) 0px 1px 0px 0px, rgba(0, 0, 0, 0.08) 0px 2px 2px -1px, rgba(0, 0, 0, 0.08) 0px 4px 4px -2px, rgba(0, 0, 0, 0.08) 0px 8px 8px -4px, rgba(0, 0, 0, 0.08) 0px 16px 16px -8px"
+  ],
+  "transitions": [
+    "all",
+    "color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+    "background-color 0.2s, color 0.2s, transform 0.1s",
+    "background-color 0.2s, transform 0.1s",
+    "fill 0.2s"
+  ],
+  "cssVars": {
+    "--background": "0 0% 0%",
+    "--foreground": "0 0% 93%",
+    "--card": "0 0% 4%",
+    "--card-foreground": "0 0% 93%",
+    "--popover": "0 0% 4%",
+    "--popover-foreground": "0 0% 93%",
+    "--primary": "0 0% 100%",
+    "--primary-foreground": "0 0% 0%",
+    "--secondary": "0 0% 10%",
+    "--secondary-foreground": "0 0% 75%",
+    "--muted": "0 0% 12%",
+    "--muted-foreground": "0 0% 55%",
+    "--accent": "0 0% 14%",
+    "--accent-foreground": "0 0% 93%",
+    "--destructive": "0 84% 60%",
+    "--destructive-foreground": "0 0% 100%",
+    "--border": "0 0% 14%",
+    "--input": "0 0% 14%",
+    "--ring": "0 0% 30%",
+    "--radius": ".5rem",
+    "--sidebar-background": "0 0% 2%",
+    "--sidebar-foreground": "0 0% 93%",
+    "--sidebar-primary": "0 0% 100%",
+    "--sidebar-primary-foreground": "0 0% 0%",
+    "--sidebar-accent": "0 0% 10%",
+    "--sidebar-accent-foreground": "0 0% 93%",
+    "--sidebar-border": "0 0% 14%",
+    "--sidebar-ring": "0 0% 30%",
+    "--success": "145 63% 55%",
+    "--success-foreground": "0 0% 0%",
+    "--brand": "247 91% 54%",
+    "--brand-foreground": "0 0% 100%",
+    "--brand-muted": "247 60% 20%",
+    "--brand-text": "247 80% 72%",
+    "--info": "210 100% 50%",
+    "--info-foreground": "0 0% 100%",
+    "--info-hover": "204 100% 50%",
+    "--warning": "40 100% 50%",
+    "--warning-foreground": "0 0% 0%",
+    "--premium": "260 60% 47%",
+    "--premium-foreground": "0 0% 100%",
+    "--premium-text": "260 70% 72%",
+    "--surface-elevated": "0 0% 8.5%",
+    "--surface-inset": "0 0% 5.5%",
+    "--badge-bg": "#1b1b1b",
+    "--badge-text": "#c5c1b9",
+    "--badge-text-hover": "#dcdad5",
+    "--badge-radius": "6px",
+    "--badge-padding": "8px",
+    "--badge-gap": "6px",
+    "--badge-transition-duration": "0.2s",
+    "--focus-color": "#575ECF",
+    "--focus-offset": "2px",
+    "--focus-width": "2px",
+    "--gray1": "hsl(0, 0%, 99%)",
+    "--gray4": "hsl(0, 0%, 93%)",
+    "--gray9": "hsl(0, 0%, 56.1%)",
+    "--gray12": "hsl(0, 0%, 9%)",
+    "--border-radius": "8px",
+    "--y": "translateY(40%)",
+    "--normal-bg": "#000",
+    "--success-text": "hsl(150, 86%, 65%)",
+    "--info-text": "hsl(216, 87%, 65%)",
+    "--warning-text": "hsl(46, 87%, 65%)",
+    "--error-text": "hsl(358, 100%, 81%)",
+    "--normal-border": "hsl(0, 0%, 20%)",
+    "--size": "16px"
+  },
+  "layoutInfo": {
+    "maxWidth": "none",
+    "hasSidebar": true,
+    "hasNav": true,
+    "hasHero": false,
+    "pageType": "dashboard/app"
+  },
+  "animations": [
+    {
+      "name": "bounce",
+      "from": "0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }",
+      "to": "50% { transform: none; animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }"
+    },
+    {
+      "name": "ping",
+      "from": "75%, 100% { transform: scale(2); opacity: 0; }",
+      "to": null
+    },
+    {
+      "name": "pulse",
+      "from": "50% { opacity: 0.5; }",
+      "to": null
+    },
+    {
+      "name": "spin",
+      "from": "100% { transform: rotate(360deg); }",
+      "to": null
+    },
+    {
+      "name": "enter",
+      "from": "0% { opacity: var(--tw-enter-opacity, 1); transform: translate3d(var(--tw-enter-translate-x, 0),var(--tw-enter-translate-y, 0),0)",
+      "to": null
+    },
+    {
+      "name": "exit",
+      "from": "100% { opacity: var(--tw-exit-opacity, 1); transform: translate3d(var(--tw-exit-translate-x, 0),var(--tw-exit-translate-y, 0),0)",
+      "to": null
+    },
+    {
+      "name": "accordion-up",
+      "from": "0% { height: var(--radix-accordion-content-height); }",
+      "to": "100% { height: 0px; }"
+    },
+    {
+      "name": "accordion-down",
+      "from": "0% { height: 0px; }",
+      "to": "100% { height: var(--radix-accordion-content-height); }"
+    },
+    {
+      "name": "swipe-out-left",
+      "from": "0% { transform: var(--y) translate(var(--swipe-amount-x)); opacity: 1; }",
+      "to": "100% { transform: var(--y) translate(calc(var(--swipe-amount-x) - 100%)); opacity: 0; }"
+    },
+    {
+      "name": "swipe-out-right",
+      "from": "0% { transform: var(--y) translate(var(--swipe-amount-x)); opacity: 1; }",
+      "to": "100% { transform: var(--y) translate(calc(var(--swipe-amount-x) + 100%)); opacity: 0; }"
+    },
+    {
+      "name": "swipe-out-up",
+      "from": "0% { transform: var(--y) translateY(var(--swipe-amount-y)); opacity: 1; }",
+      "to": "100% { transform: var(--y) translateY(calc(var(--swipe-amount-y) - 100%)); opacity: 0; }"
+    },
+    {
+      "name": "swipe-out-down",
+      "from": "0% { transform: var(--y) translateY(var(--swipe-amount-y)); opacity: 1; }",
+      "to": "100% { transform: var(--y) translateY(calc(var(--swipe-amount-y) + 100%)); opacity: 0; }"
+    }
+  ],
+  "hoverStates": [
+    {
+      "selector": ".card-hover:hover",
+      "transform": "translateY(-2px)",
+      "border-color": "hsl(210 100% 50% / .2)"
+    },
+    {
+      "selector": "0\\.35\\)\\]:hover",
+      "border-color": "rgba(255, 255, 255, 0.35)"
+    },
+    {
+      "selector": ".hover\\:border-border:hover",
+      "border-color": "hsl(0 0% 14%)"
+    },
+    {
+      "selector": ".hover\\:border-brand-foreground\\/20:hover",
+      "border-color": "hsl(0 0% 100% / .2)"
+    },
+    {
+      "selector": ".hover\\:border-brand\\/40:hover",
+      "border-color": "hsl(247 91% 54% / .4)"
+    },
+    {
+      "selector": ".hover\\:border-info\\/30:hover",
+      "border-color": "hsl(210 100% 50% / .3)"
+    },
+    {
+      "selector": ".hover\\:border-info\\/40:hover",
+      "border-color": "hsl(210 100% 50% / .4)"
+    },
+    {
+      "selector": ".hover\\:border-muted-foreground\\/30:hover",
+      "border-color": "hsl(0 0% 55% / .3)"
+    },
+    {
+      "selector": ".hover\\:border-premium\\/30:hover",
+      "border-color": "hsl(260 60% 47% / .3)"
+    },
+    {
+      "selector": ".hover\\:border-primary\\/30:hover",
+      "border-color": "hsl(0 0% 100% / .3)"
+    },
+    {
+      "selector": ".hover\\:border-success\\/30:hover",
+      "border-color": "hsl(145 63% 55% / .3)"
+    },
+    {
+      "selector": ".hover\\:border-warning\\/30:hover",
+      "border-color": "hsl(40 100% 50% / .3)"
+    },
+    {
+      "selector": ".hover\\:bg-accent:hover",
+      "background-color": "hsl(0 0% 14%)"
+    },
+    {
+      "selector": ".hover\\:bg-accent\\/20:hover",
+      "background-color": "hsl(0 0% 14% / .2)"
+    },
+    {
+      "selector": ".hover\\:bg-accent\\/30:hover",
+      "background-color": "hsl(0 0% 14% / .3)"
+    },
+    {
+      "selector": ".hover\\:bg-accent\\/50:hover",
+      "background-color": "hsl(0 0% 14% / .5)"
+    },
+    {
+      "selector": ".hover\\:bg-background\\/15:hover",
+      "background-color": "hsl(0 0% 0% / .15)"
+    },
+    {
+      "selector": ".hover\\:bg-brand\\/90:hover",
+      "background-color": "hsl(247 91% 54% / .9)"
+    },
+    {
+      "selector": ".hover\\:bg-card:hover",
+      "background-color": "hsl(0 0% 4%)"
+    },
+    {
+      "selector": ".hover\\:bg-destructive\\/80:hover",
+      "background-color": "hsl(0 84% 60% / .8)"
+    },
+    {
+      "selector": ".hover\\:bg-destructive\\/90:hover",
+      "background-color": "hsl(0 84% 60% / .9)"
+    },
+    {
+      "selector": ".hover\\:bg-muted:hover",
+      "background-color": "hsl(0 0% 12%)"
+    },
+    {
+      "selector": ".hover\\:bg-muted\\/50:hover",
+      "background-color": "hsl(0 0% 12% / .5)"
+    },
+    {
+      "selector": ".hover\\:bg-primary:hover",
+      "background-color": "hsl(0 0% 100%)"
+    },
+    {
+      "selector": ".hover\\:bg-primary\\/80:hover",
+      "background-color": "hsl(0 0% 100% / .8)"
+    },
+    {
+      "selector": ".hover\\:bg-primary\\/90:hover",
+      "background-color": "hsl(0 0% 100% / .9)"
+    },
+    {
+      "selector": ".hover\\:bg-secondary:hover",
+      "background-color": "hsl(0 0% 10%)"
+    },
+    {
+      "selector": ".hover\\:bg-secondary\\/40:hover",
+      "background-color": "hsl(0 0% 10% / .4)"
+    },
+    {
+      "selector": ".hover\\:bg-secondary\\/50:hover",
+      "background-color": "hsl(0 0% 10% / .5)"
+    },
+    {
+      "selector": ".hover\\:bg-secondary\\/80:hover",
+      "background-color": "hsl(0 0% 10% / .8)"
+    },
+    {
+      "selector": ".hover\\:bg-sidebar-accent:hover",
+      "background-color": "hsl(0 0% 10%)"
+    },
+    {
+      "selector": ".hover\\:bg-white\\/5:hover",
+      "background-color": "rgba(255, 255, 255, 0.05)",
+      "before": {
+        "color": "rgb(237, 237, 237)"
+      }
+    },
+    {
+      "selector": ".hover\\:bg-white\\/\\[0\\.03\\]:hover",
+      "background-color": "rgba(255, 255, 255, 0.03)",
+      "before": {
+        "color": "rgb(237, 237, 237)"
+      }
+    },
+    {
+      "selector": ".hover\\:text-\\[\\#E8E8ED\\]:hover",
+      "color": "rgb(232 232 237 / var(--tw-text-opacity, 1))"
+    },
+    {
+      "selector": ".hover\\:text-accent-foreground:hover",
+      "color": "hsl(0 0% 93%)"
+    },
+    {
+      "selector": ".hover\\:text-brand\\/80:hover",
+      "color": "hsl(247 91% 54% / .8)"
+    },
+    {
+      "selector": ".hover\\:text-destructive:hover",
+      "color": "hsl(0 84% 60%)"
+    },
+    {
+      "selector": ".hover\\:text-foreground:hover",
+      "color": "hsl(0 0% 93%)"
+    },
+    {
+      "selector": ".hover\\:text-info:hover",
+      "color": "hsl(210 100% 50%)"
+    },
+    {
+      "selector": ".hover\\:text-muted-foreground:hover",
+      "color": "hsl(0 0% 55%)"
+    }
+  ],
+  "animationDetails": [],
+  "textShadows": [],
+  "letterSpacings": [
+    "0.55px"
+  ],
+  "cssAspectRatios": [],
+  "colorUsage": {
+    "#ededed": {
+      "bg": 0,
+      "text": 93,
+      "border": 0
+    },
+    "#242424": {
+      "bg": 0,
+      "text": 0,
+      "border": 190
+    },
+    "#e8e8ed": {
+      "bg": 0,
+      "text": 17,
+      "border": 0
+    },
+    "#111113": {
+      "bg": 2,
+      "text": 0,
+      "border": 0
+    },
+    "#6b6b76": {
+      "bg": 0,
+      "text": 82,
+      "border": 0
+    },
+    "#c5c1b9": {
+      "bg": 0,
+      "text": 11,
+      "border": 1
+    },
+    "#000000": {
+      "bg": 1,
+      "text": 2,
+      "border": 0
+    },
+    "#0a0a0b": {
+      "bg": 1,
+      "text": 0,
+      "border": 0
+    },
+    "#3a1df5": {
+      "bg": 3,
+      "text": 3,
+      "border": 0
+    },
+    "#1b1b1b": {
+      "bg": 1,
+      "text": 0,
+      "border": 0
+    }
+  },
+  "ambientAnimations": null,
+  "buttonStyles": {
+    "primary": {
+      "padding": "6px 12px",
+      "fontSize": "12px",
+      "fontWeight": "500",
+      "letterSpacing": null,
+      "textTransform": null,
+      "backgroundColor": null,
+      "color": "#6b6b76",
+      "borderRadius": "6px",
+      "border": "1px solid rgba(255, 255, 255, 0.08)",
+      "boxShadow": null,
+      "gap": null,
+      "height": "32px",
+      "lineHeight": "18px",
+      "fontFamily": "Inter",
+      "clipPath": null,
+      "transition": "color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+      "width": 115,
+      "text": "SENTINEL Our platform helps teams ship faster than ever before."
+    },
+    "ghost": {
+      "padding": "6px 12px",
+      "fontSize": "12px",
+      "fontWeight": "500",
+      "letterSpacing": null,
+      "textTransform": null,
+      "backgroundColor": null,
+      "color": "#6b6b76",
+      "borderRadius": "6px",
+      "border": "1px solid rgba(255, 255, 255, 0.08)",
+      "boxShadow": null,
+      "gap": null,
+      "height": "32px",
+      "lineHeight": "18px",
+      "fontFamily": "Inter",
+      "clipPath": null,
+      "transition": "color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+      "width": 115,
+      "text": "SENTINEL Our platform helps teams ship faster than ever before."
+    },
+    "secondary": null,
+    "navCta": null,
+    "textOnly": null
+  },
+  "typographyPatterns": {
+    "h1": {
+      "fontSize": "40px",
+      "fontWeight": "700",
+      "lineHeight": "50px",
+      "letterSpacing": null,
+      "textTransform": null,
+      "fontFamily": "Inter",
+      "color": "#e8e8ed",
+      "textShadow": null
+    },
+    "h2": {
+      "fontSize": "20px",
+      "fontWeight": "700",
+      "lineHeight": "30px",
+      "letterSpacing": null,
+      "textTransform": null,
+      "fontFamily": "Inter",
+      "color": "#e8e8ed",
+      "textShadow": null
+    },
+    "code": {
+      "fontSize": "12px",
+      "fontWeight": "400",
+      "lineHeight": "18px",
+      "fontFamily": "JetBrains Mono",
+      "backgroundColor": null,
+      "borderRadius": "9999px"
+    }
+  },
+  "badgeStyles": null,
+  "inputStyles": null,
+  "gradients": [],
+  "imageStyles": null,
+  "linkStyles": {
+    "color": "#c5c1b9",
+    "textDecoration": "none",
+    "textDecorationColor": null,
+    "textUnderlineOffset": null,
+    "fontWeight": "400"
+  },
+  "footerStyles": null,
+  "fontWeights": [
+    "400",
+    "500",
+    "600",
+    "700"
+  ],
+  "pageBackground": "#111113",
+  "sectionContentMap": [
+    {
+      "type": "hero",
+      "heading": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "className": "p-8 mb-6",
+      "layout": "stacked",
+      "bgColor": "#111113",
+      "gradient": null,
+      "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
+      "eyebrow": null,
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
+      "entryCount": 36,
+      "paddingY": "32px"
+    },
+    {
+      "type": "decorative",
+      "heading": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "className": "p-8",
+      "layout": "stacked",
+      "bgColor": "#111113",
+      "gradient": null,
+      "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
+      "eyebrow": null,
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
+      "entryCount": 6,
+      "paddingY": "32px"
+    }
+  ],
+  "footerContentMap": null,
+  "contactSection": null,
+  "stickySections": null,
+  "svgDiagramAnimations": null,
+  "sectionBackgroundDecorations": null,
+  "visualProfile": {
+    "sectionRhythm": [
+      {
+        "bgHex": "#111113",
+        "hasBackgroundImage": false,
+        "hasChildImages": true,
+        "hasGradient": false,
+        "height": 1021,
+        "width": 1012,
+        "isFullBleed": true,
+        "hasOverlay": false
+      },
+      {
+        "bgHex": "#111113",
+        "hasBackgroundImage": false,
+        "hasChildImages": false,
+        "hasGradient": false,
+        "height": 185,
+        "width": 1012,
+        "isFullBleed": true,
+        "hasOverlay": false
+      }
+    ],
+    "hasFullBleedImages": false,
+    "hasBackgroundImages": false,
+    "hasMeshGradient": false,
+    "hasGlassmorphism": false,
+    "blendModes": [],
+    "hasFloatingCards": false,
+    "hasParallaxHint": false,
+    "hasScrollAnimation": false,
+    "hasNoiseTexture": false,
+    "imageTreatment": "none",
+    "sectionColorPattern": "uniform-dark",
+    "dominantSectionBg": null,
+    "hasOverlaidUIOnPhoto": false,
+    "navStyle": "transparent-hero",
+    "hasGradientSection": false,
+    "gradientStyle": null,
+    "textOnImageCount": 0,
+    "splitLayoutCount": 0,
+    "spacingSystem": {
+      "sectionPaddingY": "32px",
+      "sectionPaddingX": "32px",
+      "containerMaxWidth": "1200px",
+      "gridGap": null,
+      "cardGap": null
+    },
+    "animationPatterns": {
+      "hasTextReveal": false,
+      "hasMaskReveal": false,
+      "hasSlider": false,
+      "sliderType": null,
+      "hasArrowAnimation": false,
+      "hasHeroAnimation": false,
+      "hasCounterAnimation": false,
+      "hasStaggerReveal": false
+    },
+    "uiPatterns": {
+      "hasMarquee": true,
+      "hasPricingGrid": false,
+      "pricingColumnCount": 0,
+      "hasTestimonialCarousel": false,
+      "hasDualCTA": false,
+      "hasQRCode": false,
+      "hasStickyNav": false,
+      "hasLogoStrip": false,
+      "hasFeatureList": true,
+      "hasStepIndicator": false,
+      "hasDarkFooter": false,
+      "hasVideoSection": false,
+      "hasTabSection": false,
+      "hasAccordion": false,
+      "hasCounterSection": false,
+      "pageStructure": [
+        "feature-split"
+      ],
+      "hasDecorativeGeometry": false,
+      "decorativeGeometryCount": 0,
+      "hasIconSystem": false,
+      "iconSystemCount": 0,
+      "hasArrowLinks": false,
+      "arrowLinkColor": null,
+      "arrowLinkCount": 0
+    }
+  },
+  "rotatingText": null,
+  "illustrationStyle": null,
+  "curvedPanels": null,
+  "countdownElements": null,
+  "caseGridPattern": null,
+  "navPattern": {
+    "type": "standard",
+    "hasHamburger": false,
+    "hasVisibleLinks": false,
+    "hasCurvedContainer": false,
+    "hasCountdown": false,
+    "logoText": "SENTINEL Our platform helps teams ship faster than ever before.",
+    "visibleLinks": [
+      "SENTINEL Our platform helps teams ship faster than ever before."
+    ]
+  },
+  "customCursor": null,
+  "masonryGrid": null,
+  "breakpoints": [
+    {
+      "px": 600,
+      "ruleCount": 7,
+      "condition": "(max-width: 600px)"
+    },
+    {
+      "px": 640,
+      "ruleCount": 38,
+      "condition": "(min-width: 640px)"
+    },
+    {
+      "px": 768,
+      "ruleCount": 16,
+      "condition": "(min-width: 768px)"
+    },
+    {
+      "px": 1024,
+      "ruleCount": 5,
+      "condition": "(min-width: 1024px)"
+    },
+    {
+      "px": 1400,
+      "ruleCount": 1,
+      "condition": "(min-width: 1400px)"
+    }
+  ],
+  "darkModeTokens": null,
+  "assets": {
+    "fonts": [
+      {
+        "family": "CameraPlainVariable",
+        "url": "https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2"
+      }
+    ],
+    "backgrounds": [],
+    "icons": [
+      {
+        "type": "favicon",
+        "url": "https://example.com/SENTIN.ico"
+      }
+    ]
+  },
+  "animationLibraries": [],
+  "motionProfile": {
+    "scrollParadigm": "scroll-scrub",
+    "revealStyle": "scale-in",
+    "timingPersonality": "snappy",
+    "dominantDuration": "150ms",
+    "dominantEasing": "cubic-bezier(0.4, 0, 0.2, 1)",
+    "staggerPattern": null,
+    "gsapScrollTriggers": null,
+    "revealKeyframes": [
+      {
+        "name": "sonner-fade-in",
+        "revealType": "scale-in",
+        "from": {
+          "opacity": "0",
+          "transform": "scale(0.8)"
+        },
+        "to": {
+          "opacity": "1",
+          "transform": "scale(1)"
+        }
+      }
+    ]
+  },
+  "heroEntranceSequence": {
+    "elements": [],
+    "hasCanvasAnimation": false,
+    "hasVideoBackground": false,
+    "hasSvgAnimation": false,
+    "canvasSize": null
+  },
+  "riveAndLottie": null,
+  "tabbedComponents": [],
+  "fixedUIChrome": [],
+  "interactiveStates": null,
+  "layeredImages": [
+    {
+      "section": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "layerCount": 11,
+      "layers": [
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 16,
+          "height": 16
+        }
+      ]
+    }
+  ],
+  "spacingScale": {
+    "baseUnit": 4,
+    "conformRate": 100,
+    "commonValues": [
+      8,
+      12,
+      20,
+      24,
+      32
+    ],
+    "outliers": []
+  },
+  "iconographySystem": {
+    "svgIcons": {
+      "count": 24,
+      "dominantSizes": [
+        "16x16"
+      ],
+      "strokeWidths": [
+        "2px"
+      ],
+      "style": "outlined",
+      "strokeToFillRatio": "99% outlined",
+      "accentColors": [
+        "#c5c1b9"
+      ]
+    },
+    "iconFonts": [
+      "Lucide"
+    ],
+    "decorativeElements": [],
+    "system": "Lucide"
+  },
+  "sectionIllustrations": null,
+  "subtleTextures": null,
+  "visualClassification": {
+    "heroVisual": null,
+    "sectionVisuals": []
+  },
+  "cardStyles": null,
+  "filterEffects": null,
+  "shadowSystem": {
+    "style": "glow-based",
+    "maxDepth": 24,
+    "hasInset": false,
+    "hasGlow": true,
+    "hasLayered": true,
+    "hasBrutalist": false
+  },
+  "heroImageUrl": null,
+  "frameworkDetection": {
+    "isFramer": false,
+    "isWebflow": false,
+    "isEditor": null,
+    "signals": [],
+    "cssFrameworks": [
+      "tailwind"
+    ],
+    "jsFrameworks": []
+  },
+  "designSystem": {
+    "name": "shadcn/ui",
+    "confidence": "high",
+    "note": "Override only divergent tokens from shadcn defaults"
+  }
+}

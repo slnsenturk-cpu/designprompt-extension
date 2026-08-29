@@ -32,7 +32,7 @@ const fixture = name => JSON.parse(fs.readFileSync(path.join(FIXTURES, name + '.
 
 // Every focus value the chip row offers.
 const FOCI = ['all', 'colors', 'typography', 'shadows', 'motion', 'layout', 'components'];
-const FIXTURE_NAMES = ['rig-ai', 'light-saas', 'dark-dev-tool', 'sparse'];
+const FIXTURE_NAMES = ['rig-ai', 'posthog', 'vibedesign-dashboard', 'sparse'];
 
 // prompt-builder.js is a classic script that reads globals — `state`, and the
 // helpers from color-utils / noise-filter / shadow-utils / ai-caller. This is

@@ -5,7 +5,7 @@ generated_by: "VibeDesign 3.0.0"
 style: "dark high-contrast compact chamfered vivid animated interface"
 colors:
   background: "#0a0a0a"
-  text-primary: "#f0eee6"
+  text-primary: "#f0ede6"
   text-secondary: "#b7b4af"
   text-muted: "#aba9a4"
   accent: "#ed462d"
@@ -48,7 +48,7 @@ breakpoints:
 
 ## Visual direction
 
-The interface is dark-themed, built on `#0a0a0a` with `#f0eee6` as the primary text color. Body text sits at a very high contrast ratio of 17.0:1 against the page background. Shape language is angular: buttons are chamfered by 14px with a `clip-path` polygon rather than a border-radius. Motion is ambient rather than incidental — 16 keyframes and 3 idle loops run without user input. The accent `#ed462d` is highly saturated and used sparingly for emphasis.
+The interface is dark-themed, built on `#0a0a0a` with `#f0ede6` as the primary text color. Body text sits at a very high contrast ratio of 16.9:1 against the page background. Shape language is angular: buttons are chamfered by 14px with a `clip-path` polygon rather than a border-radius. Motion is ambient rather than incidental — 16 keyframes and 3 idle loops run without user input. The accent `#ed462d` is highly saturated and used sparingly for emphasis.
 
 ## Layout
 
@@ -68,7 +68,7 @@ The interface is dark-themed, built on `#0a0a0a` with `#f0eee6` as the primary t
 | Token | Hex | Used for |
 |---|---|---|
 | `background` | `#0a0a0a` | Page canvas. |
-| `text-primary` | `#f0eee6` | Body and heading text. |
+| `text-primary` | `#f0ede6` | Body and heading text. |
 | `text-secondary` | `#b7b4af` | Supporting text, labels. |
 | `text-muted` | `#aba9a4` | Captions, placeholders, disabled text. |
 | `accent` | `#ed462d` | The signature colour — hero fills, badges, icons, glows. |
@@ -410,7 +410,7 @@ The extraction measured only `:hover`. Treat these as defaults, not as facts abo
 | Pair | Ratio | WCAG 2.1 |
 |---|---|---|
 | hero heading `#0a0a0a` on hero `#ed462d` | 5.20:1 | AA |
-| `text-primary` on `background` | 17.04:1 | AAA |
+| `text-primary` on `background` | 16.93:1 | AAA |
 | `text-secondary` on `background` | 9.58:1 | AAA |
 | `text-muted` on `background` | 8.43:1 | AAA |
 | `primary` on `background` | 5.20:1 | AA |

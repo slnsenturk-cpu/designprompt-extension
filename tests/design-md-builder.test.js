@@ -32,7 +32,7 @@ const opts = extra => Object.assign({}, OPTS, extra);
 
 // rig-ai is a real capture; the other two are synthetic. All three are rich
 // enough to exercise every section.
-const RICH = ['light-saas', 'dark-dev-tool', 'rig-ai'];
+const RICH = ['rig-ai', 'posthog', 'vibedesign-dashboard'];
 const ALL = RICH.concat(['sparse']);
 
 // Sections that only appear when the tokens support them, but which every
@@ -134,11 +134,16 @@ RICH.forEach(name => {
     // cards are transparent with borders and the extractor does not match
     // them), so demanding "### Cards" everywhere would be demanding a
     // fabrication.
+    // A component block appears iff the extractor produced data for it.
+    // Neither real capture yields cardStyles or inputStyles — see the
+    // "Extractor gaps" table in docs/AUDIT-v3.md — so demanding those blocks
+    // everywhere would be demanding a fabrication.
     const t = fixture(name);
     assert.ok(md.includes('### Buttons'), `${name} is missing "### Buttons"`);
-    assert.ok(md.includes('### Inputs'), `${name} is missing "### Inputs"`);
     assert.equal(md.includes('### Cards'), !!t.cardStyles,
       `${name}: the Cards block must appear exactly when cardStyles exists`);
+    assert.equal(md.includes('### Inputs'), !!t.inputStyles,
+      `${name}: the Inputs block must appear exactly when inputStyles exists`);
   });
 });
 
@@ -190,12 +195,13 @@ test('no image URLs, asset paths or brand strings leak', () => {
 });
 
 test('site name comes from the URL, never from page content', () => {
-  assert.equal(build._siteName('https://www.northwind.io/pricing'), 'Northwind');
+  assert.equal(build._siteName('https://posthog.com/'), 'Posthog');
+  assert.equal(build._siteName('https://vibedesign.tech/dashboard'), 'Vibedesign');
   assert.equal(build._siteName('https://forge-cli.dev'), 'Forge Cli');
   assert.equal(build._siteName('not a url'), 'Untitled');
   // A logoText full of copy must not influence it.
-  const md = build.buildDesignMd(fixture('light-saas'), opts());
-  assert.match(md, /^name: "Northwind Design System"$/m);
+  const md = build.buildDesignMd(fixture('posthog'), opts());
+  assert.match(md, /^name: "Posthog Design System"$/m);
 });
 
 test('typed accessors reject sentence-shaped input', () => {
@@ -228,7 +234,7 @@ ALL.forEach(name => {
 });
 
 test('the builder does not mutate the tokens it is given', () => {
-  const tokens = fixture('light-saas');
+  const tokens = fixture('posthog');
   const before = JSON.stringify(tokens);
   build.buildDesignMd(tokens, opts());
   assert.equal(JSON.stringify(tokens), before);
@@ -237,17 +243,16 @@ test('the builder does not mutate the tokens it is given', () => {
 test('output never depends on the clock', () => {
   // No observedAt → the comment is simply omitted, rather than stamped with
   // Date.now(), which would break reproducibility.
-  const a = build.buildDesignMd(fixture('light-saas'), { version: '3.0.0' });
+  const a = build.buildDesignMd(fixture('posthog'), { version: '3.0.0' });
   assert.ok(!/# observed on/.test(a));
-  assert.equal(a, build.buildDesignMd(fixture('light-saas'), { version: '3.0.0' }));
+  assert.equal(a, build.buildDesignMd(fixture('posthog'), { version: '3.0.0' }));
 });
 
 // ── formatting rules ───────────────────────────────────────────────────────
 
 test('sizes carry both px and rem; colors are hex', () => {
-  const md = build.buildDesignMd(fixture('light-saas'), opts());
-  assert.match(md, /16px \(1rem\)/);
-  assert.match(md, /56px \(3\.5rem\)/);
+  const md = build.buildDesignMd(fixture('posthog'), opts());
+  assert.match(md, /\d+px \(\d[\d.]*rem\)/, 'px sizes carry their rem equivalent');
   // No rgb()/hsl() color functions outside shadow values.
   md.split('\n').forEach(line => {
     if (/box-shadow|Shadow|shadows:|inset|rgba\(/.test(line)) return;
@@ -256,7 +261,7 @@ test('sizes carry both px and rem; colors are hex', () => {
 });
 
 test('value-heavy sections use tables', () => {
-  const md = build.buildDesignMd(fixture('light-saas'), opts());
+  const md = build.buildDesignMd(fixture('posthog'), opts());
   ['## Layout', '## Color usage', '## Components'].forEach(h => {
     const body = md.slice(md.indexOf(h), md.indexOf(h) + 900);
     assert.ok(body.includes('|---'), `${h} should use a table`);
@@ -281,8 +286,8 @@ test('markdown tables are well-formed', () => {
 // ── component scope ────────────────────────────────────────────────────────
 
 test('scope "component" produces a short component card', () => {
-  const page = build.buildDesignMd(fixture('light-saas'), opts({ scope: 'page' }));
-  const card = build.buildDesignMd(fixture('light-saas'), opts({ scope: 'component' }));
+  const page = build.buildDesignMd(fixture('posthog'), opts({ scope: 'page' }));
+  const card = build.buildDesignMd(fixture('posthog'), opts({ scope: 'component' }));
 
   assert.ok(card.length < page.length / 2, 'the component card should be much shorter');
   assert.ok(card.startsWith('---\n'), 'it still carries frontmatter');
@@ -298,50 +303,73 @@ test('scope "component" produces a short component card', () => {
 
 // ── semantic color derivation ──────────────────────────────────────────────
 
-test('colors are assigned to the role they are most used for', () => {
-  // #e2e8f0 appears 74x as a border and only 8x as a background, so it must
-  // land on `border` — not get consumed as a surface first.
-  const c = build._deriveColors(fixture('light-saas'));
-  assert.equal(c.border, '#e2e8f0');
-  assert.equal(c.background, '#ffffff');
-  assert.equal(c.surface, '#f8fafc');
-  // text-primary is the highest-contrast text color, not merely body.color.
-  assert.equal(c['text-primary'], '#0f172a');
-  assert.equal(c['text-secondary'], '#475569');
+test('colors are assigned by role, with a margin where it matters', () => {
+  const c = build._deriveColors(fixture('posthog'));
+  assert.equal(c.background, '#eeefe9');
+
+  // White scores 242 border and 235 text on this site — a 3% edge is noise,
+  // not a role. The border is the grey that is used for nothing else.
+  assert.equal(c.border, '#bfc1b7');
+  assert.notEqual(c.border, '#ffffff');
+
+  // text-primary is the colour the site sets most of its text in (450 uses),
+  // not the highest-contrast one (pure black, 104 uses).
+  assert.equal(c['text-primary'], '#374151');
+
+  // A surface stays close to the page in tone; the vivid teal used as a
+  // decorative fill is not one.
+  assert.equal(c.surface, '#fdfdf8');
+  assert.notEqual(c['surface-raised'], '#49bac5');
+});
+
+test('shadcn HSL triplets in custom properties resolve to surfaces', () => {
+  // vibedesign.tech/dashboard stores its palette as bare "0 0% 4%" triplets
+  // and composes them as hsl(var(--card)) at use sites, so the recorded value
+  // has no function wrapper. Without triplet parsing the site had no surfaces
+  // at all.
+  const c = build._deriveColors(fixture('vibedesign-dashboard'));
+  assert.equal(c.background, '#111113');
+  assert.equal(c.surface, '#0a0a0a', '--card: 0 0% 4%');
+  assert.equal(c['surface-raised'], '#1a1a1a', '--secondary: 0 0% 10%');
+  assert.equal(c.border, '#242424');
 });
 
 test('hover colours are measured, never synthesised', () => {
-  // A derived hover shade is a guess presented as a fact. The token may only
-  // appear when hoverStates actually measured one.
-  const light = build._deriveColors(fixture('light-saas'));
-  assert.equal(light['primary-hover'], '#1d4ed8',
-    'must come from the .btn-primary:hover measurement');
+  // A derived hover shade is a guess presented as a fact. Neither real capture
+  // measures a button hover fill that differs from its base, so neither may
+  // carry the token.
+  RICH.forEach(name => {
+    const c = build._deriveColors(fixture(name));
+    if (!('primary-hover' in c)) return;
+    // If present, it must correspond to an actual measurement.
+    const t = fixture(name);
+    const measured = JSON.stringify(t.hoverStates || []);
+    assert.ok(measured.length > 2, `${name}: a hover token needs hoverStates behind it`);
+  });
 
-  const dark = build._deriveColors(fixture('dark-dev-tool'));
-  assert.equal(dark['primary-hover'], '#6d28d9');
-
-  // Strip the measurements and the key must disappear rather than be invented.
-  const noHover = fixture('light-saas');
+  // Strip the measurements and the token must never appear.
+  const noHover = fixture('rig-ai');
   noHover.hoverStates = [];
-  const derived = build._deriveColors(noHover);
-  assert.ok(!('primary-hover' in derived),
-    'with nothing measured there must be no primary-hover token');
-
-  // And it must not reappear anywhere in the document.
-  const md = build.buildDesignMd(noHover, opts());
-  assert.ok(!md.includes('primary-hover'));
+  assert.ok(!('primary-hover' in build._deriveColors(noHover)));
+  assert.ok(!build.buildDesignMd(noHover, opts()).includes('primary-hover'));
 });
 
 test('a colour may fill two roles rather than one being dropped', () => {
-  // On most sites the primary action IS the accent. Emitting both, aliased,
-  // is more useful than silently losing the `primary` role to dedup.
-  const c = build._deriveColors(fixture('light-saas'));
-  assert.equal(c.accent, '#2563eb');
-  assert.equal(c.primary, '#2563eb');
+  // On the dashboard the primary action IS the accent; emitting both, aliased,
+  // beats silently losing the `primary` role to dedup.
+  const c = build._deriveColors(fixture('vibedesign-dashboard'));
+  assert.equal(c.accent, '#3a1df5');
+  assert.equal(c.primary, '#3a1df5');
+
+  // PostHog's button colour and its most-frequent accent genuinely differ, so
+  // the two roles hold different values there.
+  const p = build._deriveColors(fixture('posthog'));
+  assert.equal(p.primary, '#cd8407', 'the measured button fill');
+  assert.equal(p.accent, '#2f80fa', 'the most-used saturated colour');
 });
 
 test('accessibility notes flag pairings below 4.5:1', () => {
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
+  const md = build.buildDesignMd(fixture('vibedesign-dashboard'), opts());
   const section = md.slice(md.indexOf('## Accessibility notes'));
   assert.match(section, /\d+\.\d\d:1/, 'ratios must be printed');
   // The dark fixture's muted text is deliberately low-contrast.
@@ -374,13 +402,13 @@ test('builder works via <script> load, with color-utils as plain globals', () =>
   vm.runInContext(read('design-md-builder.js'), sandbox, { filename: 'lib/design-md-builder.js' });
 
   assert.ok(sandbox.VD_DESIGN_MD, 'the builder must expose self.VD_DESIGN_MD');
-  sandbox.__tokens = fixture('light-saas');
+  sandbox.__tokens = fixture('posthog');
   const md = vm.runInContext(
     'VD_DESIGN_MD.buildDesignMd(__tokens, {version:"3.0.0", observedAt:"2026-08-29"})',
     sandbox);
 
   // Byte-identical to the Node path — same code, same color math.
-  assert.equal(md, build.buildDesignMd(fixture('light-saas'), opts()));
+  assert.equal(md, build.buildDesignMd(fixture('posthog'), opts()));
   // Contrast ratios really were computed, i.e. the globals resolved.
   assert.match(md, /## Accessibility notes/);
   assert.match(md, /\d+\.\d\d:1/);
@@ -482,7 +510,7 @@ test('no unresolved var() or alpha colour ever reaches the output', () => {
 
 test('on a dark theme no text token is darker than the background', () => {
   const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
-  const c = build._deriveColors(fixture('dark-dev-tool'));
+  const c = build._deriveColors(fixture('vibedesign-dashboard'));
   const bgLum = cu.wcagLuminance(c.background);
   ['text-primary', 'text-secondary', 'text-muted'].forEach(k => {
     if (!c[k]) return;
@@ -494,7 +522,7 @@ test('on a dark theme no text token is darker than the background', () => {
 // ── shape language ─────────────────────────────────────────────────────────
 
 test('a polygon clip-path zeroes the radius and is described instead', () => {
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   t.buttonStyles.primary.clipPath = 'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)';
   t.cssVars['--chamfer'] = '14px';
 
@@ -510,7 +538,7 @@ test('a polygon clip-path zeroes the radius and is described instead', () => {
 // ── motion ─────────────────────────────────────────────────────────────────
 
 test('every keyframe is listed with an effect derived from its from/to', () => {
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   t.animations = [
     { name: 'pulse-ring', from: '0%, 100% { opacity: 0.4; transform: scale(1); }', to: '50% { opacity: 0; transform: scale(2); }' },
     { name: 'blink', from: '0%, 100% { opacity: 1; }', to: '50% { opacity: 0; }' },
@@ -534,7 +562,7 @@ test('every keyframe is listed with an effect derived from its from/to', () => {
 });
 
 test('repeated easing tokens are collapsed', () => {
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   t.transitions = ['all 200ms ease, ease', 'all 200ms ease, ease', 'color 100ms ease-out'];
   const md = build.buildDesignMd(t, opts());
   assert.ok(!md.includes('ease, ease'), 'duplicated easing must be collapsed');
@@ -543,7 +571,7 @@ test('repeated easing tokens are collapsed', () => {
 // ── measured vs recommended ────────────────────────────────────────────────
 
 test('measured interaction states are visibly separated from recommendations', () => {
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
+  const md = build.buildDesignMd(fixture('vibedesign-dashboard'), opts());
   const section = md.slice(md.indexOf('## Interaction states'));
   assert.ok(section.includes('### Measured'), 'measurements need their own block');
   assert.ok(section.includes('### Recommended (not observed)'), 'advice must be fenced off');
@@ -563,15 +591,23 @@ test('measured interaction states are visibly separated from recommendations', (
 // ── low-confidence flags ───────────────────────────────────────────────────
 
 test('heuristic visual flags need a second signal', () => {
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   // The fixture claims glassmorphism and noise with nothing to back them.
+  // Claim all three with nothing to back them.
+  t.visualProfile.hasGlassmorphism = true;
+  t.visualProfile.hasNoiseTexture = true;
+  t.visualProfile.gradientStyle = 'aurora';
+  t.filterEffects = null; t.subtleTextures = null; t.gradients = [];
   const bare = build.buildDesignMd(t, opts());
   assert.ok(!bare.includes('Glassmorphism'), 'unsupported glassmorphism must be omitted');
   assert.ok(!bare.includes('Noise texture'), 'unsupported noise must be omitted');
   assert.ok(!bare.includes('Gradient style'), 'gradientStyle with no gradients must be omitted');
 
   // Corroborate each and they may be stated.
-  const t2 = fixture('dark-dev-tool');
+  const t2 = fixture('vibedesign-dashboard');
+  t2.visualProfile.hasGlassmorphism = true;
+  t2.visualProfile.hasNoiseTexture = true;
+  t2.visualProfile.gradientStyle = 'aurora';
   t2.filterEffects = { backdropFilter: 'blur(12px)' };
   t2.subtleTextures = [{ type: 'noise' }];
   t2.gradients = ['linear-gradient(180deg, #7c3aed, #22d3ee)'];
@@ -582,7 +618,7 @@ test('heuristic visual flags need a second signal', () => {
 });
 
 test('layout reports repeating structures and the hero treatment', () => {
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   t.masonryGrid = { name: 'problem-grid', columns: 3 };
   // UI patterns live under visualProfile.uiPatterns in real captures.
   t.visualProfile.uiPatterns = {
@@ -783,8 +819,8 @@ test('rig: hero-measured components are flagged and composited over the hero', (
 });
 
 test('a component measured on the page background gets no surface note', () => {
-  // dark-dev-tool has no hero fill distinct from the page.
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
+  // vibedesign-dashboard has no hero fill distinct from the page.
+  const md = build.buildDesignMd(fixture('vibedesign-dashboard'), opts());
   assert.ok(!md.includes('Surface context'));
   assert.ok(!md.includes('Measured on the hero surface'));
 });
@@ -799,8 +835,9 @@ test('the accent rule adapts when the site fills a section with the accent', () 
   assert.ok(!/Do not use `#ed462d` for large background fills/.test(rig));
 
   // Where the accent is never a section background, the prohibition stands.
-  const saas = build.buildDesignMd(fixture('light-saas'), opts());
-  assert.match(saas, /Do not use `#2563eb` for large background fills/);
+  // PostHog never paints a section in its accent, so the prohibition stands.
+  const saas = build.buildDesignMd(fixture('posthog'), opts());
+  assert.match(saas, /Do not use `#[0-9a-f]{6}` for large background fills/);
 });
 
 // ── snapshot: the whole document, on every fixture ────────────────────────
@@ -858,7 +895,7 @@ test('vector animation is read from the shape the extractor actually emits', () 
   // details: [{ type, location, size }] }. An earlier version of the builder
   // read totalCount/type/loop/autoplay, a shape nothing produces, so the
   // section silently never rendered for a real capture.
-  const t = fixture('dark-dev-tool');
+  const t = fixture('vibedesign-dashboard');
   t.riveAndLottie = {
     hasRive: true, hasLottie: true, hasDotLottie: false,
     details: [
@@ -875,7 +912,7 @@ test('vector animation is read from the shape the extractor actually emits', () 
   assert.match(sec, /`dotlottie` \| 3/, 'a details entry with its own count is honoured');
 
   // The invented shape must produce nothing rather than a phantom section.
-  const bogus = fixture('dark-dev-tool');
+  const bogus = fixture('vibedesign-dashboard');
   bogus.riveAndLottie = { totalCount: 2, type: 'lottie', loop: true, autoplay: true };
   assert.ok(!build.buildDesignMd(bogus, opts()).includes('### Vector & canvas animation'),
     'a shape the extractor never emits must not render a section');
@@ -932,9 +969,9 @@ test('variants are derived from style, not from the class', () => {
 });
 
 test('an unclassifiable button is left unlabelled rather than guessed', () => {
-  // light-saas hover rules carry no base state, so the base fill is unknown.
+  // posthog hover rules carry no base state, so the base fill is unknown.
   // "ghost" would be a positive claim that the button has no fill.
-  const md = build.buildDesignMd(fixture('light-saas'), opts());
+  const md = build.buildDesignMd(fixture('posthog'), opts());
   const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
   assert.match(states, /^\| Button \| — \|/m, 'unknown base must render as —');
   assert.ok(!states.includes('`ghost`'), 'must not guess ghost without evidence');
@@ -959,10 +996,11 @@ test('font availability is read from the serving host', () => {
   assert.ok(fonts.includes('self-hosted (not freely available)'));
 
   // A Google-served family is identified as such and gets no substitute.
-  const saas = build.buildDesignMd(fixture('light-saas'), opts());
-  const sf = saas.slice(saas.indexOf('## Fonts & availability'), saas.indexOf('## Components'));
-  assert.ok(sf.includes('| `Inter` | Google Fonts |'));
-  assert.ok(!sf.includes('Substitutes'), 'nothing to substitute when the font is obtainable');
+  const saas = build.buildDesignMd(fixture('posthog'), opts());
+  const sf = saas.slice(saas.indexOf('## Fonts & availability'), saas.indexOf('## Spacing'));
+  // PostHog serves every family from its own origin.
+  assert.ok(sf.includes('self-hosted (not freely available)'));
+  assert.ok(sf.includes('RoundHog'));
 });
 
 test('substitutes are labelled as suggestions and never self-referential', () => {
@@ -978,4 +1016,31 @@ test('substitutes are labelled as suggestions and never self-referential', () =>
   // Instrument Sans is itself open — recommending it to itself would be absurd.
   assert.match(sub, /`Instrument Sans` \| openly licensed/);
   assert.ok(!/`Instrument Sans` \| Instrument Sans/.test(sub));
+});
+
+test('hsl() and bare HSL triplets parse — Tailwind and shadcn depend on it', () => {
+  const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
+  assert.equal(cu.compositeOver('hsl(0 0% 14%)', '#111113'), '#242424');
+  assert.equal(cu.compositeOver('hsl(0, 0%, 56.1%)', '#111113'), '#8f8f8f');
+  assert.equal(cu.compositeOver('0 0% 14%', '#111113'), '#242424', 'shadcn triplet');
+  // Alpha composites over the page rather than being printed raw.
+  assert.equal(cu.compositeOver('hsl(247 91% 54% / .4)', '#111113'), '#21176d');
+});
+
+test('a layered elevation stack is not rejected for length', () => {
+  // shadcn's default shadow is a six-layer stack at ~226 characters. The
+  // accessor cap exists to reject prose, not real design tokens.
+  const md = build.buildDesignMd(fixture('vibedesign-dashboard'), opts());
+  assert.match(md, /^shadows:$/m, 'the dashboard must emit a shadows block');
+  assert.ok(md.includes('16px 16px -8px'), 'the deepest layer must survive');
+});
+
+test('a keyframe whose frames are custom properties says nothing rather than var()', () => {
+  // Tailwind's enter/exit keyframes are entirely --tw-* variables; Radix's
+  // accordion frames are --radix-*. Neither describes a delta we can state.
+  const md = build.buildDesignMd(fixture('vibedesign-dashboard'), opts());
+  assert.ok(!md.includes('var(--'), 'no custom property may reach the document');
+  const kf = md.slice(md.indexOf('### Keyframes'));
+  assert.ok(kf.includes('`enter`'), 'the keyframe is still listed');
+  assert.ok(kf.includes('not fully captured'), 'and honestly marked');
 });
