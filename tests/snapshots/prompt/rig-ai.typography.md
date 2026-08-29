@@ -17,21 +17,21 @@ If any later detail conflicts, this section wins.
 - Motion base duration: `300ms`
 ### Design Direction
 **Overall character (context)** Dark-first SaaS with saturated cool accents. **Section rhythm & color hierarchy (context)** Consistently dark (`#0a0a0a` base). **Image usage & visual treatment (context)** Full-bleed cinematic photography as section atmosphere — wide, moody, environmental. **Typography**
-Two-font system: "Chalet" for headings (83.36px/700); "Instrument Sans" for body and UI (13.6px/400, line-height 21.76px). Distinct registers — never blur the roles. **Color usage (context)** Dark surfaces (`#0a0a0a`). **Shape & elevation (context)** Moderate rounding (6px) — contemporary and neutral. **Animation & motion (context)** Motion personality: **smooth** — 300–400ms transitions. **Ambient / always-on animations (context)** (loop infinite): - **custom** (2×, duration: 4s, 4s): Recreate with `animation-iteration-count: infinite`. **Color architecture — dual personality: (context)** Hero section: full-viewport `#ed462d` (DARK). **Page flow (context)** 1. **Spacing & rhythm (context)** Section padding: 128px vertical. **Component language (context)** Buttons: Primary = rounded, `#0a0a0a` fill, 13.6px, 700 weight. **Type scale (context)** H1: 83.36px/700, tracking: -3.3344px.
+Two-font system: "Chalet" for headings (112px/700); "Instrument Sans" for body and UI (13.6px/400, line-height 21.76px). Distinct registers — never blur the roles. **Color usage (context)** Dark surfaces (`#0a0a0a`). **Shape & elevation (context)** Moderate rounding (6px) — contemporary and neutral. **Animation & motion (context)** Motion personality: **smooth** — 300–400ms transitions. **Ambient / always-on animations (context)** (loop infinite): - **custom** (2×, duration: 4s, 4s): Recreate with `animation-iteration-count: infinite`. **Color architecture — dual personality: (context)** Hero section: full-viewport `#ed462d` (DARK). **Page flow (context)** 1. **Spacing & rhythm (context)** Section padding: 128px vertical. **Component language (context)** Buttons: Primary = rounded, `#0a0a0a` fill, 13.6px, 700 weight. **Type scale (context)** H1: 112px/700, tracking: -4.48px.
 ### Typography Tokens
 - Display/heading: "Chalet"
 - Body/UI: "Instrument Sans"
 - Labels/mono: "Geist Pixel Square"
 ### Type Scale
-- **H1:** `83.36px/73.3568px/700`, tracking `-3.3344px`, font "Chalet"
-- **H2:** `52.1px/47.932px/700`, tracking `-1.563px`, font "Chalet"
-- **H3:** `26.05px/24.7475px/700`, tracking `-0.7815px`, font "Chalet"
+- **H1:** `112px/98.56px/700`, tracking `-4.48px`, font "Chalet"
+- **H2:** `72px/66.24px/700`, tracking `-2.16px`, font "Chalet"
+- **H3:** `32px/30.4px/700`, tracking `-0.96px`, font "Chalet"
 - **Body:** `13.6px/21.76px/400`, font "Instrument Sans"
 - **Label:** `12.8px/normal/400`, tracking `1.28px`, `uppercase`, font "Geist Pixel Square"
 - Weights used: 400, 600, 700
 ### Context — Do not change
 - **Colors:** `#0a0a0a` base, `#0a0a0a` primary action, `#ed462d` accent
-- **Layout:** `90%` max-width, `128px` section padding
+- **Layout:** `1296px` max-width, `128px` section padding
 - **Shape:** `6px` component radius
 Recreate this visual style faithfully. Use the EXACT hex colors, px values, font names, and spacing from the tokens and specifications above.
 Source: rig.ai Implementation notes:
@@ -43,14 +43,14 @@ Add to global CSS:
 NOTE: "Chivo Mono", "Chalet", "Geist Pixel Square" are custom fonts not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "Chalet": https://rig.ai/fonts/SENTIN.woff2
-- "Geist Pixel Square": https://rig.ai/fonts/SENTIN.woff2
-- "Instrument Sans": https://rig.ai/fonts/SENTIN.woff2
-- "Chivo Mono": https://rig.ai/fonts/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
-@font-face { font-family: 'Chalet'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+- "Chalet": https://rig.ai/SENTIN.woff2
+- "Geist Pixel Square": https://rig.ai/SENTIN.woff2
+- "Instrument Sans": https://rig.ai/SENTIN.woff2
+- "Chivo Mono": https://rig.ai/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+@font-face { font-family: 'Chalet'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
 :root { --background: #0a0a0a; --foreground: #f0eee6; --card: #121212; --card-foreground: #f0eee6; --popover: #121212; --popover-foreground: #f0eee6; --primary: #0a0a0a; --primary-foreground: #ffffff; --secondary: #1e1e1e; --secondary-foreground: #f0eee6; --muted: #191919; --muted-foreground: #767676; --accent: #232323; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #0a0a0a; --radius: 6px;
 }

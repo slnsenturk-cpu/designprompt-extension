@@ -2337,46 +2337,135 @@
   }
 
   // ─── Card style extraction ────────────────────────────────────────────────
+  // A card is a REPEATED sibling container that is visually separated from its
+  // parent — by a border, a shadow, or a different background — and holds a
+  // heading plus some text.
+  //
+  // The previous implementation scored a single "best" element and required a
+  // score of 3, which a transparent bordered card cannot reach: no background,
+  // often no radius, no shadow. That returned null on every real capture
+  // (rig.ai, posthog.com, the VibeDesign dashboard) despite all three plainly
+  // having cards. Repetition is the signal that actually distinguishes a card
+  // from an arbitrary padded div.
   function extractCardStyles() {
-    const cardEls = document.querySelectorAll(
-      '[class*="card"], [class*="Card"], article, [class*="feature"], [class*="pricing"], [class*="plan"], [class*="item"]:not(li):not(nav *)'
-    );
-    let bestCard = null, bestScore = 0;
+    const HEADING = 'h1,h2,h3,h4,h5,h6,[class*="title"],[class*="heading"],dt,strong,b';
 
-    for (const el of Array.from(cardEls).slice(0, 30)) {
+    // The background an element is drawn against, walking up past transparent
+    // ancestors, so a transparent card can be compared with what is behind it.
+    const effectiveBg = el => {
+      let node = el;
+      for (let i = 0; i < 12 && node; i++) {
+        const cs = window.getComputedStyle(node);
+        if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) return cs.backgroundColor;
+        node = node.parentElement;
+      }
+      return null;
+    };
+
+    // Groups of siblings that share a shape signature.
+    const groups = new Map();
+    let scanned = 0;
+
+    const containers = document.querySelectorAll('main *, section *, body > div *');
+    for (const el of Array.from(containers)) {
+      if (scanned > 4000) break;
+      scanned += 1;
       try {
+        if (!el.parentElement) continue;
+        const tag = el.tagName;
+        if (/^(SCRIPT|STYLE|SVG|PATH|BR|HR|IMG|INPUT|BUTTON|A|NAV|HEADER|FOOTER)$/.test(tag)) continue;
+
         const rect = el.getBoundingClientRect();
-        if (rect.width < 100 || rect.height < 80) continue;
+        if (rect.width < 120 || rect.height < 80) continue;
+        if (rect.width > window.innerWidth * 0.95) continue;   // a section, not a card
+
         const cs = window.getComputedStyle(el);
-        // Score: prefer elements that look like cards (have bg, padding, radius)
-        let score = 0;
-        if (cs.backgroundColor && !isTransparent(cs.backgroundColor)) score += 2;
-        if (cs.borderRadius && cs.borderRadius !== '0px') score += 2;
-        if (cs.boxShadow && cs.boxShadow !== 'none') score += 3;
-        if (cs.border && cs.border !== 'none' && !cs.border.includes('0px')) score += 1;
-        if (parseFloat(cs.padding) > 8) score += 1;
-        if (score > bestScore) {
-          bestScore = score;
-          bestCard = { el, cs, rect };
-        }
-      } catch(e) { console.debug('[VibeDesign]', e.message); }
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+
+        // Visually separated from its parent?
+        const hasBorder = parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderLeftWidth) > 0;
+        const hasShadow = cs.boxShadow && cs.boxShadow !== 'none';
+        const ownBg = cs.backgroundColor && !isTransparent(cs.backgroundColor);
+        const parentBg = effectiveBg(el.parentElement);
+        const bgDiffers = ownBg && parentBg && cs.backgroundColor !== parentBg;
+        if (!hasBorder && !hasShadow && !bgDiffers) continue;
+
+        // Contains a heading-like element and some text?
+        if (!el.querySelector(HEADING)) continue;
+        const text = (el.innerText || '').trim();
+        if (text.length < 12 || text.length > 1200) continue;
+
+        // Shape signature — siblings of the same card class agree on these.
+        const sig = [tag, cs.borderRadius, cs.borderTopWidth, cs.borderTopStyle,
+          cs.padding, hasShadow ? 'sh' : '-', ownBg ? cs.backgroundColor : '-'].join('|');
+        const key = (el.parentElement.tagName || '') + '#' + sig;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push({ el, cs, rect, ownBg, parentBg });
+      } catch (e) { /* skip unmeasurable node */ }
     }
 
-    if (!bestCard || bestScore < 3) return null;
+    const treatmentOf = m => (m.cs.boxShadow !== 'none' ? 2 : 0)
+      + (parseFloat(m.cs.borderTopWidth) > 0 ? 1 : 0)
+      + (m.ownBg ? 1 : 0)
+      + (parseFloat(m.cs.padding) > 8 ? 1 : 0);
 
-    const { cs, el } = bestCard;
+    // The largest repeated group wins; ties go to the one with more visual
+    // treatment, so a bordered+shadowed card beats a bare one.
+    let best = null;
+    for (const members of groups.values()) {
+      if (members.length < 2) continue;
+      const score = members.length * 10 + treatmentOf(members[0]);
+      if (!best || score > best.score) best = { members, score };
+    }
+
+    // A card in a list or grid is repeated even when only one instance passes
+    // the content filter — its siblings may be lazy-mounted, shorter, or
+    // heading-less. Accept a lone candidate when its PARENT is a repeating
+    // container and the candidate carries real treatment. Without this,
+    // posthog.com reported no cards while plainly having them.
+    if (!best) {
+      let solo = null;
+      for (const members of groups.values()) {
+        const m = members[0];
+        const parent = m.el.parentElement;
+        if (!parent) continue;
+        const siblings = Array.from(parent.children)
+          .filter(c => c.tagName === m.el.tagName).length;
+        const pcs = window.getComputedStyle(parent);
+        const repeating = siblings >= 2
+          || /^(OL|UL)$/.test(parent.tagName)
+          || /grid|flex/.test(pcs.display);
+        if (!repeating) continue;
+        const treatment = treatmentOf(m);
+        if (treatment < 2) continue;               // needs real treatment
+        const score = treatment * 10 + Math.min(siblings, 6);
+        if (!solo || score > solo.score) solo = { members: [m], score, siblings };
+      }
+      if (solo) best = solo;
+    }
+    if (!best) return null;
+
+    const { cs, ownBg, parentBg } = best.members[0];
+    // Verbatim, for the same reason as inputs: hexing drops alpha.
+    const borderColor = cs.borderTopColor && !isTransparent(cs.borderTopColor)
+      ? cs.borderTopColor.trim() : null;
     const result = {
       padding: cs.padding,
-      borderRadius: cs.borderRadius,
-      backgroundColor: cs.backgroundColor && !isTransparent(cs.backgroundColor) ? rgbToHex(cs.backgroundColor) : null,
-      border: cs.border && !cs.border.includes('0px') ? cs.border : null,
+      borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
+      // A transparent card is drawn against whatever is behind it; reporting
+      // that is more useful to a renderer than reporting null.
+      backgroundColor: ownBg ? rgbToHex(cs.backgroundColor)
+        : (parentBg ? rgbToHex(parentBg) : null),
+      backgroundIsInherited: !ownBg,
+      border: parseFloat(cs.borderTopWidth) > 0
+        ? `${cs.borderTopWidth} ${cs.borderTopStyle} ${borderColor || cs.borderTopColor}` : null,
       boxShadow: cs.boxShadow !== 'none' ? cs.boxShadow : null,
       shadowType: 'none',
-      gap: cs.gap !== 'normal' ? cs.gap : null,
+      gap: cs.gap && cs.gap !== 'normal' ? cs.gap : null,
+      count: best.members.length,
       hoverEffect: null,
     };
 
-    // Classify shadow type
     if (result.boxShadow) {
       const s = result.boxShadow;
       if (s.includes('inset')) result.shadowType = 'inset';
@@ -2384,15 +2473,8 @@
       else if (/0px 0px \d+px/.test(s) || /0 0 \d+px/.test(s)) result.shadowType = 'glow';
       else result.shadowType = 'drop';
     }
-
-    // Check for hover effect via CSS rules
-    const className = el.className?.split?.(' ')[0];
-    if (className) {
-      const hoverState = (data => data.hoverStates || [])({ hoverStates: [] });
-      // We can't easily get hover styles here, so mark as 'check-hover-states'
-      result.hoverEffect = 'see hover states section';
-    }
-
+    // Hover deltas are measured separately and reported in hoverStates.
+    result.hoverEffect = 'see hover states section';
     return result;
   }
 
@@ -4251,28 +4333,133 @@
   }
 
   // ─── Form/input field style extraction ────────────────────────────────────
+  // Text-entry controls, including the ARIA and contenteditable forms that
+  // component libraries use instead of a bare <input>. Styles are always read
+  // from the control itself, never from a wrapper, so a shadcn field reports
+  // its own border rather than its container's.
   function extractInputStyles() {
-    const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"], input[type="search"], input:not([type]), textarea, select');
-    for (const el of Array.from(inputs).slice(0, 5)) {
+    const SELECTOR = [
+      'input[type="text"]', 'input[type="email"]', 'input[type="password"]',
+      'input[type="search"]', 'input[type="url"]', 'input[type="tel"]',
+      'input[type="number"]', 'input:not([type])',
+      'textarea', 'select',
+      '[role="textbox"]', '[role="searchbox"]', '[role="combobox"]',
+      '[contenteditable="true"]', '[contenteditable=""]',
+    ].join(', ');
+
+    const els = Array.from(document.querySelectorAll(SELECTOR)).slice(0, 40);
+
+    // A wrapper often carries the visible border while the control inside is
+    // bare. Prefer the control, but if it has NO visual treatment of its own
+    // and its immediate parent does, report the parent's frame alongside the
+    // control's own metrics — that pairing is what a renderer has to rebuild.
+    const visualWeight = cs => (parseFloat(cs.borderTopWidth) > 0 ? 2 : 0)
+      + (cs.boxShadow && cs.boxShadow !== 'none' ? 1 : 0)
+      + (cs.backgroundColor && !isTransparent(cs.backgroundColor) ? 1 : 0);
+
+    let best = null;
+    for (const el of els) {
       try {
         const rect = el.getBoundingClientRect();
-        if (rect.width < 60 || rect.height < 20) continue;
+        if (rect.width < 60 || rect.height < 18) continue;
         const cs = window.getComputedStyle(el);
-        const bg = cs.backgroundColor;
-        return {
-          backgroundColor: !isTransparent(bg) ? rgbToHex(bg) : null,
-          color: rgbToHex(cs.color),
-          border: cs.borderWidth !== '0px' ? cs.border : null,
-          borderRadius: cs.borderRadius !== '0px' ? cs.borderRadius : null,
-          padding: cs.padding,
-          fontSize: cs.fontSize,
-          fontFamily: cleanFont(cs.fontFamily),
-          height: cs.height !== 'auto' ? cs.height : null,
-          placeholderColor: null, // can't reliably extract ::placeholder
-        };
-      } catch(e) { console.debug('[VibeDesign]', e.message); }
+        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+        if (el.type === 'hidden') continue;
+        const weight = visualWeight(cs) + (rect.width > 140 ? 1 : 0);
+        if (!best || weight > best.weight) best = { el, cs, rect, weight };
+      } catch (e) { /* skip */ }
     }
-    return null;
+    if (!best) return null;
+
+    const { el, cs } = best;
+    let frame = cs;
+    let frameFromWrapper = false;
+    if (visualWeight(cs) === 0 && el.parentElement) {
+      const pcs = window.getComputedStyle(el.parentElement);
+      if (visualWeight(pcs) > 0) { frame = pcs; frameFromWrapper = true; }
+    }
+
+    // Keep the computed colour verbatim. Hexing it drops alpha, and a 15%
+    // paper border became an opaque one — downstream compositing needs the
+    // real value.
+    const borderColor = frame.borderTopColor && !isTransparent(frame.borderTopColor)
+      ? frame.borderTopColor.trim() : null;
+    const bg = frame.backgroundColor;
+
+    // ::placeholder is not reachable from getComputedStyle in every engine, so
+    // read it out of the stylesheets where it is declared.
+    // Only a rule that actually targets THIS control counts. Taking the first
+    // ::placeholder rule in any stylesheet reports a browser reset as if it
+    // were the site's decision.
+    let placeholderColor = null;
+    try {
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules || [])) {
+            if (!rule.selectorText || !/::(-\w+-)?(input-)?placeholder/.test(rule.selectorText)) continue;
+            const c = rule.style && rule.style.getPropertyValue('color');
+            if (!c || isTransparent(c)) continue;
+            const base = rule.selectorText.replace(/::(-\w+-)?(input-)?placeholder/g, '').trim();
+            let targetsThis = false;
+            try {
+              targetsThis = base === '' || base === '*'
+                || base.split(',').some(sel => sel.trim() && el.matches(sel.trim()));
+            } catch (e) { targetsThis = false; }
+            if (!targetsThis) continue;
+            placeholderColor = c.trim();
+            break;
+          }
+        } catch (e) { /* cross-origin sheet */ }
+        if (placeholderColor) break;
+      }
+    } catch (e) { /* no stylesheet access */ }
+
+    // The focus ring is a design decision the hover-only capture misses, and
+    // it is declared, not computed — read it from the stylesheets too.
+    let focusRing = null;
+    try {
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          for (const rule of Array.from(sheet.cssRules || [])) {
+            if (!rule.selectorText || !/:focus-visible|:focus\b/.test(rule.selectorText)) continue;
+            const st = rule.style;
+            if (!st) continue;
+            const outline = st.getPropertyValue('outline') || st.getPropertyValue('outline-color');
+            const ring = st.getPropertyValue('box-shadow');
+            const width = st.getPropertyValue('outline-width');
+            const offset = st.getPropertyValue('outline-offset');
+            if (outline || ring) {
+              focusRing = {
+                outline: outline ? outline.trim().slice(0, 80) : null,
+                outlineWidth: width ? width.trim() : null,
+                outlineOffset: offset ? offset.trim() : null,
+                boxShadow: ring ? ring.trim().slice(0, 120) : null,
+              };
+              break;
+            }
+          }
+        } catch (e) { /* cross-origin sheet */ }
+        if (focusRing) break;
+      }
+    } catch (e) { /* no stylesheet access */ }
+
+    return {
+      backgroundColor: bg && !isTransparent(bg) ? rgbToHex(bg) : null,
+      color: rgbToHex(cs.color),
+      border: parseFloat(frame.borderTopWidth) > 0
+        ? `${frame.borderTopWidth} ${frame.borderTopStyle} ${borderColor || frame.borderTopColor}` : null,
+      borderRadius: frame.borderRadius !== '0px' ? frame.borderRadius : null,
+      padding: cs.padding,
+      fontSize: cs.fontSize,
+      fontFamily: cleanFont(cs.fontFamily),
+      height: cs.height !== 'auto' ? cs.height : null,
+      placeholderColor: placeholderColor,
+      focusRing: focusRing,
+      // True when the visible frame belongs to a wrapper rather than the
+      // control, which a renderer needs to know to reproduce the field.
+      frameFromWrapper: frameFromWrapper,
+      control: el.tagName.toLowerCase(),
+    };
   }
 
   // ─── Gradient value extraction ──────────────────────────────────────────────

@@ -322,36 +322,37 @@
     }
   ],
   "animationDetails": [
-    "4s ease-in-out infinite signal-flicker"
+    "4s ease-in-out infinite signal-flicker",
+    "6s linear forwards paused howProgressFill"
   ],
   "textShadows": [
     "oklch(0.1448 0 0) 0px 0px 8px, oklch(0.1448 0 0) 0px 0px 16px, oklch(0.1448 0 0) 0px 0px 32px, oklch(0.1448 0 0) 0px 0px 60px, oklch(0.1448 0 0) 0px 0px 100px"
   ],
   "letterSpacings": [
     "0.6px",
-    "-3.3344px",
+    "-4.48px",
     "1.28px",
-    "-1.563px",
+    "-2.16px",
     "1.04px",
     "1.92px"
   ],
   "cssAspectRatios": [
     "auto 60 / 22",
-    "auto 1876 / 706",
-    "auto 1125 / 1360",
+    "auto 1200 / 390",
+    "auto 720 / 680",
     "16 / 12",
-    "auto 1876 / 556"
+    "auto 1200 / 291"
   ],
   "colorUsage": {
     "#ed462d": {
-      "bg": 7,
+      "bg": 8,
       "text": 65,
       "border": 66
     },
     "#f0ede6": {
       "bg": 6,
-      "text": 479,
-      "border": 439
+      "text": 483,
+      "border": 443
     },
     "#0000ee": {
       "bg": 0,
@@ -375,7 +376,7 @@
     },
     "#000000": {
       "bg": 0,
-      "text": 3,
+      "text": 2,
       "border": 0
     },
     "#767676": {
@@ -430,7 +431,7 @@
       "border": null,
       "boxShadow": null,
       "gap": "8px",
-      "height": "52.5px",
+      "height": "52px",
       "lineHeight": "normal",
       "fontFamily": "Chivo Mono",
       "clipPath": "polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)",
@@ -450,7 +451,7 @@
       "border": "2px solid rgba(10, 10, 10, 0.3)",
       "boxShadow": null,
       "gap": "8px",
-      "height": "52.5px",
+      "height": "52px",
       "lineHeight": "normal",
       "fontFamily": "Chivo Mono",
       "clipPath": "polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)",
@@ -470,7 +471,7 @@
       "border": null,
       "boxShadow": null,
       "gap": "8px",
-      "height": "38.3906px",
+      "height": "38.375px",
       "lineHeight": "normal",
       "fontFamily": "Chivo Mono",
       "clipPath": "polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)",
@@ -490,7 +491,7 @@
       "border": null,
       "boxShadow": null,
       "gap": "8px",
-      "height": "38.3906px",
+      "height": "38.375px",
       "lineHeight": "normal",
       "fontFamily": "Chivo Mono",
       "clipPath": "polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)",
@@ -502,30 +503,30 @@
   },
   "typographyPatterns": {
     "h1": {
-      "fontSize": "83.36px",
+      "fontSize": "112px",
       "fontWeight": "700",
-      "lineHeight": "73.3568px",
-      "letterSpacing": "-3.3344px",
+      "lineHeight": "98.56px",
+      "letterSpacing": "-4.48px",
       "textTransform": null,
       "fontFamily": "Chalet",
       "color": "#0a0a0a",
       "textShadow": null
     },
     "h2": {
-      "fontSize": "52.1px",
+      "fontSize": "72px",
       "fontWeight": "700",
-      "lineHeight": "47.932px",
-      "letterSpacing": "-1.563px",
+      "lineHeight": "66.24px",
+      "letterSpacing": "-2.16px",
       "textTransform": null,
       "fontFamily": "Chalet",
       "color": "#f0ede6",
       "textShadow": null
     },
     "h3": {
-      "fontSize": "26.05px",
+      "fontSize": "32px",
       "fontWeight": "700",
-      "lineHeight": "24.7475px",
-      "letterSpacing": "-0.7815px",
+      "lineHeight": "30.4px",
+      "letterSpacing": "-0.96px",
       "textTransform": null,
       "fontFamily": "Chalet",
       "color": "#f0ede6",
@@ -575,7 +576,15 @@
     "fontSize": "12.8px",
     "fontFamily": "Chivo Mono",
     "height": "44.1875px",
-    "placeholderColor": null
+    "placeholderColor": "var(--paper-30)",
+    "focusRing": {
+      "outline": "2px solid var(--red)",
+      "outlineWidth": null,
+      "outlineOffset": "2px",
+      "boxShadow": null
+    },
+    "frameFromWrapper": false,
+    "control": "input"
   },
   "gradients": [],
   "imageStyles": null,
@@ -615,19 +624,32 @@
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": null,
-      "entryCount": 0,
-      "paddingY": null,
+      "gridCols": null,
+      "heroColumns": null,
       "headingToSubtitleGap": "32px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
       "heroCtaStyle": {
         "width": 170,
-        "height": 53,
+        "height": 52,
         "borderRadius": "0px",
         "padding": "16px 32px",
         "fontSize": "13.6px",
         "fontWeight": "700",
         "hasIcon": false
-      }
+      },
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
+      "entryCount": 0,
+      "paddingY": null
     },
     {
       "type": "text-block",
@@ -635,11 +657,28 @@
       "className": "signal-section problem-section is-visible",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 16,
       "paddingY": null
     },
@@ -649,14 +688,30 @@
       "className": "offline-section three-col",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": "24px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 17,
-      "paddingY": "128px",
-      "headingToSubtitleGap": "24px"
+      "paddingY": "128px"
     },
     {
       "type": "text-block",
@@ -664,13 +719,29 @@
       "className": "offline-section",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": "24px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 5,
-      "paddingY": null,
-      "headingToSubtitleGap": "24px"
+      "paddingY": null
     },
     {
       "type": "feature-grid",
@@ -678,12 +749,27 @@
       "className": "offline-section three-col",
       "layout": "multi-column-grid",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
-      "gridCols": "311.93px 1px 311.93px 1px 311.93px rows:216.016px",
+      "gridCols": "399.328px 1px 399.328px 1px 399.344px rows:199.891px",
+      "heroColumns": null,
+      "headingToSubtitleGap": "12px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 0,
-      "paddingY": null,
-      "headingToSubtitleGap": "12px"
+      "paddingY": null
     },
     {
       "type": "stats/metrics",
@@ -691,10 +777,27 @@
       "className": "how-section",
       "layout": "split-columns",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 5,
       "paddingY": "128px"
     },
@@ -704,12 +807,27 @@
       "className": "illust-features",
       "layout": "multi-column-grid",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
-      "gridCols": "280.594px 280.602px 280.602px rows:267.805px 267.805px",
+      "gridCols": "368px 368px 368px rows:224.75px 224.75px",
+      "heroColumns": null,
+      "headingToSubtitleGap": "32px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 6,
-      "paddingY": "128px",
-      "headingToSubtitleGap": "32px"
+      "paddingY": "128px"
     },
     {
       "type": "content",
@@ -717,8 +835,25 @@
       "className": "stats-strip",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 0,
       "paddingY": "32px"
     },
@@ -728,10 +863,27 @@
       "className": "terminal-section grid-bg",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 6,
       "paddingY": "128px"
     },
@@ -741,6 +893,7 @@
       "className": "promise-section",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
@@ -751,10 +904,23 @@
       "arrowLinks": [
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": "24px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 0,
-      "paddingY": "128px",
-      "headingToSubtitleGap": "24px"
+      "paddingY": "128px"
     },
     {
       "type": "faq/accordion",
@@ -762,11 +928,27 @@
       "className": "faq-section",
       "layout": "stacked",
       "bgColor": "#0a0a0a",
+      "gradient": null,
       "visualDescriptions": null,
+      "ctas": null,
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": "64px",
+      "headingColoredWords": null,
+      "decorativeGradients": null,
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
       "entryCount": 8,
-      "paddingY": "128px",
-      "headingToSubtitleGap": "64px"
+      "paddingY": "128px"
     },
     {
       "type": "cta-section",
@@ -774,6 +956,7 @@
       "className": "cta-section",
       "layout": "stacked",
       "bgColor": null,
+      "gradient": null,
       "visualDescriptions": [
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
@@ -781,59 +964,58 @@
       "ctas": [
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
+      "arrowLinks": null,
+      "hasSlider": false,
+      "hasNumberedItems": false,
+      "steps": null,
       "eyebrow": null,
-      "entryCount": 0,
-      "paddingY": "256px",
+      "gridCols": null,
+      "heroColumns": null,
+      "headingToSubtitleGap": null,
+      "headingColoredWords": null,
       "decorativeGradients": [
         {
-          "size": "2250×1188",
+          "size": "2250×1498",
           "gradient": "radial-gradient(oklch(0.1448 0 0) 25%, rgba(0, 0, 0, 0) 60%)",
-          "transform": "matrix(1, 0, 0, 1, -1125, -594.141)"
+          "transform": "matrix(1, 0, 0, 1, -1125, -748.781)"
         }
-      ]
+      ],
+      "scrollRevealTypography": null,
+      "portfolioGridInfo": null,
+      "heroCtaStyle": null,
+      "canvasLayout": null,
+      "floatingIllustrations": null,
+      "floatingPattern": null,
+      "entryCount": 0,
+      "paddingY": "256px"
     }
   ],
-  "footerContentMap": {
-    "type": "footer",
-    "links": [
-      {
-        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
-        "href": "https://example.com/a"
-      },
-      {
-        "text": "SENTINEL Our platform helps teams ship faster than ever before.",
-        "href": "https://example.com/b"
-      }
-    ],
-    "columns": [
-      {
-        "label": "SENTINEL Our platform helps teams ship faster than ever before.",
-        "content": "SENTINEL Our platform helps teams ship faster than ever before."
-      },
-      {
-        "label": "SENTINEL Our platform helps teams ship faster than ever before.",
-        "content": "SENTINEL Our platform helps teams ship faster than ever before."
-      }
-    ],
-    "bgColor": "#0a0a0a",
-    "borderTop": "1px solid oklch(0.9465 0.0099 87.47 / 0.14)"
-  },
+  "footerContentMap": "SENTINEL Our platform helps teams ship faster than ever before.",
   "contactSection": null,
   "stickySections": null,
   "svgDiagramAnimations": [
     {
       "type": "svg-path-animation",
-      "width": 938,
-      "height": 469,
+      "width": 1000,
+      "height": 500,
       "pathCount": 4,
       "circleCount": 0,
       "animationCount": 10,
       "colors": [
         "rgba(240,237,230,0.08)",
         "var(--ink)",
-        "rgba(240,237,230,0.3)"
+        "rgba(240,237,230,0.3)",
+        "rgba(10,10,10,0.95)",
+        "rgba(240,237,230,0.15)",
+        "rgba(240,237,230,0.4)"
       ],
       "labels": [
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
@@ -848,6 +1030,10 @@
       "animationCount": 0,
       "colors": [
         "rgba(240,237,230,0.1)",
+        "rgba(240,237,230,0.025)",
+        "rgba(240,237,230,0.06)",
+        "rgba(240,237,230,0.07)",
+        "rgba(240,237,230,0.08)",
         "var(--red)"
       ],
       "labels": [],
@@ -859,8 +1045,8 @@
       "sectionBg": "#ed462d",
       "decorations": [
         {
-          "w": 573,
-          "h": 563,
+          "w": 792,
+          "h": 777,
           "pathCount": 5,
           "lineCount": 0,
           "type": "radial-rays",
@@ -881,7 +1067,10 @@
           "lineCount": 2,
           "type": "radial-rays",
           "colors": [
-            "rgba(240,237,230,0.1)"
+            "rgba(240,237,230,0.1)",
+            "rgba(240,237,230,0.025)",
+            "rgba(240,237,230,0.06)",
+            "rgba(240,237,230,0.07)"
           ],
           "opacity": "1"
         }
@@ -895,8 +1084,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": true,
         "hasGradient": false,
-        "height": 538,
-        "width": 1042,
+        "height": 588,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": false
       },
@@ -905,8 +1094,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 672,
-        "width": 1042,
+        "height": 708,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": false
       },
@@ -915,8 +1104,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 1042,
-        "width": 1042,
+        "height": 1110,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": false
       },
@@ -926,7 +1115,7 @@
         "hasChildImages": false,
         "hasGradient": false,
         "height": 560,
-        "width": 1042,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": true
       },
@@ -935,8 +1124,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 216,
-        "width": 1042,
+        "height": 200,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": false
       },
@@ -945,8 +1134,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 1028,
-        "width": 1042,
+        "height": 1041,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": true
       },
@@ -955,8 +1144,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 976,
-        "width": 1042,
+        "height": 903,
+        "width": 1440,
         "isFullBleed": true,
         "hasOverlay": false
       },
@@ -965,8 +1154,8 @@
         "hasBackgroundImage": false,
         "hasChildImages": false,
         "hasGradient": false,
-        "height": 159,
-        "width": 938,
+        "height": 158,
+        "width": 1200,
         "isFullBleed": false,
         "hasOverlay": false
       }
@@ -994,7 +1183,7 @@
     "spacingSystem": {
       "sectionPaddingY": "128px",
       "sectionPaddingX": null,
-      "containerMaxWidth": "90%",
+      "containerMaxWidth": "1296px",
       "gridGap": null,
       "cardGap": "24px"
     },
@@ -1072,9 +1261,9 @@
     "entryCount": 5,
     "hasVaryingWidths": false,
     "columnWidths": [
-      313,
-      313,
-      313
+      400,
+      400,
+      400
     ],
     "heightRange": {
       "min": 210,
@@ -1104,26 +1293,26 @@
     "fonts": [
       {
         "family": "Chalet",
-        "url": "https://rig.ai/fonts/SENTIN.woff2"
+        "url": "https://rig.ai/SENTIN.woff2"
       },
       {
         "family": "Geist Pixel Square",
-        "url": "https://rig.ai/fonts/SENTIN.woff2"
+        "url": "https://rig.ai/SENTIN.woff2"
       },
       {
         "family": "Instrument Sans",
-        "url": "https://rig.ai/fonts/SENTIN.woff2"
+        "url": "https://rig.ai/SENTIN.woff2"
       },
       {
         "family": "Chivo Mono",
-        "url": "https://rig.ai/fonts/SENTIN.woff2"
+        "url": "https://rig.ai/SENTIN.woff2"
       }
     ],
     "backgrounds": [],
     "icons": [
       {
         "type": "favicon",
-        "url": "data:image/svg+xml,SENTINEL"
+        "url": "data:///SENTIN"
       }
     ]
   },
@@ -1201,8 +1390,36 @@
     "iconFonts": [],
     "decorativeElements": [
       {
-        "size": "573x563",
+        "size": "792x777",
         "context": "hero",
+        "hasGradients": false,
+        "hasAnimations": false,
+        "gradientCount": 0
+      },
+      {
+        "size": "380x380",
+        "context": "signal-section",
+        "hasGradients": false,
+        "hasAnimations": false,
+        "gradientCount": 0
+      },
+      {
+        "size": "1000x500",
+        "context": "offline-section",
+        "hasGradients": true,
+        "hasAnimations": false,
+        "gradientCount": 3
+      },
+      {
+        "size": "900x900",
+        "context": "offline-section",
+        "hasGradients": false,
+        "hasAnimations": true,
+        "gradientCount": 0
+      },
+      {
+        "size": "900x900",
+        "context": "cta-section",
         "hasGradients": false,
         "hasAnimations": false,
         "gradientCount": 0
@@ -1235,7 +1452,18 @@
     },
     "sectionVisuals": []
   },
-  "cardStyles": null,
+  "cardStyles": {
+    "padding": "40px 32px 32px",
+    "borderRadius": null,
+    "backgroundColor": "#0a0a0a",
+    "backgroundIsInherited": true,
+    "border": "1px solid oklch(0.9465 0.0099 87.47 / 0.14)",
+    "boxShadow": null,
+    "shadowType": "none",
+    "gap": null,
+    "count": 6,
+    "hoverEffect": "see hover states section"
+  },
   "filterEffects": null,
   "shadowSystem": {
     "style": "glow-based",

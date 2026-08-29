@@ -5,8 +5,8 @@
     "#f7a501",
     "#f54e00",
     "#2f80fa",
-    "#eb9d2a",
     "#b62ad9",
+    "#eb9d2a",
     "#29dbbb",
     "#374151",
     "#111111",
@@ -17,8 +17,8 @@
     "#f7a501",
     "#f54e00",
     "#2f80fa",
-    "#eb9d2a",
-    "#b62ad9"
+    "#b62ad9",
+    "#eb9d2a"
   ],
   "fonts": [
     "RoundHog"
@@ -27,8 +27,8 @@
     "4px",
     "6px",
     "9999px",
-    "8px",
     "6px 6px 0px 0px",
+    "8px",
     "40%"
   ],
   "shadows": [
@@ -53,489 +53,6 @@
     "hasNav": true,
     "hasHero": true,
     "pageType": "landing page"
-  },
-  "animationDetails": [
-    "0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both windowPopIn",
-    "0.416125s ease-out forwards rough-notation-dash",
-    "0.383875s ease-out 0.416125s forwards rough-notation-dash",
-    "5s linear forwards carousel-progress",
-    "0.3s ease-out hero-carousel-fade-in",
-    "45s linear infinite tools-ticker-marquee",
-    "2s linear infinite grow",
-    "3s linear infinite grow-sm"
-  ],
-  "textShadows": [
-    "rgba(0, 0, 0, 0.5) 0px 1px 3px, rgba(0, 0, 0, 0.3) 0px 0px 1px"
-  ],
-  "letterSpacings": [
-    "-0.9px",
-    "-0.6px",
-    "-0.75px"
-  ],
-  "cssAspectRatios": [
-    "1 / 1",
-    "auto 62 / 43"
-  ],
-  "colorUsage": {
-    "#23251d": {
-      "bg": 0,
-      "text": 34,
-      "border": 29
-    },
-    "#cd8407": {
-      "bg": 4,
-      "text": 0,
-      "border": 0
-    },
-    "#b17816": {
-      "bg": 0,
-      "text": 0,
-      "border": 13
-    },
-    "#000000": {
-      "bg": 1,
-      "text": 104,
-      "border": 0
-    },
-    "#ffffff": {
-      "bg": 7,
-      "text": 235,
-      "border": 242
-    },
-    "#374151": {
-      "bg": 0,
-      "text": 450,
-      "border": 442
-    },
-    "#111827": {
-      "bg": 0,
-      "text": 33,
-      "border": 33
-    },
-    "#111111": {
-      "bg": 0,
-      "text": 316,
-      "border": 264
-    },
-    "#eb9d2a": {
-      "bg": 6,
-      "text": 6,
-      "border": 6
-    },
-    "#b62ad9": {
-      "bg": 2,
-      "text": 18,
-      "border": 18
-    },
-    "#65675e": {
-      "bg": 0,
-      "text": 17,
-      "border": 16
-    },
-    "#d2d3cc": {
-      "bg": 0,
-      "text": 0,
-      "border": 2
-    },
-    "#e5e7e0": {
-      "bg": 6,
-      "text": 0,
-      "border": 0
-    },
-    "#fdfdf8": {
-      "bg": 22,
-      "text": 0,
-      "border": 0
-    },
-    "#f54e00": {
-      "bg": 7,
-      "text": 5,
-      "border": 5
-    },
-    "#eeefe9": {
-      "bg": 7,
-      "text": 0,
-      "border": 0
-    },
-    "#53ffcb": {
-      "bg": 12,
-      "text": 0,
-      "border": 0
-    },
-    "#49bac5": {
-      "bg": 12,
-      "text": 0,
-      "border": 0
-    },
-    "#9ea096": {
-      "bg": 0,
-      "text": 0,
-      "border": 1
-    },
-    "#2f80fa": {
-      "bg": 0,
-      "text": 23,
-      "border": 23
-    },
-    "#bfc1b7": {
-      "bg": 0,
-      "text": 0,
-      "border": 33
-    },
-    "#6aa84f": {
-      "bg": 0,
-      "text": 13,
-      "border": 13
-    },
-    "#36c46f": {
-      "bg": 0,
-      "text": 6,
-      "border": 6
-    },
-    "#f7a501": {
-      "bg": 0,
-      "text": 13,
-      "border": 13
-    },
-    "#30abc6": {
-      "bg": 0,
-      "text": 9,
-      "border": 9
-    },
-    "#f35454": {
-      "bg": 0,
-      "text": 8,
-      "border": 8
-    },
-    "#2ea2d3": {
-      "bg": 0,
-      "text": 4,
-      "border": 4
-    },
-    "#29dbbb": {
-      "bg": 0,
-      "text": 14,
-      "border": 14
-    },
-    "#141414": {
-      "bg": 0,
-      "text": 2,
-      "border": 2
-    },
-    "#131316": {
-      "bg": 0,
-      "text": 5,
-      "border": 5
-    },
-    "#bab1ff": {
-      "bg": 0,
-      "text": 1,
-      "border": 1
-    },
-    "#6c47ff": {
-      "bg": 0,
-      "text": 2,
-      "border": 2
-    },
-    "#020202": {
-      "bg": 0,
-      "text": 1,
-      "border": 1
-    },
-    "#1a1a1a": {
-      "bg": 0,
-      "text": 9,
-      "border": 9
-    },
-    "#222222": {
-      "bg": 0,
-      "text": 1,
-      "border": 1
-    }
-  },
-  "ambientAnimations": [
-    {
-      "name": "tools-ticker-marquee",
-      "duration": "45s",
-      "tag": "div",
-      "class": "flex w-max motion-reduce:[animation:none",
-      "location": "below-fold"
-    },
-    {
-      "name": "grow",
-      "duration": "2s",
-      "tag": "svg",
-      "class": "[object SVGAnimatedString]",
-      "location": "below-fold"
-    },
-    {
-      "name": "grow-sm",
-      "duration": "3s",
-      "tag": "a",
-      "class": "bg-button-shadow dark:bg-button-shadow-d",
-      "location": "below-fold"
-    }
-  ],
-  "typographyPatterns": {
-    "h1": {
-      "fontSize": "36px",
-      "fontWeight": "800",
-      "lineHeight": "40px",
-      "letterSpacing": "-0.9px",
-      "textTransform": null,
-      "fontFamily": "RoundHog",
-      "color": "#111827",
-      "textShadow": null
-    },
-    "h2": {
-      "fontSize": "30px",
-      "fontWeight": "700",
-      "lineHeight": "40px",
-      "letterSpacing": "-0.75px",
-      "textTransform": null,
-      "fontFamily": "RoundHog",
-      "color": "#111827",
-      "textShadow": null
-    },
-    "h3": {
-      "fontSize": "18px",
-      "fontWeight": "700",
-      "lineHeight": "28px",
-      "letterSpacing": null,
-      "textTransform": null,
-      "fontFamily": "RoundHog",
-      "color": "#111111",
-      "textShadow": null
-    },
-    "body": {
-      "fontSize": "18px",
-      "fontWeight": "500",
-      "lineHeight": "27px",
-      "letterSpacing": null,
-      "textTransform": null,
-      "fontFamily": "RoundHog",
-      "color": "#65675e"
-    },
-    "caption": {
-      "fontSize": "14px",
-      "fontWeight": "500",
-      "lineHeight": "20px",
-      "letterSpacing": null,
-      "textTransform": null,
-      "fontFamily": "RoundHog",
-      "color": "#111111"
-    }
-  },
-  "badgeStyles": null,
-  "inputStyles": null,
-  "imageStyles": null,
-  "footerStyles": null,
-  "gradients": [
-    {
-      "value": "linear-gradient(268.63deg, rgb(227, 225, 228)",
-      "element": "div",
-      "colors": [
-        "rgb(227, 225, 228)"
-      ],
-      "width": 0,
-      "height": 0,
-      "isAnimated": false,
-      "animationDuration": null
-    },
-    {
-      "value": "linear-gradient(rgb(20, 30, 64)",
-      "element": "div",
-      "colors": [
-        "rgb(20, 30, 64)"
-      ],
-      "width": 0,
-      "height": 0,
-      "isAnimated": false,
-      "animationDuration": null
-    },
-    {
-      "value": "linear-gradient(rgb(253, 238, 205)",
-      "element": "div",
-      "colors": [
-        "rgb(253, 238, 205)"
-      ],
-      "width": 1060,
-      "height": 789,
-      "isAnimated": false,
-      "animationDuration": null
-    }
-  ],
-  "linkStyles": {
-    "color": "#23251d",
-    "textDecoration": "none",
-    "textDecorationColor": null,
-    "textUnderlineOffset": null,
-    "fontWeight": "500"
-  },
-  "fontWeights": [
-    "400",
-    "500",
-    "700"
-  ],
-  "pageBackground": "#eeefe9",
-  "footerContentMap": null,
-  "contactSection": null,
-  "stickySections": null,
-  "svgDiagramAnimations": null,
-  "sectionBackgroundDecorations": null,
-  "rotatingText": null,
-  "illustrationStyle": null,
-  "curvedPanels": null,
-  "countdownElements": null,
-  "caseGridPattern": null,
-  "masonryGrid": null,
-  "darkModeTokens": null,
-  "animationLibraries": [],
-  "riveAndLottie": null,
-  "fixedUIChrome": [],
-  "interactiveStates": null,
-  "subtleTextures": null,
-  "cardStyles": null,
-  "filterEffects": null,
-  "customCursor": {
-    "hasCustomCursor": true,
-    "type": "css-cursor-image",
-    "details": {
-      "selector": ".cursor-play",
-      "cursor": "url(\"data:image/svg+xml;utf8,<svg"
-    }
-  },
-  "breakpoints": [
-    {
-      "px": 425,
-      "ruleCount": 4,
-      "condition": "(min-width: 425px)"
-    },
-    {
-      "px": 482,
-      "ruleCount": 18,
-      "condition": "(min-width: 482px)"
-    },
-    {
-      "px": 640,
-      "ruleCount": 130,
-      "condition": "(min-width: 640px)"
-    },
-    {
-      "px": 767,
-      "ruleCount": 8,
-      "condition": "(max-width: 767px)"
-    },
-    {
-      "px": 768,
-      "ruleCount": 351,
-      "condition": "(min-width: 768px)"
-    },
-    {
-      "px": 800,
-      "ruleCount": 1,
-      "condition": "screen and (max-width: 800px)"
-    },
-    {
-      "px": 900,
-      "ruleCount": 70,
-      "condition": "(min-width: 900px)"
-    },
-    {
-      "px": 1024,
-      "ruleCount": 171,
-      "condition": "(min-width: 1024px)"
-    }
-  ],
-  "spacingScale": {
-    "baseUnit": 4,
-    "conformRate": 64,
-    "commonValues": [
-      4,
-      8,
-      12,
-      16,
-      32,
-      48,
-      80
-    ],
-    "outliers": [
-      1,
-      2,
-      6,
-      66
-    ]
-  },
-  "iconographySystem": {
-    "svgIcons": {
-      "count": 6,
-      "dominantSizes": [
-        "24x24",
-        "20x20",
-        "18x18"
-      ],
-      "strokeWidths": [
-        "1px"
-      ],
-      "style": "filled",
-      "strokeToFillRatio": "0% outlined",
-      "accentColors": [
-        "#23251d"
-      ]
-    },
-    "iconFonts": [],
-    "decorativeElements": [],
-    "system": "Custom inline SVG (filled)"
-  },
-  "visualClassification": {
-    "heroVisual": {
-      "type": "illustration",
-      "subtype": "simple-icon",
-      "treatment": "raw",
-      "filters": null,
-      "blendMode": "none",
-      "aspectRatio": "1.00",
-      "objectFit": null
-    },
-    "sectionVisuals": []
-  },
-  "shadowSystem": {
-    "style": "glow-based",
-    "maxDepth": 16,
-    "hasInset": false,
-    "hasGlow": true,
-    "hasLayered": true,
-    "hasBrutalist": false
-  },
-  "frameworkDetection": {
-    "isFramer": false,
-    "isWebflow": false,
-    "isEditor": null,
-    "signals": [],
-    "cssFrameworks": [
-      "tailwind"
-    ],
-    "jsFrameworks": [
-      "gatsby"
-    ]
-  },
-  "designSystem": {
-    "name": "Radix UI",
-    "confidence": "high",
-    "note": "Radix primitives detected — tokens represent the styling layer on top of headless components"
-  },
-  "heroEntranceSequence": {
-    "elements": [],
-    "hasCanvasAnimation": false,
-    "hasVideoBackground": false,
-    "hasSvgAnimation": false,
-    "canvasSize": null
-  },
-  "_primaryColorAmbiguous": true,
-  "_primaryColorCandidates": {
-    "button_primary": "#cd8407",
-    "css_var_primary": null,
-    "frequency_primary": "#2f80fa"
   },
   "animations": [
     {
@@ -981,6 +498,243 @@
       "transform": "translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))"
     }
   ],
+  "animationDetails": [
+    "0.399773s ease-out forwards rough-notation-dash",
+    "0.400227s ease-out 0.399773s forwards rough-notation-dash",
+    "0.220329s ease-out forwards rough-notation-dash",
+    "0.170593s ease-out 0.220329s forwards rough-notation-dash",
+    "0.229348s ease-out 0.390922s forwards rough-notation-dash",
+    "0.17973s ease-out 0.62027s forwards rough-notation-dash",
+    "0.382461s ease-out forwards rough-notation-dash",
+    "0.417539s ease-out 0.382461s forwards rough-notation-dash",
+    "0.270444s ease-out forwards rough-notation-dash",
+    "0.282537s ease-out 0.270444s forwards rough-notation-dash",
+    "0.117516s ease-out 0.552981s forwards rough-notation-dash",
+    "0.129503s ease-out 0.670497s forwards rough-notation-dash",
+    "5s linear forwards carousel-progress",
+    "0s ease-out hero-carousel-fade-in",
+    "45s linear infinite tools-ticker-marquee",
+    "2s linear infinite grow"
+  ],
+  "textShadows": [
+    "rgba(0, 0, 0, 0.5) 0px 1px 3px, rgba(0, 0, 0, 0.3) 0px 0px 1px"
+  ],
+  "letterSpacings": [
+    "-0.9px",
+    "-0.6px",
+    "-0.75px"
+  ],
+  "cssAspectRatios": [
+    "1 / 1",
+    "auto 62 / 43"
+  ],
+  "colorUsage": {
+    "#23251d": {
+      "bg": 0,
+      "text": 34,
+      "border": 29
+    },
+    "#cd8407": {
+      "bg": 3,
+      "text": 0,
+      "border": 0
+    },
+    "#b17816": {
+      "bg": 0,
+      "text": 0,
+      "border": 9
+    },
+    "#000000": {
+      "bg": 1,
+      "text": 103,
+      "border": 0
+    },
+    "#ffffff": {
+      "bg": 6,
+      "text": 235,
+      "border": 242
+    },
+    "#374151": {
+      "bg": 0,
+      "text": 444,
+      "border": 437
+    },
+    "#111827": {
+      "bg": 0,
+      "text": 33,
+      "border": 33
+    },
+    "#111111": {
+      "bg": 0,
+      "text": 291,
+      "border": 242
+    },
+    "#65675e": {
+      "bg": 0,
+      "text": 26,
+      "border": 25
+    },
+    "#b62ad9": {
+      "bg": 2,
+      "text": 18,
+      "border": 18
+    },
+    "#d2d3cc": {
+      "bg": 0,
+      "text": 0,
+      "border": 2
+    },
+    "#e5e7e0": {
+      "bg": 5,
+      "text": 0,
+      "border": 0
+    },
+    "#fdfdf8": {
+      "bg": 22,
+      "text": 0,
+      "border": 0
+    },
+    "#eb9d2a": {
+      "bg": 4,
+      "text": 6,
+      "border": 6
+    },
+    "#f54e00": {
+      "bg": 7,
+      "text": 5,
+      "border": 5
+    },
+    "#eeefe9": {
+      "bg": 7,
+      "text": 0,
+      "border": 0
+    },
+    "#53ffcb": {
+      "bg": 12,
+      "text": 0,
+      "border": 0
+    },
+    "#49bac5": {
+      "bg": 12,
+      "text": 0,
+      "border": 0
+    },
+    "#9ea096": {
+      "bg": 0,
+      "text": 0,
+      "border": 1
+    },
+    "#2f80fa": {
+      "bg": 0,
+      "text": 23,
+      "border": 23
+    },
+    "#bfc1b7": {
+      "bg": 0,
+      "text": 0,
+      "border": 32
+    },
+    "#36c46f": {
+      "bg": 0,
+      "text": 6,
+      "border": 6
+    },
+    "#f7a501": {
+      "bg": 0,
+      "text": 13,
+      "border": 13
+    },
+    "#30abc6": {
+      "bg": 0,
+      "text": 9,
+      "border": 9
+    },
+    "#f35454": {
+      "bg": 0,
+      "text": 8,
+      "border": 8
+    },
+    "#2ea2d3": {
+      "bg": 0,
+      "text": 4,
+      "border": 4
+    },
+    "#29dbbb": {
+      "bg": 0,
+      "text": 14,
+      "border": 14
+    },
+    "#6aa84f": {
+      "bg": 0,
+      "text": 4,
+      "border": 4
+    },
+    "#141414": {
+      "bg": 0,
+      "text": 2,
+      "border": 2
+    },
+    "#131316": {
+      "bg": 0,
+      "text": 5,
+      "border": 5
+    },
+    "#bab1ff": {
+      "bg": 0,
+      "text": 1,
+      "border": 1
+    },
+    "#6c47ff": {
+      "bg": 0,
+      "text": 2,
+      "border": 2
+    },
+    "#020202": {
+      "bg": 0,
+      "text": 1,
+      "border": 1
+    },
+    "#1a1a1a": {
+      "bg": 0,
+      "text": 9,
+      "border": 9
+    },
+    "#222222": {
+      "bg": 0,
+      "text": 1,
+      "border": 1
+    }
+  },
+  "ambientAnimations": [
+    {
+      "name": "text-gradient-wizard-scroll",
+      "duration": "3s",
+      "tag": "code",
+      "class": "!bg-transparent !p-0 !border-0 text-grad",
+      "location": "above-fold"
+    },
+    {
+      "name": "tools-ticker-marquee",
+      "duration": "45s",
+      "tag": "div",
+      "class": "flex w-max motion-reduce:[animation:none",
+      "location": "below-fold"
+    },
+    {
+      "name": "grow",
+      "duration": "2s",
+      "tag": "svg",
+      "class": "[object SVGAnimatedString]",
+      "location": "below-fold"
+    },
+    {
+      "name": "grow-sm",
+      "duration": "3s",
+      "tag": "a",
+      "class": "bg-button-shadow dark:bg-button-shadow-d",
+      "location": "below-fold"
+    }
+  ],
   "buttonStyles": {
     "primary": {
       "padding": "0px",
@@ -991,15 +745,15 @@
       "backgroundColor": "#cd8407",
       "color": "#23251d",
       "borderRadius": "6px",
-      "border": "1.5px solid rgb(177, 120, 22)",
+      "border": "1px solid rgb(177, 120, 22)",
       "boxShadow": null,
       "gap": null,
-      "height": "33.5px",
+      "height": "31.5px",
       "lineHeight": "24px",
       "fontFamily": "RoundHog",
       "clipPath": null,
       "transition": "color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
-      "width": 127,
+      "width": 125,
       "text": "SENTINEL Our platform helps teams ship faster than ever before."
     },
     "ghost": {
@@ -1045,6 +799,108 @@
     "navCta": null,
     "textOnly": null
   },
+  "typographyPatterns": {
+    "h1": {
+      "fontSize": "36px",
+      "fontWeight": "800",
+      "lineHeight": "40px",
+      "letterSpacing": "-0.9px",
+      "textTransform": null,
+      "fontFamily": "RoundHog",
+      "color": "#111827",
+      "textShadow": null
+    },
+    "h2": {
+      "fontSize": "30px",
+      "fontWeight": "700",
+      "lineHeight": "40px",
+      "letterSpacing": "-0.75px",
+      "textTransform": null,
+      "fontFamily": "RoundHog",
+      "color": "#111827",
+      "textShadow": null
+    },
+    "h3": {
+      "fontSize": "16px",
+      "fontWeight": "700",
+      "lineHeight": "24px",
+      "letterSpacing": null,
+      "textTransform": null,
+      "fontFamily": "RoundHog",
+      "color": "#111111",
+      "textShadow": null
+    },
+    "body": {
+      "fontSize": "18px",
+      "fontWeight": "500",
+      "lineHeight": "27px",
+      "letterSpacing": null,
+      "textTransform": null,
+      "fontFamily": "RoundHog",
+      "color": "#65675e"
+    },
+    "caption": {
+      "fontSize": "14px",
+      "fontWeight": "500",
+      "lineHeight": "20px",
+      "letterSpacing": null,
+      "textTransform": null,
+      "fontFamily": "RoundHog",
+      "color": "#65675e"
+    }
+  },
+  "badgeStyles": null,
+  "inputStyles": null,
+  "gradients": [
+    {
+      "value": "linear-gradient(268.63deg, rgb(227, 225, 228)",
+      "element": "div",
+      "colors": [
+        "rgb(227, 225, 228)"
+      ],
+      "width": 0,
+      "height": 0,
+      "isAnimated": false,
+      "animationDuration": null
+    },
+    {
+      "value": "linear-gradient(rgb(20, 30, 64)",
+      "element": "div",
+      "colors": [
+        "rgb(20, 30, 64)"
+      ],
+      "width": 0,
+      "height": 0,
+      "isAnimated": false,
+      "animationDuration": null
+    },
+    {
+      "value": "linear-gradient(rgb(253, 238, 205)",
+      "element": "div",
+      "colors": [
+        "rgb(253, 238, 205)"
+      ],
+      "width": 1440,
+      "height": 900,
+      "isAnimated": false,
+      "animationDuration": null
+    }
+  ],
+  "imageStyles": null,
+  "linkStyles": {
+    "color": "#23251d",
+    "textDecoration": "none",
+    "textDecorationColor": null,
+    "textUnderlineOffset": null,
+    "fontWeight": "500"
+  },
+  "footerStyles": null,
+  "fontWeights": [
+    "400",
+    "500",
+    "700"
+  ],
+  "pageBackground": "#eeefe9",
   "sectionContentMap": [
     {
       "type": "hero",
@@ -1054,7 +910,6 @@
       "bgColor": "#e5e7e0",
       "gradient": null,
       "visualDescriptions": [
-        "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before.",
         "SENTINEL Our platform helps teams ship faster than ever before."
       ],
@@ -1069,11 +924,11 @@
       "gridCols": null,
       "heroColumns": [
         {
-          "width": "40%",
+          "width": "43%",
           "content": "text+visual"
         },
         {
-          "width": "40%",
+          "width": "43%",
           "content": "text+visual"
         }
       ],
@@ -1083,8 +938,8 @@
       "scrollRevealTypography": null,
       "portfolioGridInfo": null,
       "heroCtaStyle": {
-        "width": 261,
-        "height": 55,
+        "width": 268,
+        "height": 54,
         "borderRadius": "8px",
         "padding": "0px",
         "fontSize": "18px",
@@ -1096,9 +951,9 @@
         {
           "bg": "#eb9d2a",
           "bgGradient": null,
-          "w": 261,
+          "w": 268,
           "h": 52,
-          "aspectRatio": 5.02,
+          "aspectRatio": 5.15,
           "transform": "matrix(1, 0, 0, 1, 0, -4)",
           "pos": "center-bottom",
           "has3D": true,
@@ -1112,6 +967,146 @@
       "paddingY": "32px"
     }
   ],
+  "footerContentMap": null,
+  "contactSection": null,
+  "stickySections": null,
+  "svgDiagramAnimations": null,
+  "sectionBackgroundDecorations": null,
+  "visualProfile": {
+    "sectionRhythm": [
+      {
+        "bgHex": null,
+        "hasBackgroundImage": false,
+        "hasChildImages": true,
+        "hasGradient": false,
+        "height": 844,
+        "width": 1424,
+        "isFullBleed": true,
+        "hasOverlay": true
+      },
+      {
+        "bgHex": null,
+        "hasBackgroundImage": false,
+        "hasChildImages": true,
+        "hasGradient": false,
+        "height": 900,
+        "width": 1440,
+        "isFullBleed": true,
+        "hasOverlay": false
+      },
+      {
+        "bgHex": null,
+        "hasBackgroundImage": true,
+        "hasChildImages": false,
+        "hasGradient": false,
+        "height": 900,
+        "width": 1440,
+        "isFullBleed": true,
+        "hasOverlay": false
+      },
+      {
+        "bgHex": null,
+        "hasBackgroundImage": true,
+        "hasChildImages": false,
+        "hasGradient": false,
+        "height": 900,
+        "width": 1440,
+        "isFullBleed": true,
+        "hasOverlay": false
+      },
+      {
+        "bgHex": null,
+        "hasBackgroundImage": false,
+        "hasChildImages": true,
+        "hasGradient": false,
+        "height": 631,
+        "width": 777,
+        "isFullBleed": false,
+        "hasOverlay": false
+      },
+      {
+        "bgHex": null,
+        "hasBackgroundImage": false,
+        "hasChildImages": true,
+        "hasGradient": false,
+        "height": 631,
+        "width": 777,
+        "isFullBleed": false,
+        "hasOverlay": false
+      }
+    ],
+    "hasFullBleedImages": false,
+    "hasBackgroundImages": true,
+    "hasMeshGradient": false,
+    "hasGlassmorphism": false,
+    "blendModes": [],
+    "hasFloatingCards": false,
+    "hasParallaxHint": true,
+    "hasScrollAnimation": true,
+    "hasNoiseTexture": false,
+    "imageTreatment": "screenshot",
+    "sectionColorPattern": "uniform-light",
+    "dominantSectionBg": null,
+    "hasOverlaidUIOnPhoto": true,
+    "navStyle": "transparent-hero",
+    "hasGradientSection": true,
+    "gradientStyle": "linear",
+    "textOnImageCount": 1,
+    "splitLayoutCount": 2,
+    "spacingSystem": {
+      "sectionPaddingY": null,
+      "sectionPaddingX": null,
+      "containerMaxWidth": "1200px",
+      "gridGap": null,
+      "cardGap": "32px"
+    },
+    "animationPatterns": {
+      "hasTextReveal": false,
+      "hasMaskReveal": false,
+      "hasSlider": true,
+      "sliderType": "custom",
+      "hasArrowAnimation": false,
+      "hasHeroAnimation": false,
+      "hasCounterAnimation": false,
+      "hasStaggerReveal": false
+    },
+    "parallaxDetails": [
+      {
+        "method": "transform-3d",
+        "element": "div"
+      }
+    ],
+    "uiPatterns": {
+      "hasMarquee": false,
+      "hasPricingGrid": true,
+      "pricingColumnCount": 0,
+      "hasTestimonialCarousel": false,
+      "hasDualCTA": false,
+      "hasQRCode": false,
+      "hasStickyNav": false,
+      "hasLogoStrip": false,
+      "hasFeatureList": true,
+      "hasStepIndicator": false,
+      "hasDarkFooter": false,
+      "hasVideoSection": false,
+      "hasTabSection": true,
+      "hasAccordion": false,
+      "hasCounterSection": false,
+      "pageStructure": [],
+      "hasDecorativeGeometry": true,
+      "decorativeGeometryCount": 15,
+      "hasIconSystem": false,
+      "iconSystemCount": 1,
+      "hasArrowLinks": false,
+      "arrowLinkColor": null,
+      "arrowLinkCount": 0
+    }
+  },
+  "rotatingText": null,
+  "illustrationStyle": null,
+  "curvedPanels": null,
+  "countdownElements": null,
+  "caseGridPattern": null,
   "navPattern": {
     "type": "standard",
     "hasHamburger": false,
@@ -1130,96 +1125,100 @@
       "SENTINEL Our platform helps teams ship faster than ever before."
     ]
   },
-  "tabbedComponents": [
+  "customCursor": {
+    "hasCustomCursor": true,
+    "type": "css-cursor-image",
+    "details": {
+      "selector": ".cursor-play",
+      "cursor": "url(\"data:image/svg+xml;utf8,<svg xmlns=\\\"http://www.w3.org/2000/svg\\\" fill=\\\"no"
+    }
+  },
+  "masonryGrid": null,
+  "breakpoints": [
     {
-      "type": "tab-switcher",
-      "labels": [
-        "SENTINEL Our platform helps teams ship faster than ever before.",
-        "SENTINEL Our platform helps teams ship faster than ever before.",
-        "SENTINEL Our platform helps teams ship faster than ever before."
-      ],
-      "activeLabel": "SENTINEL Our platform helps teams ship faster than ever before.",
-      "panelLayout": "block",
-      "count": 3
+      "px": 425,
+      "ruleCount": 4,
+      "condition": "(min-width: 425px)"
+    },
+    {
+      "px": 482,
+      "ruleCount": 18,
+      "condition": "(min-width: 482px)"
+    },
+    {
+      "px": 640,
+      "ruleCount": 130,
+      "condition": "(min-width: 640px)"
+    },
+    {
+      "px": 767,
+      "ruleCount": 8,
+      "condition": "(max-width: 767px)"
+    },
+    {
+      "px": 768,
+      "ruleCount": 351,
+      "condition": "(min-width: 768px)"
+    },
+    {
+      "px": 800,
+      "ruleCount": 1,
+      "condition": "screen and (max-width: 800px)"
+    },
+    {
+      "px": 900,
+      "ruleCount": 70,
+      "condition": "(min-width: 900px)"
+    },
+    {
+      "px": 1024,
+      "ruleCount": 171,
+      "condition": "(min-width: 1024px)"
     }
   ],
-  "layeredImages": [
-    {
-      "section": "SENTINEL Our platform helps teams ship faster than ever before.",
-      "layerCount": 2,
-      "layers": [
-        {
-          "type": "img",
-          "zIndex": 0,
-          "position": "static",
-          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
-          "width": 273,
-          "height": 267
-        },
-        {
-          "type": "img",
-          "zIndex": 0,
-          "position": "static",
-          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
-          "width": 90,
-          "height": 117
-        }
-      ]
-    }
-  ],
-  "sectionIllustrations": [
-    {
-      "type": "single-line-chart",
-      "details": {
-        "lineCount": 0,
-        "colors": [],
-        "hasTooltip": false,
-        "hasDots": false
-      }
-    }
-  ],
-  "heroImageUrl": "https://example.com/SENTINEL",
+  "darkModeTokens": null,
   "assets": {
     "fonts": [
       {
         "family": "IBM Plex Sans Variable",
-        "url": "https://posthog.com/static/SENTIN.woff2"
+        "url": "https://posthog.com/SENTIN.woff2"
       },
       {
         "family": "Fairytale",
-        "url": "https://posthog.com/fonts/SENTIN.woff2"
+        "url": "https://posthog.com/SENTIN.woff2"
       },
       {
         "family": "Computer Modern",
-        "url": "https://posthog.com/fonts/SENTIN.woff"
+        "url": "https://posthog.com/SENTIN.woff"
       },
       {
         "family": "Squeak",
-        "url": "https://posthog.com/fonts/SENTIN.woff2"
+        "url": "https://posthog.com/SENTIN.woff2"
       },
       {
         "family": "RoundHog",
-        "url": "https://posthog.com/static/SENTIN.woff2"
+        "url": "https://posthog.com/SENTIN.woff2"
       },
       {
         "family": "Charter",
-        "url": "https://res.cloudinary.com/dmukukwp6/raw/upload/SENTIN.woff"
+        "url": "https://res.cloudinary.com/SENTIN.woff"
       }
     ],
     "backgrounds": [],
     "icons": [
       {
         "type": "favicon",
-        "url": "https://example.com/SENTIN.png"
+        "url": "https://posthog.com/SENTIN.png"
       },
       {
         "type": "apple-touch",
-        "url": "https://example.com/SENTIN.png"
+        "url": "https://posthog.com/SENTIN.png"
       }
     ]
   },
+  "animationLibraries": [],
   "motionProfile": {
-    "scrollParadigm": "scroll-scrub",
+    "scrollParadigm": "trigger-based",
     "revealStyle": "fade-only",
     "timingPersonality": "editorial",
     "dominantDuration": "600ms",
@@ -1296,134 +1295,161 @@
       }
     ]
   },
-  "visualProfile": {
-    "sectionRhythm": [
-      {
-        "bgHex": null,
-        "hasBackgroundImage": false,
-        "hasChildImages": true,
-        "hasGradient": false,
-        "height": 732,
-        "width": 1044,
-        "isFullBleed": true,
-        "hasOverlay": true
-      },
-      {
-        "bgHex": null,
-        "hasBackgroundImage": false,
-        "hasChildImages": true,
-        "hasGradient": false,
-        "height": 789,
-        "width": 1060,
-        "isFullBleed": true,
-        "hasOverlay": false
-      },
-      {
-        "bgHex": null,
-        "hasBackgroundImage": true,
-        "hasChildImages": false,
-        "hasGradient": false,
-        "height": 789,
-        "width": 1060,
-        "isFullBleed": true,
-        "hasOverlay": false
-      },
-      {
-        "bgHex": null,
-        "hasBackgroundImage": true,
-        "hasChildImages": false,
-        "hasGradient": false,
-        "height": 789,
-        "width": 1060,
-        "isFullBleed": true,
-        "hasOverlay": false
-      },
-      {
-        "bgHex": null,
-        "hasBackgroundImage": false,
-        "hasChildImages": true,
-        "hasGradient": false,
-        "height": 631,
-        "width": 777,
-        "isFullBleed": false,
-        "hasOverlay": false
-      },
-      {
-        "bgHex": null,
-        "hasBackgroundImage": false,
-        "hasChildImages": true,
-        "hasGradient": false,
-        "height": 631,
-        "width": 777,
-        "isFullBleed": false,
-        "hasOverlay": false
-      }
-    ],
-    "hasFullBleedImages": true,
-    "hasBackgroundImages": true,
-    "hasMeshGradient": false,
-    "hasGlassmorphism": false,
-    "blendModes": [],
-    "hasFloatingCards": false,
-    "hasParallaxHint": true,
-    "hasScrollAnimation": true,
-    "hasNoiseTexture": false,
-    "imageTreatment": "screenshot",
-    "sectionColorPattern": "uniform-light",
-    "dominantSectionBg": null,
-    "hasOverlaidUIOnPhoto": true,
-    "navStyle": "transparent-hero",
-    "hasGradientSection": true,
-    "gradientStyle": "linear",
-    "textOnImageCount": 1,
-    "splitLayoutCount": 3,
-    "spacingSystem": {
-      "sectionPaddingY": null,
-      "sectionPaddingX": null,
-      "containerMaxWidth": "1200px",
-      "gridGap": null,
-      "cardGap": "24px"
-    },
-    "animationPatterns": {
-      "hasTextReveal": false,
-      "hasMaskReveal": false,
-      "hasSlider": true,
-      "sliderType": "custom",
-      "hasArrowAnimation": false,
-      "hasHeroAnimation": false,
-      "hasCounterAnimation": false,
-      "hasStaggerReveal": false
-    },
-    "parallaxDetails": [
-      {
-        "method": "transform-3d",
-        "element": "div"
-      }
-    ],
-    "uiPatterns": {
-      "hasMarquee": true,
-      "hasPricingGrid": true,
-      "pricingColumnCount": 0,
-      "hasTestimonialCarousel": false,
-      "hasDualCTA": false,
-      "hasQRCode": false,
-      "hasStickyNav": false,
-      "hasLogoStrip": false,
-      "hasFeatureList": true,
-      "hasStepIndicator": false,
-      "hasDarkFooter": false,
-      "hasVideoSection": false,
-      "hasTabSection": true,
-      "hasAccordion": false,
-      "hasCounterSection": false,
-      "pageStructure": [],
-      "hasDecorativeGeometry": true,
-      "decorativeGeometryCount": 14,
-      "hasIconSystem": false,
-      "iconSystemCount": 1,
-      "hasArrowLinks": false,
-      "arrowLinkColor": null,
-      "arrowLinkCount": 0
+  "heroEntranceSequence": {
+    "elements": [],
+    "hasCanvasAnimation": false,
+    "hasVideoBackground": false,
+    "hasSvgAnimation": false,
+    "canvasSize": null
+  },
+  "riveAndLottie": null,
+  "tabbedComponents": [
+    {
+      "type": "tab-switcher",
+      "labels": [
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before.",
+        "SENTINEL Our platform helps teams ship faster than ever before."
+      ],
+      "activeLabel": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "panelLayout": "block",
+      "count": 3
     }
+  ],
+  "fixedUIChrome": [],
+  "interactiveStates": null,
+  "layeredImages": [
+    {
+      "section": "SENTINEL Our platform helps teams ship faster than ever before.",
+      "layerCount": 2,
+      "layers": [
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 425,
+          "height": 416
+        },
+        {
+          "type": "img",
+          "zIndex": 0,
+          "position": "static",
+          "url": "SENTINEL Our platform helps teams ship faster than ever before.",
+          "width": 90,
+          "height": 117
+        }
+      ]
+    }
+  ],
+  "spacingScale": {
+    "baseUnit": 4,
+    "conformRate": 64,
+    "commonValues": [
+      4,
+      8,
+      12,
+      16,
+      32,
+      48,
+      80
+    ],
+    "outliers": [
+      1,
+      2,
+      6,
+      66
+    ]
+  },
+  "iconographySystem": {
+    "svgIcons": {
+      "count": 7,
+      "dominantSizes": [
+        "24x24",
+        "20x20",
+        "18x18"
+      ],
+      "strokeWidths": [
+        "1px"
+      ],
+      "style": "filled",
+      "strokeToFillRatio": "0% outlined",
+      "accentColors": [
+        "#23251d",
+        "#111111"
+      ]
+    },
+    "iconFonts": [],
+    "decorativeElements": [],
+    "system": "Custom inline SVG (filled)"
+  },
+  "sectionIllustrations": [
+    {
+      "type": "single-line-chart",
+      "details": {
+        "lineCount": 0,
+        "colors": [],
+        "hasTooltip": false,
+        "hasDots": false
+      }
+    }
+  ],
+  "subtleTextures": null,
+  "visualClassification": {
+    "heroVisual": {
+      "type": "illustration",
+      "subtype": "simple-icon",
+      "treatment": "raw",
+      "filters": null,
+      "blendMode": "none",
+      "aspectRatio": "1.00",
+      "objectFit": null
+    },
+    "sectionVisuals": []
+  },
+  "cardStyles": {
+    "padding": "16px",
+    "borderRadius": "6px",
+    "backgroundColor": "#ffffff",
+    "backgroundIsInherited": false,
+    "border": "1px solid rgb(191, 193, 183)",
+    "boxShadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(14, 18, 22, 0.35) 0px 10px 38px -10px, rgba(14, 18, 22, 0.2) 0px 10px 20px -15px",
+    "shadowType": "layered",
+    "gap": "normal 15px",
+    "count": 1,
+    "hoverEffect": "see hover states section"
+  },
+  "filterEffects": null,
+  "shadowSystem": {
+    "style": "glow-based",
+    "maxDepth": 16,
+    "hasInset": false,
+    "hasGlow": true,
+    "hasLayered": true,
+    "hasBrutalist": false
+  },
+  "heroImageUrl": "https://res.cloudinary.com/SENTIN",
+  "frameworkDetection": {
+    "isFramer": false,
+    "isWebflow": false,
+    "isEditor": null,
+    "signals": [],
+    "cssFrameworks": [
+      "tailwind"
+    ],
+    "jsFrameworks": [
+      "gatsby"
+    ]
+  },
+  "designSystem": {
+    "name": "Radix UI",
+    "confidence": "high",
+    "note": "Radix primitives detected — tokens represent the styling layer on top of headless components"
+  },
+  "_primaryColorAmbiguous": true,
+  "_primaryColorCandidates": {
+    "button_primary": "#cd8407",
+    "css_var_primary": null,
+    "frequency_primary": "#2f80fa"
   }
 }

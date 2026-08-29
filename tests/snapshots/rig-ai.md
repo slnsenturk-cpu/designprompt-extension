@@ -19,9 +19,9 @@ typography:
   body: "Instrument Sans"
   mono: "Chivo Mono"
   scale:
-    h1: "83.36px / 700 / 73.3568px"
-    h2: "52.1px / 700 / 47.932px"
-    h3: "26.05px / 700 / 24.7475px"
+    h1: "112px / 700 / 98.56px"
+    h2: "72px / 700 / 66.24px"
+    h3: "32px / 700 / 30.4px"
     body: "13.6px / 400 / 21.76px"
     label: "12.8px / 400 / normal"
     code: "10.4px / 400 / normal"
@@ -54,7 +54,7 @@ The interface is dark-themed, built on `#0a0a0a` with `#f0ede6` as the primary t
 
 | Property | Value |
 |---|---|
-| Container max-width | 90% |
+| Container max-width | 1296px |
 | Section padding (Y) | 128px (8rem) |
 | Section rhythm | 8 sections, opening on `#ed462d`, the rest inheriting the page background · 7 full-bleed |
 | Navigation | standard |
@@ -91,9 +91,9 @@ The interface is dark-themed, built on `#0a0a0a` with `#f0ede6` as the primary t
 
 | Step | Size | Weight | Line height | Tracking | Transform |
 |---|---|---|---|---|---|
-| `h1` | 83.36px (5.21rem) | 700 | 73.3568px | -3.3344px | — |
-| `h2` | 52.1px (3.2563rem) | 700 | 47.932px | -1.563px | — |
-| `h3` | 26.05px (1.6281rem) | 700 | 24.7475px | -0.7815px | — |
+| `h1` | 112px (7rem) | 700 | 98.56px | -4.48px | — |
+| `h2` | 72px (4.5rem) | 700 | 66.24px | -2.16px | — |
+| `h3` | 32px (2rem) | 700 | 30.4px | -0.96px | — |
 | `body` | 13.6px (0.85rem) | 400 | 21.76px | — | — |
 | `label` | 12.8px (0.8rem) | 400 | normal | 1.28px | uppercase |
 | `code` | 10.4px (0.65rem) | 400 | normal | — | — |
@@ -143,7 +143,7 @@ _Measured on the hero surface `#ed462d`._
 | Padding | `16px 32px` |
 | Font size | `13.6px (0.85rem)` |
 | Font weight | `700` |
-| Height | `52.5px` |
+| Height | `52px` |
 | Transition | `0.2s cubic-bezier(0.25, 1, 0.5, 1)` |
 
 #### Secondary
@@ -156,7 +156,7 @@ _Measured on the hero surface `#ed462d`._
 | Font size | `12px (0.75rem)` |
 | Font weight | `700` |
 | Letter spacing | `0.6px` |
-| Height | `38.3906px` |
+| Height | `38.375px` |
 | Transition | `opacity 0.2s` |
 
 #### Ghost
@@ -170,8 +170,18 @@ _Measured on the hero surface `#ed462d`._
 | Border | `2px solid #a93423` |
 | Font size | `13.6px (0.85rem)` |
 | Font weight | `700` |
-| Height | `52.5px` |
+| Height | `52px` |
 | Transition | `0.2s cubic-bezier(0.25, 1, 0.5, 1)` |
+
+### Cards
+
+| Property | Value |
+|---|---|
+| Repeated instances | `6` |
+| Background (inherited) | `#0a0a0a` |
+| Padding | `40px 32px 32px` |
+| Border | `1px solid #2a2a29` |
+| Shadow type | `none` |
 
 ### Inputs
 
@@ -182,6 +192,7 @@ _Measured on the hero surface `#ed462d`._
 | Border | `1px solid #2d2c2b` |
 | Font size | `12.8px (0.8rem)` |
 | Height | `44.1875px` |
+| Placeholder | `#4f4e4c` |
 
 ### Navigation
 
@@ -357,24 +368,25 @@ These run without user input.
 
 Observed on the live page. The capture's `before` object is the element's **base** state, so each cell reads base → hover; `—` means that side was not captured.
 
-| Component | Variant | Base → Hover |
-|---|---|---|
-| Button | `accent-fill A` | background: `#ed462d` → —<br>color: `#0a0a0a` → —<br>box-shadow: `#ed462d 0px 0px 40px 0px` → `4px 4px 0 #2b4fff` |
-| Button | `accent-fill B` | background: `#ed462d` → `#d93d26`<br>color: `#0a0a0a` → — |
-| Button | `ghost` | background: — → `#2d2c2b` |
-| Button | `inverse-fill A` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #2b4fff` |
-| Button | `inverse-fill B` | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #ed462d` |
-| Button | `muted` | background: `#131313` → —<br>color: `#7d7c78` → `#ed462d`<br>border-color: — → `#ed462d` |
-| Button | `outline` | background: — → `#161515`<br>border-color: — → `#f0ede6` |
-| Card | `bordered A` | background: `#0a0a0a` → —<br>color: `#666562` → `#ffffff`<br>border-color: — → `#4a4a48` |
-| Card | `bordered B` | background: `#0f0f0f` → `#110c0b`<br>color: `#f0ede6` → —<br>border-color: — → `#371611` |
-| Card | `filled` | background: `#0a0a0a` → —<br>color: `#666562` → `#4ade80`<br>opacity: — → `1` |
-| Card | — | color: `#f0ede6` → — |
-| FAQ / accordion | — | color: `#f0ede6` → `#7d7c78` |
-| Footer link | — | color: `#7d7c78` → `#ed462d` |
-| Illustration | — | color: `#f0ede6` → —<br>opacity: — → `0.28` |
-| Link | — | color: — → `#f0ede6` |
-| Navigation | — | color: `#0a0a0a` → —<br>opacity: `0.7` → `1` |
+| Component | Variant | State | Change |
+|---|---|---|---|
+| Button | `accent-fill A` | hover | background: `#ed462d` → —<br>color: `#0a0a0a` → —<br>box-shadow: `#ed462d 0px 0px 40px 0px` → `4px 4px 0 #2b4fff` |
+| Button | `accent-fill B` | hover | background: `#ed462d` → `#d93d26`<br>color: `#0a0a0a` → — |
+| Button | `ghost` | hover | background: — → `#2d2c2b` |
+| Button | `inverse-fill A` | hover | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #2b4fff` |
+| Button | `inverse-fill B` | hover | background: `#0a0a0a` → —<br>color: `#f0ede6` → —<br>box-shadow: — → `4px 4px 0 #ed462d` |
+| Button | `muted` | hover | background: `#131313` → —<br>color: `#7d7c78` → `#ed462d`<br>border-color: — → `#ed462d` |
+| Button | `outline` | hover | background: — → `#161515`<br>border-color: — → `#f0ede6` |
+| Card | `bordered A` | hover | background: `#0a0a0a` → —<br>color: `#666562` → `#ffffff`<br>border-color: — → `#4a4a48` |
+| Card | `bordered B` | hover | background: `#0f0f0f` → `#110c0b`<br>color: `#f0ede6` → —<br>border-color: — → `#371611` |
+| Card | `filled` | hover | background: `#0a0a0a` → —<br>color: `#666562` → `#4ade80`<br>opacity: — → `1` |
+| Card | — | hover | color: `#f0ede6` → — |
+| FAQ / accordion | — | hover | color: `#f0ede6` → `#7d7c78` |
+| Footer link | — | hover | color: `#7d7c78` → `#ed462d` |
+| Illustration | — | hover | color: `#f0ede6` → —<br>opacity: — → `0.28` |
+| Link | — | hover | color: — → `#f0ede6` |
+| Navigation | — | hover | color: `#0a0a0a` → —<br>opacity: `0.7` → `1` |
+| Input | — | focus | outline: `2px solid #ed462d`<br>offset: `2px` |
 
 Buttons transition with `0.2s cubic-bezier(0.25, 1, 0.5, 1)`.
 
@@ -382,7 +394,6 @@ Buttons transition with `0.2s cubic-bezier(0.25, 1, 0.5, 1)`.
 
 The extraction measured only `:hover`. Treat these as defaults, not as facts about the source.
 
-- **focus** — Render a visible focus ring on every interactive element — 2px, offset 2px, using `accent` or `border`.
 - **active** — Apply a small positional shift or a darker fill; never remove the focus ring.
 - **disabled** — Reduce opacity to ~0.5 and remove hover/active feedback entirely.
 
@@ -394,8 +405,8 @@ The extraction measured only `:hover`. Treat these as defaults, not as facts abo
 |---|---|
 | masonry grid (3 col) | 3 columns, css-grid, 5 entries, heights 210–420px, equal widths |
 | pricing grid | 2 columns |
-| 3-column grid with 1px dividers | `311.93px 1px 311.93px 1px 311.93px rows:216.016px` |
-| 3-column grid | `280.594px 280.602px 280.602px rows:267.805px 267.805px` |
+| 3-column grid with 1px dividers | `399.328px 1px 399.328px 1px 399.344px rows:199.891px` |
+| 3-column grid | `368px 368px 368px rows:224.75px 224.75px` |
 
 ### Patterns
 

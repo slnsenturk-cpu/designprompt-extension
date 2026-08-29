@@ -727,7 +727,10 @@ test('rig: layout and accessibility read from the real field paths', () => {
   const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
 
   assert.ok(layout.includes('128px'), 'sectionPaddingY from visualProfile.spacingSystem');
-  assert.ok(layout.includes('90%'), 'containerMaxWidth, not layoutInfo.maxWidth "none"');
+  // A concrete width from visualProfile.spacingSystem, not layoutInfo.maxWidth
+  // ("none"). The value is viewport-dependent, so assert the shape.
+  assert.match(layout, /Container max-width \| (\d+px|\d+%)/,
+    'containerMaxWidth, not layoutInfo.maxWidth "none"');
   assert.ok(layout.includes('24px'), 'cardGap');
   assert.ok(layout.includes('#ed462d'), 'hero background from sectionRhythm[0].bgHex');
   const anat = md.slice(md.indexOf('## Component anatomy'));
@@ -755,8 +758,11 @@ test('rig: typography lists every face including the pixel label', () => {
   ['Chalet', 'Instrument Sans', 'Chivo Mono', 'Geist Pixel Square']
     .forEach(f => assert.ok(md.includes(f), `${f} missing`));
   // Per-step tracking, not a floating list.
-  assert.ok(md.includes('-3.3344px'), 'h1 tracking');
-  assert.ok(md.includes('1.28px'), 'label tracking');
+  // Tracking is per-step and viewport-dependent; assert the signs, which are
+  // the actual design decision — negative on display, positive on labels.
+  const scale = md.slice(md.indexOf('### Scale'), md.indexOf('Weights in use'));
+  assert.match(scale, /^\| `h1` \|[^|]*\|[^|]*\|[^|]*\| -\d/m, 'h1 tracking is negative');
+  assert.match(scale, /^\| `label` \|[^|]*\|[^|]*\|[^|]*\| \d/m, 'label tracking is positive');
   assert.ok(md.includes('uppercase'), 'label transform');
 });
 
@@ -767,9 +773,13 @@ test('rig: interaction rows read base → hover and never say ::before', () => {
   const states = md.slice(md.indexOf('## Interaction states'), md.indexOf('## Component anatomy'));
 
   assert.ok(!md.includes('::before'), '`before` is the base state, not a pseudo-element');
-  assert.ok(states.includes('Base → Hover'), 'the column must be labelled base → hover');
+  // The table now carries an explicit State column (hover rows plus a measured
+  // focus row), with the change column still reading base → hover.
+  assert.match(states, /\| Component \| Variant \| State \| Change \|/,
+    'the measured table must name the state explicitly');
+  assert.ok(states.includes("reads base → hover"), 'and explain the base → hover cells');
   // The accent-filled CTA starts red and keeps its fill; only the shadow moves.
-  assert.match(states, /`accent-fill A`[^|]*\|[^|]*background: `#ed462d` → —/);
+  assert.match(states, /`accent-fill A` \| hover \| background: `#ed462d` → —/);
   // The brutalist offset shadow is a genuine base → hover transition.
   assert.match(states, /box-shadow: `[^`]*40px[^`]*` → `4px 4px 0 #2b4fff`/);
   // submit-button darkens on hover: both sides captured.

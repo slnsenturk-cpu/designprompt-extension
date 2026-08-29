@@ -263,43 +263,43 @@ Only the first and last frames of each `@keyframes` rule were captured. 6 of 12 
 
 Observed on the live page. The capture's `before` object is the element's **base** state, so each cell reads base → hover; `—` means that side was not captured.
 
-| Component | Variant | Base → Hover |
-|---|---|---|
-| Card | `bordered` | border-color: — → `#0e2742`<br>transform: — → `translateY(-2px)` |
-| Card | — | background: — → `#0a0a0a` |
-| Element | `A` | background: — → `#0e0e10` |
-| Element | `B` | background: — → `#151516` |
-| Element | `C` | background: — → `#161617` |
-| Element | `D` | background: — → `#171718` |
-| Element | `E` | background: — → `#181819` |
-| Element | `F` | background: — → `#18181a`<br>color: `#ededed` → — |
-| Element | `G` | background: — → `#1a1a1a` |
-| Element | `H` | background: — → `#1b1b1c` |
-| Element | `I` | background: — → `#1d1d1f`<br>color: `#ededed` → — |
-| Element | `J` | background: — → `#1f1f1f` |
-| Element | `K` | background: — → `#242424` |
-| Element | `L` | background: — → `#341ede` |
-| Element | `M` | background: — → `#c33939` |
-| Element | `N` | background: — → `#cfcfd0` |
-| Element | `O` | background: — → `#d93e3e` |
-| Element | `P` | background: — → `#e7e7e7` |
-| Element | `Q` | background: — → `#ffffff` |
-| Element | `R` | border-color: — → `#0a3d71` |
-| Element | `S` | border-color: — → `#0c325a` |
-| Element | `T` | border-color: — → `#204c34` |
-| Element | `U` | border-color: — → `#21176d` |
-| Element | `V` | border-color: — → `#242424` |
-| Element | `W` | border-color: — → `#291a47` |
-| Element | `X` | border-color: — → `#363637` |
-| Element | `Y` | border-color: — → `#414142` |
-| Element | `Z` | border-color: — → `#583f0d` |
-| Element | `[` | border-color: — → `#58585a` |
-| Element | `\` | border-color: — → `#646466` |
-| Element | `]` | color: — → `#007fff` |
-| Element | `^` | color: — → `#301cc7` |
-| Element | `_` | color: — → `#8c8c8c` |
-| Element | ``` | color: — → `#ededed` |
-| Element | `a` | color: — → `#ef4343` |
+| Component | Variant | State | Change |
+|---|---|---|---|
+| Card | `bordered` | hover | border-color: — → `#0e2742`<br>transform: — → `translateY(-2px)` |
+| Card | — | hover | background: — → `#0a0a0a` |
+| Element | `A` | hover | background: — → `#0e0e10` |
+| Element | `B` | hover | background: — → `#151516` |
+| Element | `C` | hover | background: — → `#161617` |
+| Element | `D` | hover | background: — → `#171718` |
+| Element | `E` | hover | background: — → `#181819` |
+| Element | `F` | hover | background: — → `#18181a`<br>color: `#ededed` → — |
+| Element | `G` | hover | background: — → `#1a1a1a` |
+| Element | `H` | hover | background: — → `#1b1b1c` |
+| Element | `I` | hover | background: — → `#1d1d1f`<br>color: `#ededed` → — |
+| Element | `J` | hover | background: — → `#1f1f1f` |
+| Element | `K` | hover | background: — → `#242424` |
+| Element | `L` | hover | background: — → `#341ede` |
+| Element | `M` | hover | background: — → `#c33939` |
+| Element | `N` | hover | background: — → `#cfcfd0` |
+| Element | `O` | hover | background: — → `#d93e3e` |
+| Element | `P` | hover | background: — → `#e7e7e7` |
+| Element | `Q` | hover | background: — → `#ffffff` |
+| Element | `R` | hover | border-color: — → `#0a3d71` |
+| Element | `S` | hover | border-color: — → `#0c325a` |
+| Element | `T` | hover | border-color: — → `#204c34` |
+| Element | `U` | hover | border-color: — → `#21176d` |
+| Element | `V` | hover | border-color: — → `#242424` |
+| Element | `W` | hover | border-color: — → `#291a47` |
+| Element | `X` | hover | border-color: — → `#363637` |
+| Element | `Y` | hover | border-color: — → `#414142` |
+| Element | `Z` | hover | border-color: — → `#583f0d` |
+| Element | `[` | hover | border-color: — → `#58585a` |
+| Element | `\` | hover | border-color: — → `#646466` |
+| Element | `]` | hover | color: — → `#007fff` |
+| Element | `^` | hover | color: — → `#301cc7` |
+| Element | `_` | hover | color: — → `#8c8c8c` |
+| Element | ``` | hover | color: — → `#ededed` |
+| Element | `a` | hover | color: — → `#ef4343` |
 
 ### Recommended (not observed)
 

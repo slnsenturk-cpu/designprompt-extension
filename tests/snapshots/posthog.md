@@ -16,8 +16,8 @@ colors:
   border-subtle: "#d2d3cc"
   warning: "#f7a501"
   error: "#f54e00"
-  accent-1: "#eb9d2a"
-  accent-2: "#b62ad9"
+  accent-1: "#b62ad9"
+  accent-2: "#eb9d2a"
   accent-3: "#29dbbb"
 typography:
   heading: "RoundHog"
@@ -25,7 +25,7 @@ typography:
   scale:
     h1: "36px / 800 / 40px"
     h2: "30px / 700 / 40px"
-    h3: "18px / 700 / 28px"
+    h3: "16px / 700 / 24px"
     body: "18px / 500 / 27px"
     small: "14px / 500 / 20px"
 spacing:
@@ -33,8 +33,8 @@ spacing:
   scale: ["4px", "8px", "12px", "16px", "32px", "48px", "80px"]
 radius:
   button: "6px"
+  card: "6px"
   input: "4px"
-  card: "40%"
   avatar: "9999px"
 shadows:
   layered: "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(255, 255, 255, 0.4) 0px 0px 6px 2px"
@@ -51,7 +51,7 @@ breakpoints:
 
 ## Visual direction
 
-The interface is light-themed, built on `#eeefe9` with `#374151` as the primary text color. Body text sits at a strong contrast ratio of 8.9:1 against the page background. Shape language is gently rounded at 6px. Motion is ambient rather than incidental — 52 keyframes and 3 idle loops run without user input. The accent `#cd8407` is highly saturated and used sparingly for emphasis.
+The interface is light-themed, built on `#eeefe9` with `#374151` as the primary text color. Body text sits at a strong contrast ratio of 8.9:1 against the page background. Shape language is gently rounded at 6px. Motion is ambient rather than incidental — 52 keyframes and 4 idle loops run without user input. The accent `#cd8407` is highly saturated and used sparingly for emphasis.
 
 ## Layout
 
@@ -59,11 +59,11 @@ The interface is light-themed, built on `#eeefe9` with `#374151` as the primary 
 |---|---|
 | Container max-width | 1200px |
 | Section rhythm | 6 sections, the rest inheriting the page background · 4 full-bleed |
-| Split (two-column) sections | 3 |
+| Split (two-column) sections | 2 |
 | Navigation | standard |
 | Sidebar | present |
 | Hero region | present |
-| Card gap | 24px (1.5rem) |
+| Card gap | 32px (2rem) |
 | Hero background | `#e5e7e0` (full-bleed) |
 
 ## Color usage
@@ -82,8 +82,8 @@ The interface is light-themed, built on `#eeefe9` with `#374151` as the primary 
 | `border-subtle` | `#d2d3cc` | Low-emphasis separators. |
 | `warning` | `#f7a501` | Cautionary status. |
 | `error` | `#f54e00` | Destructive actions and error status. |
-| `accent-1` | `#eb9d2a` | Secondary accent, decorative use. |
-| `accent-2` | `#b62ad9` | Secondary accent, decorative use. |
+| `accent-1` | `#b62ad9` | Secondary accent, decorative use. |
+| `accent-2` | `#eb9d2a` | Secondary accent, decorative use. |
 | `accent-3` | `#29dbbb` | Secondary accent, decorative use. |
 
 ## Typography
@@ -98,7 +98,7 @@ The interface is light-themed, built on `#eeefe9` with `#374151` as the primary 
 |---|---|---|---|---|---|
 | `h1` | 36px (2.25rem) | 800 | 40px | -0.9px | — |
 | `h2` | 30px (1.875rem) | 700 | 40px | -0.75px | — |
-| `h3` | 18px (1.125rem) | 700 | 28px | — | — |
+| `h3` | 16px (1rem) | 700 | 24px | — | — |
 | `body` | 18px (1.125rem) | 500 | 27px | — | — |
 | `small` | 14px (0.875rem) | 500 | 20px | — | — |
 
@@ -142,10 +142,10 @@ The families above marked self-hosted are licensed to the source site and cannot
 | Text color | `#23251d` |
 | Padding | `0px (0rem)` |
 | Radius | `6px` |
-| Border | `1.5px solid #b17816` |
+| Border | `1px solid #b17816` |
 | Font size | `16px (1rem)` |
 | Font weight | `400` |
-| Height | `33.5px` |
+| Height | `31.5px` |
 
 #### Secondary
 
@@ -170,6 +170,18 @@ The families above marked self-hosted are licensed to the source site and cannot
 | Font size | `13px (0.8125rem)` |
 | Font weight | `500` |
 | Height | `28px` |
+
+### Cards
+
+| Property | Value |
+|---|---|
+| Repeated instances | `1` |
+| Background | `#ffffff` |
+| Padding | `16px (1rem)` |
+| Radius | `6px` |
+| Border | `1px solid #bfc1b7` |
+| Shadow | `rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(14, 18, 22, 0.35) 0px 10px 38px -10px, rgba(14, 18, 22, 0.2) 0px 10px 20px -15px` |
+| Shadow type | `layered` |
 
 ### Navigation
 
@@ -209,10 +221,9 @@ Apply the full stack; the stops build a single halo and dropping any flattens it
 | Icon style | filled |
 | Common sizes | 24px, 20px, 18px |
 | Stroke widths | 1px |
-| Icon count | 6 |
+| Icon count | 7 |
 | Icon colour | `#23251d` |
 | Image treatment | screenshot |
-| Full-bleed imagery | yes |
 | Gradient style | linear |
 | Aspect ratios | `1 / 1` |
 
@@ -280,7 +291,7 @@ The site is mobile-first — these are `min-width` queries.
 | Dominant easing | cubic-bezier(0, 0, 0.2, 1) |
 | Timing personality | editorial |
 | Reveal style | fade-only |
-| Scroll paradigm | scroll-scrub |
+| Scroll paradigm | trigger-based |
 
 ### Keyframes
 
@@ -347,9 +358,10 @@ These run without user input.
 
 | Animation | Duration | Easing | Iterations | Position |
 |---|---|---|---|---|
+| `text-gradient-wizard-scroll` | 3000ms | — | — | above-fold |
 | `tools-ticker-marquee` | 45000ms | linear | infinite | below-fold |
 | `grow` | 2000ms | linear | infinite | below-fold |
-| `grow-sm` | 3000ms | linear | infinite | below-fold |
+| `grow-sm` | 3000ms | — | — | below-fold |
 
 ### Transitions in use
 
@@ -364,16 +376,16 @@ These run without user input.
 
 Observed on the live page. The capture's `before` object is the element's **base** state, so each cell reads base → hover; `—` means that side was not captured.
 
-| Component | Variant | Base → Hover |
-|---|---|---|
-| Button | — | opacity: — → `1` |
-| Element | `A` | background: `#eb9d2a` → —<br>color: `#000000` → —<br>transform: `matrix(1, 0, 0, 1, 0, -2)` → — |
-| Element | `B` | background: `#eb9d2a` → —<br>color: `#000000` → —<br>transform: `matrix(1, 0, 0, 1, 0, -4)` → — |
-| Element | `C` | border-color: — → `#57c5f7` |
-| Element | `D` | border-color: — → `#eeefe9` |
-| Element | `E` | opacity: — → `0.5` |
-| Element | `F` | opacity: — → `1` |
-| Element | `G` | opacity: — → `1`<br>transform: — → `translateY(0px) scale(1)` |
+| Component | Variant | State | Change |
+|---|---|---|---|
+| Button | — | hover | opacity: — → `1` |
+| Element | `A` | hover | background: `#eb9d2a` → —<br>color: `#000000` → —<br>transform: `matrix(1, 0, 0, 1, 0, -2)` → — |
+| Element | `B` | hover | background: `#eb9d2a` → —<br>color: `#000000` → —<br>transform: `matrix(1, 0, 0, 1, 0, -4)` → — |
+| Element | `C` | hover | border-color: — → `#57c5f7` |
+| Element | `D` | hover | border-color: — → `#eeefe9` |
+| Element | `E` | hover | opacity: — → `0.5` |
+| Element | `F` | hover | opacity: — → `1` |
+| Element | `G` | hover | opacity: — → `1`<br>transform: — → `translateY(0px) scale(1)` |
 
 ### Recommended (not observed)
 
@@ -395,9 +407,8 @@ The extraction measured only `:hover`. Treat these as defaults, not as facts abo
 
 | Pattern | Behaviour |
 |---|---|
-| Marquee | continuous horizontal track — see the `ticker` keyframe |
 | Tabs | one panel visible at a time |
-| Decorative geometry | non-semantic background shapes (14 instances) |
+| Decorative geometry | non-semantic background shapes (15 instances) |
 
 ### Tabbed content
 

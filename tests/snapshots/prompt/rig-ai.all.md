@@ -22,7 +22,7 @@ Consistently dark (`#0a0a0a` base). Differentiate sections through subtle surfac
 Full-bleed cinematic photography as section atmosphere — wide, moody, environmental. Images carry emotional weight, not informational. Glassmorphism cards (backdrop-filter: blur) float over photography.
 Subtle decorative SVG elements present as background atmosphere — keep very minimal, opacity 0.05–0.10. Do NOT add grid overlays, dot patterns, or crop marks. Decoration should be barely visible.
 Noise/grain texture overlay on backgrounds — apply a subtle grainy SVG or CSS noise filter (`filter: url(#noise)` or repeating SVG background-image) at ~5–15% opacity across main surfaces. Creates a tactile, editorial quality. **Typography**
-Two-font system: "Chalet" for headings (83.36px/700); "Instrument Sans" for body and UI (13.6px/400, line-height 21.76px). Distinct registers — never blur the roles. **Color usage**
+Two-font system: "Chalet" for headings (112px/700); "Instrument Sans" for body and UI (13.6px/400, line-height 21.76px). Distinct registers — never blur the roles. **Color usage**
 Dark surfaces (`#0a0a0a`). `#0a0a0a` is the primary action color — CTAs, links, focus rings, active states. `#0000ee` is secondary — specific badges or callouts, not interchangeable with primary. **Shape & elevation**
 Moderate rounding (6px) — contemporary and neutral. Layered shadows — don't simplify to a single layer.
 Brutalist elevation: hard drop-shadows with zero blur (e.g. `4px 4px 0 color`). Hover states use offset shadow as a design motif: `.btn-red:hover:hover` → `box-shadow: 4px 4px 0 var(--blue)`. `.btn-cta:hover:hover` → `box-shadow: 4px 4px 0 var(--blue)`. This is a defining interaction pattern — reproduce exactly.
@@ -46,16 +46,16 @@ Between hero and body: a full-width ticker strip (background: #000000, monospace
 6. **stats/metrics** (#0a0a0a): "SENTINEL Our platform helps teams ship faster than ever before." Padding: 128px (32×4). Layout: split-columns. Visual: SENTINEL Our platform helps teams ship faster than ever before..
 7. **feature-grid** (#0a0a0a): "SENTINEL Our platform helps teams ship faster than ever before." Padding: 128px (32×4). Layout: multi-column-grid.
 8. **content** (#0a0a0a): "SENTINEL Our platform helps teams ship faster than ever before." Padding: 32px (8×4). Layout: stacked. **Spacing & rhythm**
-Section padding: 128px vertical. container max-width: 90%. card gap: 24px.
+Section padding: 128px vertical. container max-width: 1296px. card gap: 24px.
 Generous whitespace — sections breathe with ample vertical spacing. Premium, unhurried feel. **Spacing system:** 4px base grid (80% conformity). Common values: 4px, 8px, 12px, 16px, 20px, 24px, 28px, 32px. Use multiples of 4px for ALL spacing — padding, gap, margin. Exceptions: 2px, 6px, 9px. **Component language**
 Buttons: Primary = rounded, `#0a0a0a` fill, 13.6px, 700 weight.
 Ghost variant: transparent bg + border outline.
 Secondary: `#0a0a0a` bg, `#f0ede6` text.
 Badges: 0px, 12px, 400 weight.
 Inputs: 44.1875px height, default radius, border: 1px solid rgba(240, 237, 230, 0.15). **Per-section illustrations (each is unique — do NOT reuse a template):** **Type scale**
-H1: 83.36px/700, tracking: -3.3344px
-H2: 52.1px/700
-H3: 26.05px/700
+H1: 112px/700, tracking: -4.48px
+H2: 72px/700
+H3: 32px/700
 Body: 13.6px/400, line-height: 21.76px
 Label: 12.8px/400, uppercase
 ### Color Tokens
@@ -79,9 +79,9 @@ Color role mapping:
 - Body/UI: "Instrument Sans"
 - Labels/mono: "Geist Pixel Square"
 Type scale (semantic roles):
-- **H1 — hero display, page title:** `83.36px/700`, tracking `-3.3344px`, "Chalet"
-- **H2 — section headers:** `52.1px/700`, tracking `-1.563px`, "Chalet"
-- **H3 — feature titles, card headings:** `26.05px/700`, tracking `-0.7815px`, "Chalet"
+- **H1 — hero display, page title:** `112px/700`, tracking `-4.48px`, "Chalet"
+- **H2 — section headers:** `72px/700`, tracking `-2.16px`, "Chalet"
+- **H3 — feature titles, card headings:** `32px/700`, tracking `-0.96px`, "Chalet"
 - **Body — reading text (60-70ch max width):** `13.6px/400`, "Instrument Sans"
 - **Label — UI labels, form fields:** `12.8px/400`, tracking `1.28px`, `uppercase`, "Geist Pixel Square"
 - **Code — inline code, terminal output:** `10.4px/400`, "Chivo Mono"
@@ -117,6 +117,7 @@ Exceptions: 2px, 6px, 9px — use as-is where detected.
 - Keyframe `ticker`: from `0% { transform: translate(0px); }` → to `100% { transform: translate(-50%); }`
 - Active animations:
  - `4s ease-in-out infinite signal-flicker`
+ - `6s linear forwards paused howProgressFill`
 - Mix-blend-modes used: lighten
 ### Interaction Paradigm
 - ⚠️ **ANIMATION ARCHITECTURE — TWO TIERS:** **TIER 1 — HERO (Section 1):** Load-time animations ONLY, no scroll dependency. All hero elements animate on page mount using CSS `@keyframes` with staggered `animation-delay`. Initial `opacity:0` IS PERMITTED in hero because animation fires automatically within 0.4s of load — never waiting for scroll. FAILSAFE: If CSS animation fails to fire, fallback to `opacity:1` via `setTimeout(() => els.forEach(el => el.style.opacity = "1"), 500)`. **TIER 2 — CONTENT SECTIONS:** Scroll-triggered WITH mandatory failsafe. Section headings/eyebrow labels reveal on scroll entry: Initial: `opacity:0; translateY(20px)`. Revealed: `opacity:1; translateY(0)`. Transition: `0.4s ease-out`. MANDATORY DUAL FAILSAFE (both required): 1. `IntersectionObserver {threshold:0.1}`: adds `.is-visible` class on intersection. 2. Timeout: `setTimeout(() => document.querySelectorAll(".reveal-text").forEach(el => el.classList.add("is-visible")), 2000);` This guarantees animation on scroll AND visibility after 2s even if Observer never fires.
@@ -129,19 +130,23 @@ Inline SVG icons: 22 detected
 - Style: filled (48% outlined)
 - Stroke weight: 2px, 2.5px
 - Icon accent colors: `#ed462d`
-Decorative SVG elements: 1
-- 573x563px in hero
+Decorative SVG elements: 5
+- 792x777px in hero
+- 380x380px in signal-section
+- 1000x500px in offline-section [3 gradient(s)]
+- 900x900px in offline-section [animated]
+- 900x900px in cta-section
 ### Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`. Logo left, CTA right. Nav link hover: `opacity: 1`.
-**Primary button:** chamfered corners via `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px `, no border-radius, `#0a0a0a` bg, text `#f0ede6`, height `52.5px`, padding `16px 32px`, font `13.6px/700` "Chivo Mono". Hover: `box-shadow: 4px 4px 0 var(--blue)`.
- Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 16px 32px` · `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)` · `font-size: 13.6px` · `font-weight: 700` · `font-family: "Chivo Mono"` · `height: 52.5px` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
- NOTE: The `52.5px` height combined with `16px 32px` vertical padding requires the button to NOT have border-radius. The clip-path provides the chamfered corner shape. `border-radius` must be 0.
+**Primary button:** chamfered corners via `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px `, no border-radius, `#0a0a0a` bg, text `#f0ede6`, height `52px`, padding `16px 32px`, font `13.6px/700` "Chivo Mono". Hover: `box-shadow: 4px 4px 0 var(--blue)`.
+ Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 16px 32px` · `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)` · `font-size: 13.6px` · `font-weight: 700` · `font-family: "Chivo Mono"` · `height: 52px` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
+ NOTE: The `52px` height combined with `16px 32px` vertical padding requires the button to NOT have border-radius. The clip-path provides the chamfered corner shape. `border-radius` must be 0.
  Hover before: bg: oklch(0.6329 0.2075 31.49), color: oklch(0.1448 0 0), shadow: oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 40px 0px
  Hover after: `box-shadow: 4px 4px 0 var(--blue)`
  Transition: `0.2s cubic-bezier(0.25, 1, 0.5, 1)`
  Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
-**Nav CTA:** `12px` font, height `38.3906px`, padding `19.2px`, `#0a0a0a` bg, "Chivo Mono". Compact — visually smaller than hero CTAs.
- Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 19.2px` · `font-size: 12px` · `font-weight: 700` · `height: 38.3906px` · `transition: opacity 0.2s`
+**Nav CTA:** `12px` font, height `38.375px`, padding `19.2px`, `#0a0a0a` bg, "Chivo Mono". Compact — visually smaller than hero CTAs.
+ Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 19.2px` · `font-size: 12px` · `font-weight: 700` · `height: 38.375px` · `transition: opacity 0.2s`
 **Ghost button:** chamfered via clip-path, transparent bg, border `2px solid rgba(10, 10, 10, 0.3)`, padding `16px 32px`. Hover: `background: rgba(240, 237, 230, 0.05)`, `background-color: rgba(240, 237, 230, 0.05)`, `background-image: initial`, `border-color: var(--paper)`.
  Spec: `background-color: transparent` · `border: 2px solid rgba(10, 10, 10, 0.3)` · `color: #0a0a0a` · `padding: 16px 32px` · `border-radius: 6px` · `font-size: 13.6px` · `font-weight: 700` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
  Hover: `background: rgba(240, 237, 230, 0.05)` · `background-color: rgba(240, 237, 230, 0.05)` · `background-image: initial` · `border-color: var(--paper)`
@@ -158,15 +163,15 @@ Decorative SVG elements: 1
 **Accordion:** 16–18px semibold question, muted answer. max-height transition. Chevron rotates 180° on open. border-bottom between items.
 **Decorative background:** Subtle, non-intrusive SVG elements used as section atmosphere. Keep them minimal — `position:absolute, z-index:-1, pointer-events:none`, opacity 0.05–0.12. Do NOT add grid lines, crop marks, dot patterns, or any strong geometric overlays. The decoration should be barely noticeable — if it draws attention, it's too much.
 **Masonry grid:** 3-column masonry layout (css-grid), 5 items. Heights vary from 210px to 420px. Use CSS `column-count: 3` or JS masonry library. Each card: `background: #000000; border: 1px solid rgba(255,255,255,0.06); transition: background-color 150ms`. Hover: `background-color: #232529`. No shadow, no transform — ONLY background color changes.
-**Animated system diagram — primary communication device** (938×469px): 4 paths, 0 circles, 10 SMIL animations. Colors: rgba(240,237,230,0.08), var(--ink), rgba(240,237,230,0.3). Labels: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.".
+**Animated system diagram — primary communication device** (1000×500px): 4 paths, 0 circles, 10 SMIL animations. Colors: rgba(240,237,230,0.08), var(--ink), rgba(240,237,230,0.3), rgba(10,10,10,0.95), rgba(240,237,230,0.15), rgba(240,237,230,0.4). Labels: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.".
  This diagram replaces body copy — the user reads the system by watching it operate. It is the highest-trust visual on the page.
  Animated dots (8–12px circles) follow `<animateMotion>` paths tracing rails and connections. Colors match their category accent. Connection lines: 1px, extending to imply continuity.
  Do NOT simplify to a static diagram — the motion is the message.
-**SVG diagram** (900×900px): 12 paths, 10 circles. Colors: rgba(240,237,230,0.1), var(--red). Recreate as inline SVG.
+**SVG diagram** (900×900px): 12 paths, 10 circles. Colors: rgba(240,237,230,0.1), rgba(240,237,230,0.025), rgba(240,237,230,0.06), rgba(240,237,230,0.07), rgba(240,237,230,0.08), var(--red). Recreate as inline SVG.
 **Section background decorations — structural atmosphere:**
  Each decorated section carries a background SVG below the content layer. These are NOT optional — they prevent solid-color sections from feeling sterile. Their function is spatial character without photography.
  - **Radial rays** (on #ed462d): 5 lines from convergence point toward edges — implies centrality, focus, authority. `position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden`. Colors: currentColor. opacity: 0.08. Implement as SVG `<line>` elements from center, or CSS `conic-gradient` at very low opacity.
- - **Radial rays** (on page bg): 12 lines from convergence point toward edges — implies centrality, focus, authority. `position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden`. Colors: rgba(240,237,230,0.1). opacity: 1. Implement as SVG `<line>` elements from center, or CSS `conic-gradient` at very low opacity.
+ - **Radial rays** (on page bg): 12 lines from convergence point toward edges — implies centrality, focus, authority. `position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden`. Colors: rgba(240,237,230,0.1), rgba(240,237,230,0.025), rgba(240,237,230,0.06), rgba(240,237,230,0.07). opacity: 1. Implement as SVG `<line>` elements from center, or CSS `conic-gradient` at very low opacity.
  Rule: if the decoration draws attention, it is too strong — reduce opacity. If the section feels like a flat color block, the decoration is missing.
 **Icon system:** `16px` icons consistently paired with feature headings. Filled SVG icons. Color: `#ed462d`. Gap: `12–16px`.
 **Global interactive rules:** links → `color: #0a0a0a`, no underline; EXCEPTION: Navigation links (nav a, header a) use `color: rgba(240,238,230,0.7)` default, `rgba(240,238,230,1)` on hover. The `#0a0a0a` link rule applies to in-content links and CTAs only — NOT nav bar links; `mix-blend-mode: lighten` on overlaid elements.
@@ -182,7 +187,7 @@ Decorative SVG elements: 1
  DO NOT use `mix-blend-mode: lighten` on dark backgrounds — it has no visual effect.
 ### Layout & Page Structure
 - Navigation: transparent-hero
-- Container max-width: `90%`
+- Container max-width: `1296px`
 - Section vertical padding: `128px`
 - Card gap: `24px`
 - Scroll animations: IntersectionObserver + fade + translateY(20px)→0
@@ -199,7 +204,7 @@ Include mandatory 2s timeout failsafe (see Interaction Paradigm).
 **Section 1: hero** — [SAMPLE COPY] "SENTINEL Our platform helps teams ship faster than ever before." [statement · technical · ~10 words]
  Background: #ed462d
  Layout: stacked
- Hero CTA size: `170×53px`, radius: `0px`, padding: `16px 32px`. NOTE: Much larger than nav button — treat as wide feature card, not a compact pill.
+ Hero CTA size: `170×52px`, radius: `0px`, padding: `16px 32px`. NOTE: Much larger than nav button — treat as wide feature card, not a compact pill.
  Animation: hero loads immediately (no scroll trigger) — TIER 1 load-time animation.
  Headline words appear sequentially: each `<span>` with `@keyframes word-enter { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }`. `animation-delay`: 0s, 0.1s, 0.2s, 0.3s per word.
  FAILSAFE: `setTimeout(() => document.querySelectorAll(".hero-word").forEach(el => el.style.opacity = "1"), 500);`
@@ -239,7 +244,7 @@ Include mandatory 2s timeout failsafe (see Interaction Paradigm).
  Eyebrow label: "SENTINEL Our platform helps teams ship faster than ever before."
  Background: #0a0a0a
  Layout: multi-column-grid
- Grid columns: `311.93px 1px 311.93px 1px 311.93px rows:216.016px`
+ Grid columns: `399.328px 1px 399.328px 1px 399.344px rows:199.891px`
  The `1px` columns are visual dividers (2): `background: rgba(255,255,255,0.08); height: 100%`. Do NOT use border-right on items — use actual 1px grid column dividers.
  Entrance: fade-up reveal on scroll (see CSS above).
 **Section 6: stats/metrics** — [SAMPLE COPY] "SENTINEL Our platform helps teams ship faster than ever before." [statement · technical · ~10 words]
@@ -254,7 +259,7 @@ Include mandatory 2s timeout failsafe (see Interaction Paradigm).
  Eyebrow label: "SENTINEL Our platform helps teams ship faster than ever before."
  Background: #0a0a0a
  Layout: multi-column-grid
- Grid columns: `280.594px 280.602px 280.602px rows:267.805px 267.805px`
+ Grid columns: `368px 368px 368px rows:224.75px 224.75px`
  Entrance: fade-up reveal on scroll (see CSS above).
 **Section 8: content** — [SAMPLE COPY] "SENTINEL Our platform helps teams ship faster than ever before." [statement · technical · ~10 words]
  Eyebrow label: "SENTINEL Our platform helps teams ship faster than ever before."
@@ -286,7 +291,7 @@ Include mandatory 2s timeout failsafe (see Interaction Paradigm).
  Layout: stacked
  Entrance: fade-up reveal on scroll (see CSS above).
  CTAs: [SAMPLE COPY] "SENTINEL Our platform helps teams ship faster than ever before." [statement · technical · ~10 words]
- Gradient stripe: `radial-gradient(oklch(0.1448 0 0) 25%, rgba(0, 0, 0, 0) 60%)`, `transform: matrix(1, 0, 0, 1, -1125, -594.141)`
+ Gradient stripe: `radial-gradient(oklch(0.1448 0 0) 25%, rgba(0, 0, 0, 0) 60%)`, `transform: matrix(1, 0, 0, 1, -1125, -748.781)`
  Visuals:
  - SENTINEL Our platform helps teams ship faster than ever before.
 ⚠️ **SCROLL REVEAL — MANDATORY IMPLEMENTATION:**
@@ -309,17 +314,15 @@ useEffect(() => {
 }, []);
 ```
 **FAILSAFE RULE:** If IntersectionObserver cannot be initialized for any reason, set ALL `.reveal-section` elements to `opacity:1; transform:none` by default. NEVER leave content permanently invisible. A broken reveal is worse than no reveal.
-**Footer content**: bg `#0a0a0a`, border-top `1px solid oklch(0.9465 0.0099 87.47 / 0.14)`
- Links: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before."
- Columns: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before."
+**Footer content**
 ### Design Specifications **Typography Scale:**
-- H1: `83.36px/73.3568px/700`, tracking `-3.3344px`, font "Chalet"
-- H2: `52.1px/47.932px/700`, tracking `-1.563px`, font "Chalet"
-- H3: `26.05px/24.7475px/700`, tracking `-0.7815px`, font "Chalet"
+- H1: `112px/98.56px/700`, tracking `-4.48px`, font "Chalet"
+- H2: `72px/66.24px/700`, tracking `-2.16px`, font "Chalet"
+- H3: `32px/30.4px/700`, tracking `-0.96px`, font "Chalet"
 - Body: `13.6px/21.76px/400`, font "Instrument Sans"
 - Label: `12.8px/normal/400`, tracking `1.28px`, `uppercase`, font "Geist Pixel Square" **Spacing:**
 - Section padding: `128px 0`
-- Container max-width: `90%`
+- Container max-width: `1296px`
 - Card gap: `24px` **Icons:**
 - Size: `16px`, style: filled, stroke: `1px`, color: `#ed462d` **Badges/Tags:**
 - bg `#0a0a0a`, text `#ed462d`, radius `0px`, padding `8px 16px`, font `12px/400`, border `1px solid rgba(237, 70, 45, 0.2)` **Inputs:**
@@ -338,14 +341,14 @@ Add to global CSS:
 NOTE: "Chivo Mono", "Chalet", "Geist Pixel Square" are custom fonts not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "Chalet": https://rig.ai/fonts/SENTIN.woff2
-- "Geist Pixel Square": https://rig.ai/fonts/SENTIN.woff2
-- "Instrument Sans": https://rig.ai/fonts/SENTIN.woff2
-- "Chivo Mono": https://rig.ai/fonts/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
-@font-face { font-family: 'Chalet'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+- "Chalet": https://rig.ai/SENTIN.woff2
+- "Geist Pixel Square": https://rig.ai/SENTIN.woff2
+- "Instrument Sans": https://rig.ai/SENTIN.woff2
+- "Chivo Mono": https://rig.ai/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+@font-face { font-family: 'Chalet'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
 :root { --background: #0a0a0a; --foreground: #f0eee6; --card: #121212; --card-foreground: #f0eee6; --popover: #121212; --popover-foreground: #f0eee6; --primary: #0a0a0a; --primary-foreground: #ffffff; --secondary: #1e1e1e; --secondary-foreground: #f0eee6; --muted: #191919; --muted-foreground: #767676; --accent: #232323; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #0a0a0a; --radius: 6px;
 }

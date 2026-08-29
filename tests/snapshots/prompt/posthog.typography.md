@@ -17,15 +17,15 @@ If any later detail conflicts, this section wins.
 - Core component radius family starts at `4px`
 - Motion base duration: `600ms`
 ### Design Direction
-**Overall character (context)** Light base with expressive accent (`#cd8407`). **Section rhythm & color hierarchy (context)** Consistently light throughout (`#eeefe9` base). **Image usage & visual treatment (context)** Full-bleed cinematic photography as section atmosphere — wide, moody, environmental. **Typography**
-Single typeface: "RoundHog" — hierarchy via weight and size contrast. **Color usage (context)** Light surfaces (`#eeefe9`). **Shape & elevation (context)** Pill-shaped interactive elements (border-radius: 9999px) with glow elevation. **Animation & motion (context)** Motion personality: **editorial** — 500–700ms reveals. **Ambient / always-on animations (context)** (loop infinite): - **custom** (3×, duration: 45s, 2s, 3s): Recreate with `animation-iteration-count: infinite`. **Page flow (context)** (1 sections detected — layout may vary) 1. **Interactive components (context)** - **Tabbed switcher** (3 items): "SENTINEL Our platform helps teams ship faster than ever before." | "SENTINEL Our platform helps teams ship faster than ever before." | "SENTINEL Our platform helps teams ship faster than ever before.". **Layered image compositions (render ALL layers, not just one): (context)** Section: SENTINEL Our platform helps teams ship faster than ever before. **Spacing & rhythm (context)** container max-width: 1200px. **Component language (context)** Buttons: Primary = 6px, `#cd8407` fill, 16px. **Type scale (context)** H1: 36px/800, tracking: -0.9px.
+**Overall character (context)** Light base with expressive accent (`#cd8407`). **Section rhythm & color hierarchy (context)** Consistently light throughout (`#eeefe9` base). **Image usage & visual treatment (context)** Product screenshots as the primary visual — real UI in context. **Typography**
+Single typeface: "RoundHog" — hierarchy via weight and size contrast. **Color usage (context)** Light surfaces (`#eeefe9`). **Shape & elevation (context)** Pill-shaped interactive elements (border-radius: 9999px) with glow elevation. **Animation & motion (context)** Motion personality: **editorial** — 500–700ms reveals. **Ambient / always-on animations (context)** (loop infinite): - **gradient-drift** (1×, duration: 3s): `background-size: 200% 200%` + `@keyframes` shifting `background-position`. **Page flow (context)** (1 sections detected — layout may vary) 1. **Interactive components (context)** - **Tabbed switcher** (3 items): "SENTINEL Our platform helps teams ship faster than ever before." | "SENTINEL Our platform helps teams ship faster than ever before." | "SENTINEL Our platform helps teams ship faster than ever before.". **Layered image compositions (render ALL layers, not just one): (context)** Section: SENTINEL Our platform helps teams ship faster than ever before. **Spacing & rhythm (context)** container max-width: 1200px. **Component language (context)** Buttons: Primary = 6px, `#cd8407` fill, 16px. **Type scale (context)** H1: 36px/800, tracking: -0.9px.
 ### Typography Tokens
 - Display/heading: "RoundHog"
 - Body/UI: "IBM Plex Sans Variable"
 ### Type Scale
 - **H1:** `36px/40px/800`, tracking `-0.9px`, font "RoundHog"
 - **H2:** `30px/40px/700`, tracking `-0.75px`, font "RoundHog"
-- **H3:** `18px/28px/700`, font "RoundHog"
+- **H3:** `16px/24px/700`, font "RoundHog"
 - **Body:** `18px/27px/500`, font "RoundHog"
 - Weights used: 400, 500, 700
 ### Context — Do not change
@@ -41,18 +41,18 @@ Source: posthog.com Implementation notes:
 NOTE: "RoundHog" is a custom font not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "IBM Plex Sans Variable": https://posthog.com/static/SENTIN.woff2
-- "Fairytale": https://posthog.com/fonts/SENTIN.woff2
-- "Computer Modern": https://posthog.com/fonts/SENTIN.woff
-- "Squeak": https://posthog.com/fonts/SENTIN.woff2
-- "RoundHog": https://posthog.com/static/SENTIN.woff2
-- "Charter": https://res.cloudinary.com/dmukukwp6/raw/upload/SENTIN.woff Load ALL custom fonts via @font-face in global CSS:
-@font-face { font-family: 'IBM Plex Sans Variable'; src: url('https://posthog.com/static/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Fairytale'; src: url('https://posthog.com/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Computer Modern'; src: url('https://posthog.com/fonts/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Squeak'; src: url('https://posthog.com/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'RoundHog'; src: url('https://posthog.com/static/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: 'Charter'; src: url('https://res.cloudinary.com/dmukukwp6/raw/upload/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
+- "IBM Plex Sans Variable": https://posthog.com/SENTIN.woff2
+- "Fairytale": https://posthog.com/SENTIN.woff2
+- "Computer Modern": https://posthog.com/SENTIN.woff
+- "Squeak": https://posthog.com/SENTIN.woff2
+- "RoundHog": https://posthog.com/SENTIN.woff2
+- "Charter": https://res.cloudinary.com/SENTIN.woff Load ALL custom fonts via @font-face in global CSS:
+@font-face { font-family: 'IBM Plex Sans Variable'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Fairytale'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Computer Modern'; src: url('https://posthog.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Squeak'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'RoundHog'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Charter'; src: url('https://res.cloudinary.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
 These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
 :root { --background: #eeefe9; --foreground: #65675e; --card: #e9eae4; --card-foreground: #65675e; --popover: #e9eae4; --popover-foreground: #65675e; --primary: #cd8407; --primary-foreground: #000000; --secondary: #dfe0da; --secondary-foreground: #65675e; --muted: #e4e5df; --muted-foreground: #6b7280; --accent: #dadbd5; --accent-foreground: #000000; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(0,0,0,0.08); --input: rgba(0,0,0,0.08); --ring: #cd8407; --radius: 4px;
 }
