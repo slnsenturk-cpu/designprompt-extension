@@ -34,9 +34,9 @@ You need an **unpacked** build — the dev buttons are hidden in Web Store build
    and select this repository's root folder.
 2. Open the site you want to capture and open the VibeDesign side panel.
 3. Click **Analyze Page** and wait for the prompt to appear.
-4. In the result header you'll see a dashed **dev** strip with three buttons.
-   Click **Copy RAW capture (dev)** — the third button. The button flashes the
-   copied size.
+4. Open **Settings** (the ⚙ icon). At the bottom, under **Developer**, click
+   **Copy RAW capture**. The button flashes the copied size. That section only
+   renders in an unpacked build.
 
    > This is *not* the **JSON** button in the result header. That one exports the
    > W3C design-token format, which has already collapsed the palette into nine

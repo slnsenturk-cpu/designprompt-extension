@@ -880,31 +880,37 @@ body {
   margin-top: 2px;
 }
 
-/* ─── Dev tools row (unpacked builds only, v3.0) ─── */
-.dev-tools-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding: 6px 0;
+/* ─── Result actions (v3.0) ─── */
+.result-actions { display: flex; align-items: center; gap: 6px; }
+.btn-icon-only { min-width: 26px; padding-left: 6px; padding-right: 6px; }
+
+/* The popup is narrower than the side panel — shorten the labels there. */
+body[data-context="popup"] .result-actions { gap: 4px; }
+body[data-context="popup"] #copyBtn .btn-label,
+body[data-context="popup"] #downloadDesignBtn .btn-label { font-size: 0; }
+body[data-context="popup"] #copyBtn .btn-label::after {
+  content: "Prompt";
+  font-size: 11px;
+}
+body[data-context="popup"] #downloadDesignBtn .btn-label::after {
+  content: "DESIGN.md";
+  font-size: 11px;
+}
+
+/* ─── Settings › Developer (unpacked builds only, v3.0) ─── */
+.settings-dev {
   border-top: 1px dashed var(--border);
-  border-bottom: 1px dashed var(--border);
-  margin-bottom: 6px;
+  padding-top: 8px;
+  margin-top: 4px;
 }
-.dev-dl {
-  min-width: 24px;
-  padding-left: 6px;
-  padding-right: 6px;
-  font-weight: 600;
-}
-.dev-tools-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
+.settings-title--sub {
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-3);
-  opacity: 0.7;
+  margin-bottom: 6px;
 }
+.settings-dev .settings-note { margin-top: 4px; }
 
 /* ─── Session status line (v3.0) ─── */
 .settings-session-status {

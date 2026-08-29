@@ -30,10 +30,14 @@ function fixture(name) {
 const OPTS = { version: '3.0.0', observedAt: '2026-08-29' };
 const opts = extra => Object.assign({}, OPTS, extra);
 
-const RICH = ['light-saas', 'dark-dev-tool'];
+// rig-ai is a real capture; the other two are synthetic. All three are rich
+// enough to exercise every section.
+const RICH = ['light-saas', 'dark-dev-tool', 'rig-ai'];
 const ALL = RICH.concat(['sparse']);
 
-const PRO_SECTIONS = [
+// Sections that only appear when the tokens support them, but which every
+// rich fixture must produce.
+const DEEP_SECTIONS = [
   '## Motion',
   '## Interaction states',
   '## Component anatomy',
@@ -62,7 +66,7 @@ function parseFrontmatter(md) {
 
 ALL.forEach(name => {
   test(`${name}: frontmatter is valid and carries required keys`, () => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'pro' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     const fm = parseFrontmatter(md);
 
     ['name', 'source', 'generated_by'].forEach(k => {
@@ -80,7 +84,7 @@ ALL.forEach(name => {
 
 RICH.forEach(name => {
   test(`${name}: frontmatter carries the full token blocks`, () => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'pro' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     const fm = parseFrontmatter(md);
     ['style', 'colors', 'typography', 'spacing', 'radius', 'shadows', 'breakpoints']
       .forEach(k => assert.ok(fm.keys.includes(k), `${name} must emit ${k}`));
@@ -107,7 +111,7 @@ RICH.forEach(name => {
 
 test('style characterization is a short phrase, not a sentence', () => {
   RICH.forEach(name => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'free' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     const style = parseFrontmatter(md).scalars.style;
     const words = style.replace(/"/g, '').split(/\s+/);
     assert.ok(words.length >= 3 && words.length <= 8, `style should be 3–8 words, got ${words.length}: ${style}`);
@@ -123,17 +127,23 @@ const REQUIRED = [
 
 RICH.forEach(name => {
   test(`${name}: all required sections are present`, () => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'free' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     REQUIRED.forEach(h => assert.ok(md.includes(h), `${name} is missing "${h}"`));
-    // Component sub-sections come from the extracted styles.
-    ['### Buttons', '### Cards', '### Inputs'].forEach(h => {
-      assert.ok(md.includes(h), `${name} is missing "${h}"`);
-    });
+    // Component sub-sections follow the extracted styles: a block appears iff
+    // the extractor produced data for it. rig.ai has cardStyles === null (its
+    // cards are transparent with borders and the extractor does not match
+    // them), so demanding "### Cards" everywhere would be demanding a
+    // fabrication.
+    const t = fixture(name);
+    assert.ok(md.includes('### Buttons'), `${name} is missing "### Buttons"`);
+    assert.ok(md.includes('### Inputs'), `${name} is missing "### Inputs"`);
+    assert.equal(md.includes('### Cards'), !!t.cardStyles,
+      `${name}: the Cards block must appear exactly when cardStyles exists`);
   });
 });
 
 test('sparse tokens: sections with no data are omitted, not emitted empty', () => {
-  const md = build.buildDesignMd(fixture('sparse'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('sparse'), opts());
   // Nothing to say about layout, color usage, components or spacing.
   ['## Layout', '## Color usage', '## Components', '## Spacing rules', '## Visual direction']
     .forEach(h => assert.ok(!md.includes(h), `empty section "${h}" should be omitted`));
@@ -153,24 +163,22 @@ test('sparse tokens: sections with no data are omitted, not emitted empty', () =
 // ── the copy-leak guard ────────────────────────────────────────────────────
 
 ALL.forEach(name => {
-  ['free', 'pro'].forEach(tier => {
-    test(`${name} (${tier}): no page copy leaks into the output`, () => {
-      const tokens = fixture(name);
-      // Sanity: the fixture really does carry the sentinel, otherwise this
-      // test would pass vacuously.
-      assert.ok(JSON.stringify(tokens).includes(SENTINEL),
-        `fixture ${name} must plant the sentinel to make this test meaningful`);
+  test(`${name}: no page copy leaks into the output`, () => {
+    const tokens = fixture(name);
+    // Sanity: the fixture really does carry the sentinel, otherwise this
+    // test would pass vacuously.
+    assert.ok(JSON.stringify(tokens).includes(SENTINEL),
+      `fixture ${name} must plant the sentinel to make this test meaningful`);
 
-      const md = build.buildDesignMd(tokens, opts({ tier }));
-      assert.ok(!md.includes(SENTINEL), 'sentinel sentence leaked into DESIGN.md');
-      assert.ok(!md.includes('SENTINEL'), 'sentinel marker leaked into DESIGN.md');
-    });
+    const md = build.buildDesignMd(tokens, opts());
+    assert.ok(!md.includes(SENTINEL), 'sentinel sentence leaked into DESIGN.md');
+    assert.ok(!md.includes('SENTINEL'), 'sentinel marker leaked into DESIGN.md');
   });
 });
 
 test('no image URLs, asset paths or brand strings leak', () => {
   RICH.forEach(name => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'pro' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     assert.ok(!/https?:\/\/cdn\./.test(md), 'a CDN asset URL leaked');
     assert.ok(!/\.(png|jpe?g|webp|svg|woff2?|json)\b/.test(md), 'an asset filename leaked');
     // The only URL permitted is the source URL, on the `source:` line.
@@ -186,7 +194,7 @@ test('site name comes from the URL, never from page content', () => {
   assert.equal(build._siteName('https://forge-cli.dev'), 'Forge Cli');
   assert.equal(build._siteName('not a url'), 'Untitled');
   // A logoText full of copy must not influence it.
-  const md = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'free' }));
+  const md = build.buildDesignMd(fixture('light-saas'), opts());
   assert.match(md, /^name: "Northwind Design System"$/m);
 });
 
@@ -205,65 +213,39 @@ test('typed accessors reject sentence-shaped input', () => {
   assert.equal(a.hex('rgb(1,2,3)'), null);
 });
 
-// ── tiering ────────────────────────────────────────────────────────────────
-
-RICH.forEach(name => {
-  test(`${name}: pro sections are absent on free and present on pro`, () => {
-    const free = build.buildDesignMd(fixture(name), opts({ tier: 'free' }));
-    const pro = build.buildDesignMd(fixture(name), opts({ tier: 'pro' }));
-
-    PRO_SECTIONS.forEach(h => {
-      assert.ok(!free.includes(h), `free tier must not include "${h}"`);
-      assert.ok(pro.includes(h), `pro tier must include "${h}"`);
-    });
-
-    assert.ok(free.includes(build._FREE_FOOTER), 'free tier must carry the upgrade line');
-    assert.ok(!pro.includes(build._FREE_FOOTER), 'pro tier must not carry the upgrade line');
-    assert.ok(pro.length > free.length, 'pro output should be richer than free');
-  });
-});
-
-test('an unknown tier falls back to free rather than leaking pro content', () => {
-  const md = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'enterprise' }));
-  PRO_SECTIONS.forEach(h => assert.ok(!md.includes(h), `"${h}" leaked on an unknown tier`));
-  assert.ok(md.includes(build._FREE_FOOTER));
-});
-
 // ── determinism ────────────────────────────────────────────────────────────
 
 ALL.forEach(name => {
-  ['free', 'pro'].forEach(tier => {
-    test(`${name} (${tier}): two runs are byte-identical`, () => {
-      const a = build.buildDesignMd(fixture(name), opts({ tier }));
-      const b = build.buildDesignMd(fixture(name), opts({ tier }));
-      assert.equal(a, b);
-      // And re-parsing the fixture from disk must not change anything either,
-      // which catches accidental mutation of the input tokens.
-      const c = build.buildDesignMd(fixture(name), opts({ tier }));
-      assert.equal(a, c);
-    });
+  test(`${name}: two runs are byte-identical`, () => {
+    const a = build.buildDesignMd(fixture(name), opts());
+    const b = build.buildDesignMd(fixture(name), opts());
+    assert.equal(a, b);
+    // Re-reading the fixture from disk must not change anything either,
+    // which catches accidental mutation of the input tokens.
+    const c = build.buildDesignMd(fixture(name), opts());
+    assert.equal(a, c);
   });
 });
 
 test('the builder does not mutate the tokens it is given', () => {
   const tokens = fixture('light-saas');
   const before = JSON.stringify(tokens);
-  build.buildDesignMd(tokens, opts({ tier: 'pro' }));
+  build.buildDesignMd(tokens, opts());
   assert.equal(JSON.stringify(tokens), before);
 });
 
 test('output never depends on the clock', () => {
   // No observedAt → the comment is simply omitted, rather than stamped with
   // Date.now(), which would break reproducibility.
-  const a = build.buildDesignMd(fixture('light-saas'), { tier: 'pro', version: '3.0.0' });
+  const a = build.buildDesignMd(fixture('light-saas'), { version: '3.0.0' });
   assert.ok(!/# observed on/.test(a));
-  assert.equal(a, build.buildDesignMd(fixture('light-saas'), { tier: 'pro', version: '3.0.0' }));
+  assert.equal(a, build.buildDesignMd(fixture('light-saas'), { version: '3.0.0' }));
 });
 
 // ── formatting rules ───────────────────────────────────────────────────────
 
 test('sizes carry both px and rem; colors are hex', () => {
-  const md = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('light-saas'), opts());
   assert.match(md, /16px \(1rem\)/);
   assert.match(md, /56px \(3\.5rem\)/);
   // No rgb()/hsl() color functions outside shadow values.
@@ -274,7 +256,7 @@ test('sizes carry both px and rem; colors are hex', () => {
 });
 
 test('value-heavy sections use tables', () => {
-  const md = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('light-saas'), opts());
   ['## Layout', '## Color usage', '## Components'].forEach(h => {
     const body = md.slice(md.indexOf(h), md.indexOf(h) + 900);
     assert.ok(body.includes('|---'), `${h} should use a table`);
@@ -283,7 +265,7 @@ test('value-heavy sections use tables', () => {
 
 test('markdown tables are well-formed', () => {
   ALL.forEach(name => {
-    const md = build.buildDesignMd(fixture(name), opts({ tier: 'pro' }));
+    const md = build.buildDesignMd(fixture(name), opts());
     const lines = md.split('\n');
     lines.forEach((line, i) => {
       if (!/^\|---/.test(line)) return;
@@ -299,13 +281,13 @@ test('markdown tables are well-formed', () => {
 // ── component scope ────────────────────────────────────────────────────────
 
 test('scope "component" produces a short component card', () => {
-  const page = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'pro', scope: 'page' }));
-  const card = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'pro', scope: 'component' }));
+  const page = build.buildDesignMd(fixture('light-saas'), opts({ scope: 'page' }));
+  const card = build.buildDesignMd(fixture('light-saas'), opts({ scope: 'component' }));
 
   assert.ok(card.length < page.length / 2, 'the component card should be much shorter');
   assert.ok(card.startsWith('---\n'), 'it still carries frontmatter');
   assert.ok(card.includes('## Components'));
-  assert.ok(card.includes('## Interaction states'), 'pro component card includes states');
+  assert.ok(card.includes('## Interaction states'), 'the component card includes states');
   // The page-level narrative sections do not belong on a component card.
   ['## Visual direction', '## Layout', '## Spacing rules', '## Do'].forEach(h => {
     assert.ok(!card.includes(h), `component card should not include "${h}"`);
@@ -313,11 +295,6 @@ test('scope "component" produces a short component card', () => {
   assert.ok(!card.includes(SENTINEL));
 });
 
-test('free component card carries the upgrade line and no states', () => {
-  const card = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'free', scope: 'component' }));
-  assert.ok(!card.includes('## Interaction states'));
-  assert.ok(card.includes(build._FREE_FOOTER));
-});
 
 // ── semantic color derivation ──────────────────────────────────────────────
 
@@ -351,7 +328,7 @@ test('hover colours are measured, never synthesised', () => {
     'with nothing measured there must be no primary-hover token');
 
   // And it must not reappear anywhere in the document.
-  const md = build.buildDesignMd(noHover, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(noHover, opts());
   assert.ok(!md.includes('primary-hover'));
 });
 
@@ -364,7 +341,7 @@ test('a colour may fill two roles rather than one being dropped', () => {
 });
 
 test('accessibility notes flag pairings below 4.5:1', () => {
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
   const section = md.slice(md.indexOf('## Accessibility notes'));
   assert.match(section, /\d+\.\d\d:1/, 'ratios must be printed');
   // The dark fixture's muted text is deliberately low-contrast.
@@ -373,11 +350,11 @@ test('accessibility notes flag pairings below 4.5:1', () => {
 });
 
 test('a fully empty token object still produces a usable document', () => {
-  const md = build.buildDesignMd({}, opts({ tier: 'pro', sourceUrl: 'https://example.com' }));
+  const md = build.buildDesignMd({}, opts({ sourceUrl: 'https://example.com' }));
   assert.ok(md.startsWith('---\n'));
   assert.ok(md.includes('# Example Design System'));
   assert.ok(md.includes('## Agent instructions'));
-  assert.equal(md, build.buildDesignMd({}, opts({ tier: 'pro', sourceUrl: 'https://example.com' })));
+  assert.equal(md, build.buildDesignMd({}, opts({ sourceUrl: 'https://example.com' })));
 });
 
 // ── loads in the browser too ───────────────────────────────────────────────
@@ -399,11 +376,11 @@ test('builder works via <script> load, with color-utils as plain globals', () =>
   assert.ok(sandbox.VD_DESIGN_MD, 'the builder must expose self.VD_DESIGN_MD');
   sandbox.__tokens = fixture('light-saas');
   const md = vm.runInContext(
-    'VD_DESIGN_MD.buildDesignMd(__tokens, {tier:"pro", version:"3.0.0", observedAt:"2026-08-29"})',
+    'VD_DESIGN_MD.buildDesignMd(__tokens, {version:"3.0.0", observedAt:"2026-08-29"})',
     sandbox);
 
   // Byte-identical to the Node path — same code, same color math.
-  assert.equal(md, build.buildDesignMd(fixture('light-saas'), opts({ tier: 'pro' })));
+  assert.equal(md, build.buildDesignMd(fixture('light-saas'), opts()));
   // Contrast ratios really were computed, i.e. the globals resolved.
   assert.match(md, /## Accessibility notes/);
   assert.match(md, /\d+\.\d\d:1/);
@@ -411,45 +388,72 @@ test('builder works via <script> load, with color-utils as plain globals', () =>
 
 // ── dev affordances must not reach packaged builds ─────────────────────────
 
-test('dev copy buttons are gated on an unpacked build', () => {
+test('the Developer section is gated on an unpacked build', () => {
   const ui = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ui-helpers.js'), 'utf8');
 
-  // The gate itself: a packaged Web Store build has an update_url.
+  // The gate: a packaged Web Store build has an update_url; an unpacked one
+  // does not.
   assert.match(ui, /function isUnpackedBuild\(\)[\s\S]{0,200}update_url/,
     'isUnpackedBuild must key off manifest.update_url');
-  // The row ships hidden and is only revealed behind the gate.
-  assert.match(ui, /id="devToolsRow" style="display:none"/,
-    'the dev row must be hidden in the template');
+
+  // It ships hidden and is revealed only behind the gate.
+  assert.match(ui, /id="settingsDev" style="display:none"/,
+    'the Developer section must be hidden in the template');
+
   const gate = ui.indexOf('if (isUnpackedBuild())');
   assert.notEqual(gate, -1, 'the reveal must be gated');
-
-  // Find the guard block by brace matching rather than by a character window,
-  // so adding a button to it cannot break this test for the wrong reason.
   const open = ui.indexOf('{', gate);
   let depth = 0, close = -1;
-  for (let i = open; i < ui.length; i++) {
-    if (ui[i] === '{') depth++;
-    else if (ui[i] === '}') { depth--; if (depth === 0) { close = i; break; } }
+  for (let k = open; k < ui.length; k++) {
+    if (ui[k] === '{') depth++;
+    else if (ui[k] === '}') { depth--; if (depth === 0) { close = k; break; } }
   }
   assert.notEqual(close, -1, 'the guard block must be balanced');
   const inGuard = pos => pos > open && pos < close;
 
-  const reveal = ui.indexOf("devRow.style.display = 'flex'");
-  assert.ok(inGuard(reveal), 'the reveal must sit inside the gate');
+  assert.ok(inGuard(ui.indexOf("devSection.style.display = 'block'")),
+    'the reveal must sit inside the gate');
+  assert.ok(inGuard(ui.indexOf("$('devTokensJsonBtn')")),
+    'the raw-capture button must only be wired up for unpacked builds');
+  assert.equal(ui.split("devSection.style.display = 'block'").length - 1, 1,
+    'the Developer section must be revealed in exactly one place');
 
-  // Every dev listener is looked up inside the same guarded block, and the
-  // only other mention of each id is its (hidden) markup in the template.
-  ['devDesignMdFreeBtn', 'devDesignMdProBtn', 'devTokensJsonBtn',
-   'devDlFreeBtn', 'devDlProBtn'].forEach(id => {
-    const lookup = ui.indexOf(`$('${id}')`);
-    assert.notEqual(lookup, -1, `${id} is never looked up`);
-    assert.ok(inGuard(lookup),
-      `${id} must only be wired up inside the isUnpackedBuild() guard`);
+  // The old dashed dev strip is gone entirely.
+  ['devToolsRow', 'dev-tools-row', 'devDesignMdFreeBtn', 'devDesignMdProBtn',
+   'devDlFreeBtn', 'devDlProBtn'].forEach(gone => {
+    assert.ok(!ui.includes(gone), `the dev strip remnant "${gone}" must be removed`);
   });
+});
 
-  // The row is revealed in exactly one place — the guarded block above.
-  assert.equal(ui.split("devRow.style.display = 'flex'").length - 1, 1,
-    'the dev row must be revealed in exactly one (guarded) place');
+test('the result area exposes exactly two actions, for every user', () => {
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ui-helpers.js'), 'utf8');
+  const block = ui.slice(ui.indexOf('<div class="result-actions">'),
+                         ui.indexOf('</div>', ui.indexOf('<div class="result-actions">')));
+
+  // Button ids only — `copyIcon` is a span inside the copy button.
+  const ids = (block.match(/<button[^>]*\bid="([a-zA-Z]+)"/g) || [])
+    .map(m => m.match(/id="([a-zA-Z]+)"/)[1]);
+  assert.deepEqual(ids, ['copyBtn', 'downloadDesignBtn', 'resetBtn'],
+    'the result actions are Copy prompt, Download DESIGN.md, and the reset control');
+  assert.ok(block.includes('Copy prompt'));
+  assert.ok(block.includes('Download DESIGN.md'));
+
+  // Neither action is behind the dev guard — they are for all users.
+  const gate = ui.indexOf('if (isUnpackedBuild())');
+  assert.ok(ui.indexOf("$('downloadDesignBtn')") < gate,
+    'Download DESIGN.md must be wired up outside the unpacked guard');
+
+  // The W3C export is retained in the codebase but nothing in the UI calls it.
+  assert.ok(!ui.includes('exportTokensBtn'), 'the JSON export button must be gone');
+  assert.ok(!ui.includes('downloadTokensJSON'), 'nothing in the UI may call the exporter');
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'lib', 'token-exporter.js')),
+    'lib/token-exporter.js is kept for Prompt 2');
+});
+
+test('the download filename is domain-only', () => {
+  const dl = require(path.join(__dirname, '..', 'lib', 'download.js'));
+  assert.equal(dl.designMdFilename('https://rig.ai/'), 'DESIGN-rig.ai.md');
+  assert.equal(dl.designMdFilename('https://www.northwind.io/pricing'), 'DESIGN-northwind.io.md');
 });
 
 // ── colour resolution: nothing unresolved may reach the reader ─────────────
@@ -471,10 +475,8 @@ test('rgba / oklch / var() are all resolved to opaque hex', () => {
 
 test('no unresolved var() or alpha colour ever reaches the output', () => {
   ALL.forEach(name => {
-    ['free', 'pro'].forEach(tier => {
-      const md = build.buildDesignMd(fixture(name), opts({ tier }));
-      assert.ok(!md.includes('var(--'), `${name}/${tier}: an unresolved var() reached the document`);
-    });
+    const md = build.buildDesignMd(fixture(name), opts());
+    assert.ok(!md.includes('var(--'), `${name}: an unresolved var() reached the document`);
   });
 });
 
@@ -496,7 +498,7 @@ test('a polygon clip-path zeroes the radius and is described instead', () => {
   t.buttonStyles.primary.clipPath = 'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)';
   t.cssVars['--chamfer'] = '14px';
 
-  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(t, opts());
   assert.match(md, /^  button: "0px"$/m, 'a clip-path button has no border-radius');
   assert.ok(md.includes('chamfer'), 'the chamfer must be described');
   assert.ok(md.includes('clip-path: polygon('), 'the polygon itself must be reproducible');
@@ -518,7 +520,7 @@ test('every keyframe is listed with an effect derived from its from/to', () => {
   ];
   t.ambientAnimations = [{ name: 'signal-flicker', duration: '4s', timingFunction: 'ease-in-out', iterationCount: 'infinite' }];
 
-  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(t, opts());
   const section = md.slice(md.indexOf('### Keyframes'));
   assert.ok(md.includes('### Keyframes'));
   t.animations.forEach(a => assert.ok(section.includes('`' + a.name + '`'), `${a.name} missing`));
@@ -534,14 +536,14 @@ test('every keyframe is listed with an effect derived from its from/to', () => {
 test('repeated easing tokens are collapsed', () => {
   const t = fixture('dark-dev-tool');
   t.transitions = ['all 200ms ease, ease', 'all 200ms ease, ease', 'color 100ms ease-out'];
-  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(t, opts());
   assert.ok(!md.includes('ease, ease'), 'duplicated easing must be collapsed');
 });
 
 // ── measured vs recommended ────────────────────────────────────────────────
 
 test('measured interaction states are visibly separated from recommendations', () => {
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
   const section = md.slice(md.indexOf('## Interaction states'));
   assert.ok(section.includes('### Measured'), 'measurements need their own block');
   assert.ok(section.includes('### Recommended (not observed)'), 'advice must be fenced off');
@@ -563,7 +565,7 @@ test('measured interaction states are visibly separated from recommendations', (
 test('heuristic visual flags need a second signal', () => {
   const t = fixture('dark-dev-tool');
   // The fixture claims glassmorphism and noise with nothing to back them.
-  const bare = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const bare = build.buildDesignMd(t, opts());
   assert.ok(!bare.includes('Glassmorphism'), 'unsupported glassmorphism must be omitted');
   assert.ok(!bare.includes('Noise texture'), 'unsupported noise must be omitted');
   assert.ok(!bare.includes('Gradient style'), 'gradientStyle with no gradients must be omitted');
@@ -573,7 +575,7 @@ test('heuristic visual flags need a second signal', () => {
   t2.filterEffects = { backdropFilter: 'blur(12px)' };
   t2.subtleTextures = [{ type: 'noise' }];
   t2.gradients = ['linear-gradient(180deg, #7c3aed, #22d3ee)'];
-  const rich = build.buildDesignMd(t2, opts({ tier: 'pro' }));
+  const rich = build.buildDesignMd(t2, opts());
   assert.ok(rich.includes('Glassmorphism'));
   assert.ok(rich.includes('Noise texture'));
   assert.ok(rich.includes('Gradient style'));
@@ -593,7 +595,7 @@ test('layout reports repeating structures and the hero treatment', () => {
   ];
   t.visualProfile.spacingSystem = { cardGap: '12px' };
 
-  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(t, opts());
   const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
   // Page-level geometry stays in Layout; repeating structures move to anatomy.
   const anatomy = md.slice(md.indexOf('## Component anatomy'));
@@ -641,7 +643,7 @@ test('rig: colour roles match the live site', () => {
 
 test('rig: chamfer, motion, states and required sections', () => {
   const t = fixture('rig-ai');
-  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(t, opts());
 
   // Shape: a clip-path polygon, not a radius.
   assert.match(md, /^  button: "0px"$/m);
@@ -674,7 +676,7 @@ test('rig: chamfer, motion, states and required sections', () => {
   assert.match(md, /\| Dominant easing \| ease \|/);
 
   // All required sections, free and pro.
-  [...REQUIRED, ...PRO_SECTIONS].forEach(h => assert.ok(md.includes(h), `missing "${h}"`));
+  [...REQUIRED, ...DEEP_SECTIONS].forEach(h => assert.ok(md.includes(h), `missing "${h}"`));
   assert.ok(md.includes('## Elevation & shadows'));
 
   // The style line must describe this site, not a generic one.
@@ -685,7 +687,7 @@ test('rig: chamfer, motion, states and required sections', () => {
 });
 
 test('rig: layout and accessibility read from the real field paths', () => {
-  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
   const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
 
   assert.ok(layout.includes('128px'), 'sectionPaddingY from visualProfile.spacingSystem');
@@ -713,7 +715,7 @@ test('rig: layout and accessibility read from the real field paths', () => {
 });
 
 test('rig: typography lists every face including the pixel label', () => {
-  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'free' }));
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
   ['Chalet', 'Instrument Sans', 'Chivo Mono', 'Geist Pixel Square']
     .forEach(f => assert.ok(md.includes(f), `${f} missing`));
   // Per-step tracking, not a floating list.
@@ -725,7 +727,7 @@ test('rig: typography lists every face including the pixel label', () => {
 // ── hoverStates.before is the BASE state, not a pseudo-element ─────────────
 
 test('rig: interaction rows read base → hover and never say ::before', () => {
-  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
   const states = md.slice(md.indexOf('## Interaction states'), md.indexOf('## Component anatomy'));
 
   assert.ok(!md.includes('::before'), '`before` is the base state, not a pseudo-element');
@@ -739,7 +741,7 @@ test('rig: interaction rows read base → hover and never say ::before', () => {
 });
 
 test('rig: rows are labelled by variant and duplicates collapse', () => {
-  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
   const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
 
   ['btn-cta', 'btn-outline', 'btn-ghost', 'offline-card', 'faq-question', 'footer-col']
@@ -760,7 +762,7 @@ test('rig: rows are labelled by variant and duplicates collapse', () => {
 // ── surface context ───────────────────────────────────────────────────────
 
 test('rig: hero-measured components are flagged and composited over the hero', () => {
-  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('rig-ai'), opts());
   const buttons = md.slice(md.indexOf('### Buttons'), md.indexOf('### Inputs'));
 
   assert.ok(buttons.includes('Surface context'), 'the hero sampling must be declared');
@@ -780,7 +782,7 @@ test('rig: hero-measured components are flagged and composited over the hero', (
 
 test('a component measured on the page background gets no surface note', () => {
   // dark-dev-tool has no hero fill distinct from the page.
-  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts({ tier: 'pro' }));
+  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts());
   assert.ok(!md.includes('Surface context'));
   assert.ok(!md.includes('Measured on the hero surface'));
 });
@@ -790,11 +792,61 @@ test('a component measured on the page background gets no surface note', () => {
 test('the accent rule adapts when the site fills a section with the accent', () => {
   // rig paints its hero in the accent, so forbidding large fills would
   // contradict the document's own Layout section.
-  const rig = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'free' }));
+  const rig = build.buildDesignMd(fixture('rig-ai'), opts());
   assert.match(rig, /^- The accent `#ed462d` is used as a full-bleed fill only for the hero/m);
   assert.ok(!/Do not use `#ed462d` for large background fills/.test(rig));
 
   // Where the accent is never a section background, the prohibition stands.
-  const saas = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'free' }));
+  const saas = build.buildDesignMd(fixture('light-saas'), opts());
   assert.match(saas, /Do not use `#2563eb` for large background fills/);
+});
+
+// ── snapshot: the whole document, on every fixture ────────────────────────
+// One document, no tiers. These snapshots are the regression net for the
+// builder as a whole: any change to wording, ordering or derived values shows
+// up as a diff here. Refresh them deliberately with:
+//
+//     UPDATE_SNAPSHOTS=1 node --test tests/design-md-builder.test.js
+//
+// and read the diff before committing — a snapshot updated without being read
+// is worse than no snapshot.
+
+const SNAP_DIR = path.join(__dirname, 'snapshots');
+
+ALL.forEach(name => {
+  test(`${name}: full document matches its snapshot`, () => {
+    const md = build.buildDesignMd(fixture(name), opts());
+    const file = path.join(SNAP_DIR, `${name}.md`);
+
+    if (process.env.UPDATE_SNAPSHOTS === '1') {
+      fs.mkdirSync(SNAP_DIR, { recursive: true });
+      fs.writeFileSync(file, md);
+      return;
+    }
+
+    assert.ok(fs.existsSync(file),
+      `no snapshot for ${name} — create it with UPDATE_SNAPSHOTS=1`);
+    const expected = fs.readFileSync(file, 'utf8');
+    if (expected !== md) {
+      // Point at the first differing line rather than dumping 14k chars.
+      const a = expected.split('\n'), b = md.split('\n');
+      let i = 0;
+      while (i < a.length && i < b.length && a[i] === b[i]) i++;
+      assert.fail(`${name} drifted from its snapshot at line ${i + 1}\n`
+        + `  snapshot: ${JSON.stringify(a[i])}\n`
+        + `  actual:   ${JSON.stringify(b[i])}\n`
+        + `  (${a.length} → ${b.length} lines; UPDATE_SNAPSHOTS=1 to accept)`);
+    }
+  });
+});
+
+test('every snapshot contains the full section set — no tiering left', () => {
+  RICH.forEach(name => {
+    const snap = fs.readFileSync(path.join(SNAP_DIR, `${name}.md`), 'utf8');
+    [...REQUIRED, ...DEEP_SECTIONS].forEach(h => {
+      assert.ok(snap.includes(h), `${name} snapshot is missing "${h}"`);
+    });
+    assert.ok(!/VibeDesign Pro/.test(snap), 'the upgrade footer must be gone');
+    assert.ok(!/\btier\b/i.test(snap), 'no tier language may remain');
+  });
 });
