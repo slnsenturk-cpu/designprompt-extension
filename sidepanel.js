@@ -27,12 +27,33 @@ let _vdAuthSubscribed = false;
 let _vdServerPollTimer = null;
 let _vdVisibilityHandlerAttached = false;
 
+// The service worker is the ONLY component allowed to refresh the session.
+// Supabase refresh tokens are single-use, so a second refresher racing the SW
+// makes the loser fail with "Invalid Refresh Token: Already Used" — and the
+// SDK's response to that is _removeSession(), i.e. a spurious sign-out.
+//
+// gotrue-js refreshes inside __loadSession() whenever the token is within
+// EXPIRY_MARGIN (90s) of expiring, and that path is NOT gated by
+// autoRefreshToken:false. Any bare getUser()/getSession() can therefore mint a
+// token. We keep well clear of that window: once the token is inside
+// VD_NUDGE_MARGIN_MS we ask the SW to refresh and skip this tick entirely.
+const VD_SDK_REFRESH_MARGIN_MS = 90 * 1000;      // gotrue-js EXPIRY_MARGIN
+const VD_NUDGE_MARGIN_MS = Math.max(5 * 60 * 1000, VD_SDK_REFRESH_MARGIN_MS * 3);
+
+async function _vdRequestTokenRefresh() {
+  try {
+    await chrome.runtime.sendMessage({ type: 'VD_REFRESH_TOKEN' });
+  } catch (e) {
+    // No receiver / SW still starting — the periodic alarm still covers it.
+  }
+}
+
 // Two-way logout sync: poll Supabase every 30s while the sidepanel is open,
 // and re-check whenever the sidepanel regains visibility. If the server
 // explicitly reports the session is gone (401 / session_not_found / invalid
-// JWT / JWT expired), clear the local session and re-render the pill as
-// anonymous. Network errors do NOT trigger logout — offline users stay
-// signed in locally until the server explicitly says otherwise.
+// JWT), clear the local session and re-render the pill as anonymous. Network
+// errors do NOT trigger logout — offline users stay signed in locally until
+// the server explicitly says otherwise.
 async function _vdCheckServerAuth() {
   try {
     const auth = self.VD_AUTH;
@@ -40,13 +61,24 @@ async function _vdCheckServerAuth() {
     const sess = await auth.peekSession();
     if (!sess || !sess.access_token) return; // already anonymous locally
 
+    // Near expiry: hand off to the SW and make no judgement this tick. A token
+    // that is merely stale is not evidence the server revoked anything.
+    const ttl = (sess.expires_at ? sess.expires_at * 1000 : Infinity) - Date.now();
+    if (ttl < VD_NUDGE_MARGIN_MS) {
+      await _vdRequestTokenRefresh();
+      return;
+    }
+
     if (!self.VD_SUPABASE || typeof self.VD_SUPABASE.initSupabase !== 'function') return;
     const sb = self.VD_SUPABASE.initSupabase();
     if (!sb || !sb.auth || typeof sb.auth.getUser !== 'function') return;
 
     let res;
     try {
-      res = await sb.auth.getUser();
+      // Passing the JWT explicitly makes getUser() a plain GET /auth/v1/user.
+      // The bare getUser() goes through __loadSession() and can refresh; this
+      // form cannot. The token is known-unexpired thanks to the ttl gate above.
+      res = await sb.auth.getUser(sess.access_token);
     } catch (e) {
       // Network / fetch failure — treat as transient, do NOT log out.
       return;
@@ -58,13 +90,16 @@ async function _vdCheckServerAuth() {
     const err = res.error;
     const status = err && err.status;
     const msg = (err && (err.message || err.name)) || '';
-    const invalidated =
+    // "JWT expired" is deliberately NOT a logout signal any more. We only
+    // send tokens with >5 min of life left, so an expiry verdict means clock
+    // skew between us and the server — never that the session was revoked.
+    const expired = /jwt[_ ]?expired/i.test(msg);
+    const invalidated = !expired && (
       status === 401 ||
       status === 403 ||
       /session[_ ]?not[_ ]?found/i.test(msg) ||
       /invalid[_ ]?jwt/i.test(msg) ||
-      /jwt[_ ]?expired/i.test(msg) ||
-      /user[_ ]?not[_ ]?found/i.test(msg);
+      /user[_ ]?not[_ ]?found/i.test(msg));
 
     if (!invalidated) return; // no explicit signal — stay signed in
 
