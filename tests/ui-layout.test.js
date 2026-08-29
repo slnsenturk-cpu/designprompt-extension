@@ -44,8 +44,11 @@ function page(surface, panelHtml, opts) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head>
 <body data-context="${surface}"><div class="app">
   <header class="vd-header">
-    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-         alt="VibeDesign" class="vd-header__logo" width="317" height="108" />
+    <div class="vd-header__top">
+      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+           alt="VibeDesign" class="vd-header__logo" width="317" height="108" />
+      <div class="vd-header__account">${U.accountControl({ authed: false })}</div>
+    </div>
     <div class="vd-header__status">
       <span class="vd-header__domain">${o.domain || 'rig.ai'}</span>
       <span class="vd-header__state">${o.state || 'Analyzed 09:23 PM'}</span>
@@ -205,7 +208,9 @@ test('the wordmark renders at exactly 20px, centred on the header row', async ()
   for (const width of WIDTHS) {
     const r = await withPage(SURFACES.overview(), width, p => p.evaluate(async () => {
       const img = document.querySelector('.vd-header__logo');
-      const header = document.querySelector('.vd-header');
+      // §3: the wordmark centres on the BRAND row, not on the whole two-line
+      // header — its centre line is shared with the account control.
+      const header = document.querySelector('.vd-header__top');
       const a = img.getBoundingClientRect(), h = header.getBoundingClientRect();
       return {
         height: +a.height.toFixed(2),
@@ -217,7 +222,7 @@ test('the wordmark renders at exactly 20px, centred on the header row', async ()
     }));
     assert.equal(r.height, 20, `${width}px: the wordmark is ${r.height}px tall, not 20px`);
     assert.ok(r.offCentre <= 0.5,
-      `${width}px: the wordmark sits ${r.offCentre}px off the header's centre line`);
+      `${width}px: the wordmark sits ${r.offCentre}px off the brand row's centre line`);
     // Intrinsic size declared, so the header cannot reflow when the image loads.
     assert.ok(r.declared.w && r.declared.h,
       'the wordmark has no intrinsic size declared — the header will jump on load');
@@ -247,4 +252,115 @@ test('the popup is a fixed 380px and still does not overflow', async () => {
   })));
   assert.equal(r.app, 380, 'the popup lost its fixed width');
   assert.ok(r.scrollWidth <= r.innerWidth, 'the popup overflows');
+});
+
+// ── focus (§8) ────────────────────────────────────────────────────────────
+//
+// jsdom cannot answer this either: :focus-visible is a browser judgement about
+// how the user arrived at a control, and it has no such judgement to make.
+
+test('every control shows a ring on keyboard focus and none on a mouse click', async () => {
+  const html = SURFACES.overview();
+  const r = await withPage(html, 360, async p => {
+    // Keyboard: Tab through the panel and record what each landing gets.
+    const byKeyboard = [];
+    for (let i = 0; i < 30; i++) {
+      await p.keyboard.press('Tab');
+      const hit = await p.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        const cs = getComputedStyle(el);
+        return {
+          name: el.tagName.toLowerCase() + '.' + String(el.className || '').split(' ')[0],
+          width: parseFloat(cs.outlineWidth) || 0,
+          style: cs.outlineStyle,
+          matches: el.matches(':focus-visible'),
+        };
+      });
+      if (hit) byKeyboard.push(hit);
+    }
+
+    // Mouse: click a select and a button, and see what they get.
+    const byMouse = [];
+    for (const sel of ['.vd-select', '#vdExportBtn', '.vd-seg__item']) {
+      const el = await p.$(sel);
+      if (!el) continue;
+      await el.click();
+      byMouse.push(await p.evaluate(s => {
+        const e = document.querySelector(s);
+        const cs = getComputedStyle(e);
+        return {
+          name: s,
+          focused: document.activeElement === e,
+          visible: e.matches(':focus-visible'),
+          width: parseFloat(cs.outlineWidth) || 0,
+          style: cs.outlineStyle,
+        };
+      }, sel));
+    }
+    return { byKeyboard, byMouse };
+  });
+
+  assert.ok(r.byKeyboard.length >= 6,
+    `only ${r.byKeyboard.length} controls were reachable by Tab`);
+  r.byKeyboard.forEach(hit => {
+    assert.ok(hit.matches, `${hit.name} did not match :focus-visible on Tab`);
+    assert.ok(hit.width >= 2 && hit.style !== 'none',
+      `${hit.name} has no focus ring on Tab (outline ${hit.style} ${hit.width}px)`);
+  });
+
+  // A control closed with the mouse must not be left wearing a ring.
+  r.byMouse.forEach(hit => {
+    if (!hit.focused) return;                 // never took focus — nothing to show
+    if (hit.visible) return;                  // the browser judged it keyboard-like
+    assert.ok(hit.width === 0 || hit.style === 'none',
+      `${hit.name} shows a ring after a mouse click (outline ${hit.style} ${hit.width}px)`);
+  });
+});
+
+test('the focus ring is added, never suppressed', async () => {
+  // `outline: none` on :focus is how keyboard access gets lost: one selector
+  // is missed in the re-adding and that control becomes invisible to Tab.
+  const css = fs.readFileSync(path.join(ROOT, 'popup.css'), 'utf8');
+  const panel = css.slice(css.indexOf('/* ── shell (§3) ──'));
+  const suppressions = (panel.match(/:focus(?!-visible)[^{]*\{[^}]*outline:\s*(none|0)/g) || []);
+  assert.deepEqual(suppressions, [], 'a panel rule removes the default focus outline');
+
+  // And every interactive class the panel renders has a focus-visible rule.
+  ['.vd-btn', '.vd-seg__item', '.vd-select', '.vd-chip', '.vd-tab', '.vd-swatch',
+   '.vd-input', '.vd-link', '.vd-cap__link', '.vd-ai__link', '.vd-account',
+   '.vd-section__action', '.vd-sheet__close']
+    .forEach(sel => assert.ok(panel.includes(sel + ':focus-visible'),
+      `${sel} has no :focus-visible ring`));
+});
+
+test('the header is two lines and the domain stays on one of them', async () => {
+  for (const width of WIDTHS) {
+    const r = await withPage(SURFACES.overview(), width, p => p.evaluate(() => {
+      const h = document.querySelector('.vd-header');
+      const top = document.querySelector('.vd-header__top');
+      const status = document.querySelector('.vd-header__status');
+      const logo = document.querySelector('.vd-header__logo');
+      const acct = document.querySelector('.vd-header__account');
+      const domain = document.querySelector('.vd-header__domain');
+      const box = e => e.getBoundingClientRect();
+      return {
+        height: +box(h).height.toFixed(1),
+        logoH: +box(logo).height.toFixed(1),
+        // Two lines: the status sits entirely below the brand row.
+        statusBelowTop: box(status).top >= box(top).bottom - 0.5,
+        acctOnTopRow: Math.abs((box(acct).top + box(acct).height / 2)
+                             - (box(top).top + box(top).height / 2)) <= 1,
+        statusLines: Math.round(box(status).height / parseFloat(getComputedStyle(status).lineHeight || 16)),
+        domainClipped: domain.scrollWidth > domain.clientWidth + 1,
+        domainEllipsis: getComputedStyle(domain).textOverflow,
+      };
+    }));
+    assert.equal(r.height, 60, `${width}px: the header is ${r.height}px, not 60`);
+    assert.equal(r.logoH, 20, `${width}px: the wordmark is ${r.logoH}px`);
+    assert.ok(r.statusBelowTop, `${width}px: the header is not two lines`);
+    assert.ok(r.acctOnTopRow, `${width}px: the account control is not on the brand row`);
+    assert.equal(r.statusLines, 1, `${width}px: the page line wrapped`);
+    assert.equal(r.domainEllipsis, 'ellipsis', `${width}px: a long domain would be cut, not ellipsed`);
+  }
 });

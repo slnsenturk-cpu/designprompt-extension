@@ -48,7 +48,9 @@ Kural: bir alan modelde yoksa UI'da da yoktur. UI için yeni veri uydurulmaz.
 ## 3. Bilgi mimarisi — ekranlar ve gezinme
 
 ```
-Header (sabit, 48px):   [logo]  [domain · durum]                    [avatar | Sign in]
+Header (sabit, 60px, iki satır):
+   satır 1:  [logo 20px]                                   [avatar | Sign in]
+   satır 2:  [domain · durum]                          (tek satır, ellipsis)
 
 İçerik (kayar):         seçili sekmenin içeriği
 
@@ -57,7 +59,9 @@ Alt sekme çubuğu (sticky, 56px, ikon + kısa etiket):
 ```
 
 - **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok.
-- **Header ölçüleri:** logo 20px yüksekliğinde (wordmark), domain 13px `body`, durum `caption`. Header'ın üstünde/altında başka satır yoktur.
+- **Header ölçüleri:** toplam 60px, iki satır. Satır 1: wordmark 20px yüksekliğinde, solda; hesap kontrolü sağda; ikisinin merkez çizgisi aynı. Satır 2: domain 13px `body` + durum `caption`, **tek satır**, taşarsa ellipsis. Header'ın üstünde/altında başka satır yoktur.
+- **Odak halkası:** her kontrolde (düğme, select, segmented, çip, sekme, swatch, link) yalnız `:focus-visible` ile 2px accent halka, 2px offset. Fare ile kapatılan bir select halka göstermez. `:focus` üzerinde `outline: none` yazılmaz — halka yalnızca eklenir, hiçbir yerde bastırılmaz.
+- **Model dürtmesi yaşa göredir, liste sırasına göre değil.** Seçili model sağlayıcının varsayılanından *daha eski* olduğunda görünür; canlı listedeki oluşturma tarihi varsa o, yoksa küratörlü listenin sırası kullanılır. En yeni model için dürtme asla çıkmaz.
 - **Giriş durumu header'ın sağında görünür:** giriş yapılmışsa 24px avatar (yoksa ilk harf); yapılmamışsa 28px ghost düğme **Sign in**. İkisi de Settings → Account'a gider (Sign in düğmesi doğrudan giriş akışını başlatır). Giriş isteyen her mesaj bir düğmedir, metin değil.
 - **Anonim sınır: ayda 5 analiz; ücretsiz kayıt = sınırsız.** Kalan hak, giriş yapılmamışken Analyze düğmesinin altında `caption` olarak görünür: "3 of 5 free analyses this month · Sign in for unlimited". Sınıra gelince Analyze düğmesinin yerini birincil **Sign in for unlimited** düğmesi alır, üstünde tek cümle: "You've used your 5 free analyses this month." "Try again" gibi bir düğme yoktur. Giriş yapılmışsa sayaç hiç görünmez.
 - **Alt çubuk ölçüleri:** 6 sekme, her biri ikon (20px) + **etiket** (`label`, 11px); ikon-yalnız çubuk kabul edilmez. Aktif sekme: accent renk + etiket 600; pasif: `text-muted`; analiz yokken kategori sekmeleri %40 opaklık. Dokunma alanı en az 48px yükseklik.
@@ -236,6 +240,7 @@ Settings'te son 3; "See all" tam listeyi sheet olarak açar: favicon · domain �
 | İzin gerekiyor | Notice: "VibeDesign needs permission to read rig.ai." + "Allow" (Prompt 6 akışı). |
 | Çevrimdışı / AI hatası | Sonuç yine gelir (kural motoru yereldir); Export meta satırında "AI enhancement skipped — offline". |
 | Aylık sınır (anonim) | Analyze düğmesi yerine birincil "Sign in for unlimited"; üstünde "You've used your 5 free analyses this month." Diğer her şey (son sonuç, sekmeler) çalışmaya devam eder. |
+| Oturum sunucuda reddedildi | Settings → Account: "Session expired — sign in again" + **Sign in** düğmesi. Worker aynı token'ı bir daha denemez; ölü token depodan silinir. "Already Used" ilk kez görülürse oturum korunur (yarış olabilir), aynı token ikinci kez reddedilirse silinir. |
 | Boş model (çok az veri) | Yalnızca model gerçekten seyrekse (ör. < 3 renk rolü ve hiç bileşen yok): Summary strip yerine tek satır "Very little design data on this page. Try a page with more UI." Sayfa henüz yüklenmediyse bu uyarı yerine "Page is still loading — try again" gösterilir; sayfa yüklenmeden analiz başlatılmaz. |
 
 ---
@@ -346,6 +351,7 @@ Bileşen token'ı sadece gerekince: `--button-primary-bg: var(--accent)`. Ham he
 | Az veri | Very little design data on this page. Try a page with more UI. |
 | History boş | Your analyses will appear here. |
 | Soluk sekmeye dokunma | Analyze this page first. |
+| Oturum süresi doldu | Session expired — sign in again |
 
 ---
 

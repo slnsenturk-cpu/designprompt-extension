@@ -1402,7 +1402,7 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
   --vd-h-primary: 40px;
   --vd-h-chip:    28px;
   --vd-h-row:     32px;
-  --vd-h-header:  48px;
+  --vd-h-header:  60px;   /* §3: two lines — brand + account, then page */
   --vd-h-tabbar:  56px;
 
   /* §5 — type scale. Base 13px, ratio ≈1.2. */
@@ -1417,11 +1417,19 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
 
 /* ── shell (§3) ──────────────────────────────────────────────────────── */
 
+/* §3: two lines in 60px. Line one is who this is and who you are; line two is
+   which page you are looking at. They were on one row, which forced the domain
+   to compete with the wordmark and the account control for the same width. */
 .vd-header {
-  display: flex; align-items: center; gap: var(--vd-space-2);
-  height: var(--vd-h-header); padding: 0 var(--vd-edge);
+  display: flex; flex-direction: column; justify-content: center;
+  gap: var(--vd-space-1);
+  height: var(--vd-h-header); padding: var(--vd-space-1) var(--vd-edge);
   border-bottom: 1px solid var(--vd-border);
   flex: 0 0 auto;
+}
+.vd-header__top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--vd-space-2); min-width: 0;
 }
 /* §3: wordmark 20px, domain at body size, status as caption. One row.
    `flex: 0 0 auto` keeps the mark at 20px when the row is tight — without it
@@ -1432,8 +1440,9 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
   height: 20px; width: auto; flex: 0 0 auto;
   display: block; align-self: center;
 }
+/* One line, and it ellipses rather than pushing the panel wider. */
 .vd-header__status {
-  flex: 1; min-width: 0;
+  min-width: 0; width: 100%;
   display: flex; align-items: baseline; gap: var(--vd-space-2);
   white-space: nowrap; overflow: hidden;
 }
@@ -1811,3 +1820,41 @@ body[data-context="popup"] .app { width: 380px; overflow: hidden; }
   font: var(--vd-caption); color: var(--vd-accent);
 }
 .vd-cap__reached { font: var(--vd-body); color: var(--vd-text-secondary); margin: 0; }
+
+/* ── focus (§8) ────────────────────────────────────────────────────────────
+   One ring, on every control, and only when the control was reached in a way
+   that needs one. :focus-visible is the whole mechanism: it is the browser's
+   own judgement about whether the user is navigating by keyboard, so a
+   mouse-closed select shows nothing while Tab shows a ring.
+
+   Note what is NOT here: `outline: none` on :focus. Suppressing the default
+   ring and then re-adding it is how keyboard access gets lost when one
+   selector is missed. Nothing is suppressed — a ring is only ever added. */
+.vd-btn:focus-visible,
+.vd-seg__item:focus-visible,
+.vd-select:focus-visible,
+.vd-chip:focus-visible,
+.vd-tab:focus-visible,
+.vd-swatch:focus-visible,
+.vd-input:focus-visible,
+.vd-link:focus-visible,
+.vd-cap__link:focus-visible,
+.vd-ai__link:focus-visible,
+.vd-account:focus-visible,
+.vd-recent:focus-visible,
+.vd-section__action:focus-visible,
+.vd-notice__action:focus-visible,
+.vd-notice__dismiss:focus-visible,
+.vd-sheet__action:focus-visible,
+.vd-sheet__close:focus-visible,
+.vd-disclose > summary:focus-visible,
+.vd-toggle input:focus-visible + .vd-toggle__track {
+  outline: 2px solid var(--vd-accent);
+  outline-offset: 2px;
+}
+
+/* The swatch strip has no gaps, so an offset ring would sit under its
+   neighbours. It takes the ring inside its own edge instead. */
+.vd-swatch:focus-visible { outline-offset: -2px; }
+/* Tabs sit flush against the bar's top border; the same reasoning. */
+.vd-tab:focus-visible { outline-offset: -2px; }
