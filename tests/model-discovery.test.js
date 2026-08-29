@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 
 const MODULE_PATH = path.join(__dirname, '..', 'lib', 'model-discovery.js');
 
@@ -241,4 +242,88 @@ test('getMergedModels: cache is per provider — switching tabs fetches the new 
   await VD_MODELS.getMergedModels('claude', 'sk-ant-test', STATIC_CLAUDE);
   await VD_MODELS.getMergedModels('gemini', 'AIza-test', STATIC_GEMINI);
   assert.deepEqual(calls, ['claude', 'gemini']);
+});
+
+// ── PROMPT 3e: the nudge must be about age, not list position ──────────────
+//
+// Reported: with Fable 5 selected, the panel offered to "upgrade" to Sonnet 5.
+// Fable 5 is the newest model on the list.
+//
+// Cause: checkNudge compared indexes in the MERGED list. mergeModelLists
+// appends any curated model the live API did not return, and the merged list
+// is newest-first — so a model too new for the account's live list landed at
+// the end and read as the oldest thing there.
+
+const CLAUDE_CURATED = [
+  { id: 'claude-fable-5', label: 'Fable 5' },
+  { id: 'claude-opus-5', label: 'Opus 5' },
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+];
+const CLAUDE_DEFAULT = 'claude-sonnet-5';
+
+test('the newest model is never something to be nudged away from', () => {
+  const VD_MODELS = loadVDModels();
+  // The exact reported shape: a live list that does not know about Fable 5.
+  const live = [
+    { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+    { id: 'claude-opus-5', label: 'Opus 5' },
+    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+  ];
+  const merged = VD_MODELS.mergeModelLists(CLAUDE_CURATED, live);
+  assert.equal(merged[merged.length - 1].id, 'claude-fable-5',
+    'fixture premise: the unknown model is appended last');
+  assert.equal(merged[merged.length - 1].unranked, true,
+    'an appended model must be flagged as having no live ranking');
+
+  const nudge = VD_MODELS.checkNudge('claude-fable-5', merged, CLAUDE_DEFAULT, {}, CLAUDE_CURATED);
+  assert.equal(nudge.shouldNudge, false,
+    'Fable 5 is the newest model and was offered an "upgrade" to Sonnet 5');
+});
+
+test('Fable 5, Sonnet 5 and Haiku 4.5 each get the right answer', () => {
+  const VD_MODELS = loadVDModels();
+  const check = id => VD_MODELS.checkNudge(id, CLAUDE_CURATED, CLAUDE_DEFAULT, {}, CLAUDE_CURATED);
+
+  // Newer than the default — nothing to offer.
+  assert.equal(check('claude-fable-5').shouldNudge, false, 'Fable 5 is newer than the default');
+  assert.equal(check('claude-opus-5').shouldNudge, false, 'Opus 5 is newer than the default');
+  // The default itself.
+  assert.equal(check('claude-sonnet-5').shouldNudge, false, 'the default cannot nudge to itself');
+  // Older — this is the one case the nudge is for.
+  const haiku = check('claude-haiku-4-5-20251001');
+  assert.equal(haiku.shouldNudge, true, 'Haiku 4.5 is older than the default');
+  assert.equal(haiku.newer.id, CLAUDE_DEFAULT);
+});
+
+test('live creation dates decide when they are available', () => {
+  const VD_MODELS = loadVDModels();
+  const day = 24 * 3600 * 1000;
+  const now = 1780000000000;
+  // A live list whose ORDER disagrees with its dates, to prove the dates win.
+  const live = [
+    { id: 'claude-sonnet-5', label: 'Sonnet 5', created: now - 200 * day },
+    { id: 'claude-fable-5', label: 'Fable 5', created: now - 10 * day },
+    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', created: now - 400 * day },
+  ];
+  const merged = VD_MODELS.mergeModelLists(CLAUDE_CURATED, live);
+
+  assert.equal(VD_MODELS.checkNudge('claude-fable-5', merged, CLAUDE_DEFAULT, {}, CLAUDE_CURATED).shouldNudge,
+    false, 'the newest by date was nudged away from');
+  assert.equal(VD_MODELS.checkNudge('claude-haiku-4-5-20251001', merged, CLAUDE_DEFAULT, {}, CLAUDE_CURATED).shouldNudge,
+    true, 'the oldest by date was not nudged');
+  assert.equal(VD_MODELS.compareAge('claude-haiku-4-5-20251001', 'claude-sonnet-5', merged, CLAUDE_CURATED),
+    'default-newer');
+  assert.equal(VD_MODELS.compareAge('claude-fable-5', 'claude-sonnet-5', merged, CLAUDE_CURATED),
+    'saved-newer-or-same');
+});
+
+test('the Claude fetch keeps each model creation date', () => {
+  // The dates were being used to sort and then thrown away, which is why only
+  // position was left to reason about.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'model-discovery.js'), 'utf8');
+  assert.match(src, /created: Date\.parse\(m\.created_at\)/,
+    'the Claude list no longer records a creation date');
+  assert.match(src, /created: m\.created \? m\.created \* 1000 : null/,
+    'the OpenAI list no longer records a creation date');
 });
