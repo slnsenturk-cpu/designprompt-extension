@@ -38,9 +38,9 @@ const fileIn = (bundle, suffix) =>
 
 // ── shape ─────────────────────────────────────────────────────────────────
 
-test('every bundle carries the same seven files under one directory', () => {
+test('every bundle carries the same eight files under one directory', () => {
   const EXPECTED = ['SKILL.md', 'README.md', 'DESIGN.md', 'tokens.json',
-    'variables.css', 'theme.css', 'tailwind.config.js'];
+    'variables.css', 'theme.css', 'tailwind.config.js', 'tailwind.v4.css'];
   ALL.forEach(name => {
     const b = bundleFor(name);
     assert.match(b.slug, /^design-[a-z0-9-]+$/, `${name}: slug "${b.slug}" is not a safe directory name`);
@@ -545,8 +545,9 @@ test('the Download Skill button produces a real zip, through the real handler', 
   const names = readZipNames(bytes);
   assert.deepEqual(names.sort(), [
     'design-rig-ai/DESIGN.md', 'design-rig-ai/README.md', 'design-rig-ai/SKILL.md',
-    'design-rig-ai/tailwind.config.js', 'design-rig-ai/theme.css',
-    'design-rig-ai/tokens.json', 'design-rig-ai/variables.css',
+    'design-rig-ai/tailwind.config.js', 'design-rig-ai/tailwind.v4.css',
+    'design-rig-ai/theme.css', 'design-rig-ai/tokens.json',
+    'design-rig-ai/variables.css',
   ], 'the zip does not contain the bundle');
 });
 
@@ -562,4 +563,150 @@ test('the button reports rather than throws when a library is missing', () => {
   assert.doesNotThrow(() => clickButton(panel, 'downloadSkillBtn'));
   assert.equal(captured.anchors.length, 0, 'a download was started with no zip library');
   assert.match(captured.warnings.join(' '), /VD_ZIP/, 'the missing library was not named');
+});
+
+// ── Tailwind v4 ───────────────────────────────────────────────────────────
+
+test('tailwind.v4.css declares its tokens in the v4 namespaces', () => {
+  const NAMESPACES = ['color', 'font', 'text', 'spacing', 'radius', 'shadow', 'ease', 'animate'];
+  ALL.forEach(name => {
+    const css = fileIn(bundleFor(name), 'tailwind.v4.css').text;
+    assert.match(css, /^@import "tailwindcss";$/m, `${name}: no tailwindcss import`);
+
+    const m = model.buildDesignModel(fixture(name));
+    if (!m.colorRoles.length) return;             // sparse has nothing to declare
+
+    assert.match(css, /@theme \{/, `${name}: no @theme block`);
+    // Every custom property inside @theme must sit in a v4 namespace; an
+    // unknown prefix is silently ignored by Tailwind, which looks like it works.
+    const theme = css.slice(css.indexOf('@theme {'), css.indexOf('\n}', css.indexOf('@theme {')));
+    (theme.match(/^\s*--([a-z0-9-]+):/gim) || []).forEach(decl => {
+      const prop = decl.trim().replace(/:$/, '').slice(2);
+      const ns = NAMESPACES.find(n => prop.indexOf(n + '-') === 0);
+      assert.ok(ns, `${name}: --${prop} is in no Tailwind v4 namespace`);
+    });
+    m.colorRoles.forEach(role => {
+      assert.ok(theme.includes(`--color-${role}: ${m.colors[role]};`),
+        `${name}: --color-${role} missing or disagreeing with the model`);
+    });
+  });
+});
+
+test('only fully-captured keyframes are emitted, and the rest are named', () => {
+  const css = fileIn(bundleFor('rig-ai'), 'tailwind.v4.css').text;
+  const raw = fixture('rig-ai');
+
+  const emitted = (css.match(/@keyframes ([\w-]+)/g) || []).map(m => m.split(' ')[1]);
+  // The examples the correction called out, all present.
+  ['pulse-ring', 'blink', 'ticker', 'hdr-glow-pulse', 'terminalLineIn']
+    .forEach(n => assert.ok(emitted.includes(n), `${n} should be emitted in full`));
+
+  // The extractor records only the first and last rule of a @keyframes block.
+  // Where that is demonstrably not the whole animation, nothing is written.
+  const under = ['btn-glitch', 'watermark-glitch', 'pupil-glitch', 'glitch-shift',
+    'disconnect-drift-left', 'signal-flicker', 'wl-spin'];
+  under.forEach(n => {
+    assert.ok(!emitted.includes(n), `${n} is under-captured and must not be emitted`);
+    assert.ok(css.includes(` *   ${n} — `), `${n} must be listed with a reason`);
+  });
+
+  // Every animation in the capture is accounted for one way or the other —
+  // silence about one would be indistinguishable from not having seen it.
+  (raw.animations || []).forEach(a => {
+    const named = emitted.includes(a.name) || css.includes(` *   ${a.name} — `);
+    assert.ok(named, `${a.name} is neither emitted nor explained`);
+  });
+});
+
+test('a keyframe referencing an uncapturable runtime variable is not emitted', () => {
+  // Radix writes keyframes against variables that exist only while the
+  // component is mounted. Emitting them yields an animation that does nothing.
+  const css = fileIn(bundleFor('posthog'), 'tailwind.v4.css').text;
+  assert.ok(!/var\(/.test(css), 'an unresolved var() reached the keyframes');
+  ['slideUp', 'slideDown', 'slideIn', 'swipeOut'].forEach(n => {
+    assert.ok(!new RegExp(`@keyframes ${n}\\b`).test(css), `${n} must not be emitted`);
+    assert.match(css, new RegExp(` \\*   ${n} — a frame references a runtime variable`));
+  });
+});
+
+test('an --animate-* shorthand is only written when a duration was observed', () => {
+  const css = fileIn(bundleFor('rig-ai'), 'tailwind.v4.css').text;
+  // hdr-glow-pulse is an ambient loop and its 3s duration WAS measured.
+  assert.match(css, /--animate-hdr-glow-pulse: hdr-glow-pulse 3000ms infinite;/);
+  // No timing function: only the duration and "runs forever" were observed.
+  assert.ok(!/--animate-[\w-]+:[^;]*(ease|cubic-bezier|linear)/.test(css),
+    'a timing function was invented for an --animate-* shorthand');
+  // blink has complete keyframes but no measured duration, so no shorthand.
+  assert.match(css, /@keyframes blink \{/);
+  assert.ok(!/--animate-blink:/.test(css), 'blink has no observed duration');
+  assert.match(css, /Set your own duration:/);
+});
+
+// ── easing names ──────────────────────────────────────────────────────────
+
+test('easings are named by role, never by digits', () => {
+  ALL.forEach(name => {
+    const motion = tokensLib.exportW3CTokens(fixture(name)).motion || {};
+    Object.keys(motion).filter(k => k.indexOf('ease-') === 0).forEach(k => {
+      assert.ok(!/\d/.test(k),
+        `${name}: "${k}" is named from its own numbers — it tells a reader nothing`);
+      assert.match(k, /^ease-[a-z][a-z-]*$/, `${name}: "${k}" is not a role name`);
+    });
+  });
+});
+
+test('a curve measured on a component is named for that component', () => {
+  // All three real captures put their primary curve on a button. The 90-char
+  // display cap in timing() used to discard posthog's and the dashboard's
+  // shorthand entirely, so neither got an easing at all.
+  ['rig-ai', 'posthog', 'vibedesign-dashboard'].forEach(name => {
+    const motion = tokensLib.exportW3CTokens(fixture(name)).motion || {};
+    assert.ok(motion['ease-button'], `${name}: the button curve was not attributed`);
+    assert.equal(motion['ease-button'].$type, 'cubicBezier');
+    assert.equal(motion['ease-button'].$value.length, 4);
+  });
+  assert.deepEqual(tokensLib.exportW3CTokens(fixture('rig-ai')).motion['ease-button'].$value,
+    [0.25, 1, 0.5, 1]);
+  // A curve with no component gets its character, not an ordinal.
+  assert.ok(tokensLib.exportW3CTokens(fixture('posthog')).motion['ease-decelerate'],
+    'cubic-bezier(0,0,.2,1) leaves the origin flat — that is a decelerate curve');
+});
+
+test('the same easing has the same name in tokens.json and tailwind.v4.css', () => {
+  ALL.forEach(name => {
+    const motion = tokensLib.exportW3CTokens(fixture(name)).motion || {};
+    const css = fileIn(bundleFor(name), 'tailwind.v4.css').text;
+    Object.keys(motion).filter(k => k.indexOf('ease-') === 0).forEach(k => {
+      assert.ok(css.includes(`  --${k}:`),
+        `${name}: ${k} is in tokens.json but not under the same name in the v4 theme`);
+    });
+  });
+});
+
+// ── the non-standard type is disclosed ────────────────────────────────────
+
+test('every $type "other" is disclosed in the README', () => {
+  // "other" is not a DTCG type. Using it is a deliberate call — the values it
+  // carries (a clip-path polygon, a percentage radius) have no spec type and
+  // dropping them would lose the most distinctive thing about some designs.
+  // What is not acceptable is shipping it unannounced.
+  let sawOther = false;
+  ALL.forEach(name => {
+    const b = bundleFor(name);
+    const parsed = JSON.parse(fileIn(b, 'tokens.json').text);
+    const walk = node => {
+      if (!node || typeof node !== 'object') return;
+      if (node.$type === 'other') { sawOther = true; return; }
+      if ('$value' in node) return;
+      Object.keys(node).forEach(k => { if (k.charAt(0) !== '$') walk(node[k]); });
+    };
+    walk(parsed);
+
+    const readme = fileIn(b, 'README.md').text;
+    assert.match(readme, /`\$type: "other"` is not a DTCG type/,
+      `${name}: the README does not disclose the non-standard type`);
+    assert.match(readme, /expect a strict DTCG validator to reject them/,
+      `${name}: the README does not say what a validator will do`);
+  });
+  assert.ok(sawOther, 'no fixture exercises $type "other" — this test proves nothing');
 });

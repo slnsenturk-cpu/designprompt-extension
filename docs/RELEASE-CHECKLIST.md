@@ -274,6 +274,9 @@ the archive. Check that `SKILL.md` opens with `---`, `theme.css` has no
 
 - [ ] Bump `version` in `manifest.json`.
 - [ ] Full test suite green: `node --test tests/*.test.js`
+- [ ] Font catalogue current: `node scripts/update-google-fonts.mjs --check`
+      (a stale list misreports open families as licence-unknown; it is not
+      urgent, but regenerate it if the check fails and read the +/- summary)
 - [ ] Download Skill (zip) produces an archive that `unzip -t` accepts and
       whose `SKILL.md` frontmatter is intact (the suite checks both, but the
       real browser download path is not covered by it).

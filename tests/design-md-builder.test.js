@@ -400,9 +400,14 @@ test('builder works via <script> load, with color-utils as plain globals', () =>
   vm.createContext(sandbox);
   const read = f => fs.readFileSync(path.join(__dirname, '..', 'lib', f), 'utf8');
   vm.runInContext(read('color-utils.js'), sandbox, { filename: 'lib/color-utils.js' });
+  // The model looks up font licences in this catalogue. In Node it require()s
+  // the JSON; in the browser there is no require, so the generated JS twin has
+  // to be loaded first or every family silently reports "licence unknown".
+  vm.runInContext(read('data/google-fonts.js'), sandbox, { filename: 'lib/data/google-fonts.js' });
   vm.runInContext(read('design-model.js'), sandbox, { filename: 'lib/design-model.js' });
   vm.runInContext(read('design-md-builder.js'), sandbox, { filename: 'lib/design-md-builder.js' });
 
+  assert.ok(sandbox.VD_GOOGLE_FONTS, 'the font catalogue must expose self.VD_GOOGLE_FONTS');
   assert.ok(sandbox.VD_MODEL, 'the model must expose self.VD_MODEL');
   assert.ok(sandbox.VD_DESIGN_MD, 'the builder must expose self.VD_DESIGN_MD');
   sandbox.__tokens = fixture('posthog');
@@ -425,7 +430,11 @@ test('both pages load the model before the builder', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', page), 'utf8');
     const at = f => html.indexOf(`lib/${f}`);
     assert.ok(at('color-utils.js') !== -1, `${page} does not load color-utils.js`);
+    assert.ok(at('data/google-fonts.js') !== -1, `${page} does not load the font catalogue`);
     assert.ok(at('design-model.js') !== -1, `${page} does not load design-model.js`);
+    assert.ok(at('data/google-fonts.js') < at('design-model.js'),
+      `${page} loads the model before the catalogue it reads — every font would `
+      + 'report "licence unknown"');
     assert.ok(at('design-md-builder.js') !== -1, `${page} does not load design-md-builder.js`);
     assert.ok(at('color-utils.js') < at('design-model.js'),
       `${page} loads the model before color-utils.js`);
@@ -1031,18 +1040,36 @@ test('grids are described structurally, never by their class', () => {
 
 // ── A2: font availability ─────────────────────────────────────────────────
 
-test('font availability is read from the serving host', () => {
+test('the fonts table separates where a face is hosted from how it is licensed', () => {
   const rig = build.buildDesignMd(fixture('rig-ai'), opts());
   const fonts = rig.slice(rig.indexOf('## Fonts & availability'), rig.indexOf('## Components'));
   ['Chalet', 'Geist Pixel Square', 'Instrument Sans', 'Chivo Mono']
     .forEach(f => assert.ok(fonts.includes(f), `${f} missing`));
-  assert.ok(fonts.includes('self-hosted (not freely available)'));
 
-  // A Google-served family is identified as such and gets no substitute.
+  // rig.ai self-hosts all four. Two are openly licensed and two are not, and
+  // the old wording — "self-hosted (not freely available)" — asserted the
+  // opposite of the truth for the open pair.
+  assert.ok(!fonts.includes('not freely available'),
+    'self-hosting says nothing about a licence');
+  assert.match(fonts, /`Instrument Sans` \| open \(Google Fonts\) — self-hosted copy/);
+  assert.match(fonts, /`Chivo Mono` \| open \(Google Fonts\) — self-hosted copy/);
+  assert.match(fonts, /`Chalet` \| self-hosted, licence unknown — likely proprietary/);
+
+  // An open family gets no substitute, and must not appear in that table.
+  const subs = rig.slice(rig.indexOf('### Substitutes'), rig.indexOf('## Components'));
+  assert.ok(subs.includes('Chalet'), 'a proprietary face still needs an alternative');
+  assert.ok(!subs.includes('Chivo Mono'),
+    'Chivo Mono is on Google Fonts — offering a replacement for it is noise');
+  assert.ok(!subs.includes('Instrument Sans |'),
+    'Instrument Sans is obtainable; it does not belong in a substitutes table');
+
+  // The claim made about unknown-licence families must not overreach.
+  assert.match(fonts, /not that the family is proprietary/);
+
   const saas = build.buildDesignMd(fixture('posthog'), opts());
   const sf = saas.slice(saas.indexOf('## Fonts & availability'), saas.indexOf('## Spacing'));
-  // PostHog serves every family from its own origin.
-  assert.ok(sf.includes('self-hosted (not freely available)'));
+  assert.match(sf, /`IBM Plex Sans Variable` \| open \(Google Fonts\)/,
+    'a variable cut is the same family as its static one');
   assert.ok(sf.includes('RoundHog'));
 });
 
@@ -1052,13 +1079,20 @@ test('substitutes are labelled as suggestions and never self-referential', () =>
 
   assert.match(sub, /suggested, not observed/);
   assert.match(sub, /\*\*suggestions, not measurements\*\*/);
-  // Classification-appropriate alternatives.
+  // Classification-appropriate alternatives, for the two families that need one.
   assert.match(sub, /`Chalet` \| Inter Tight or Space Grotesk/);
   assert.match(sub, /`Geist Pixel Square` \| Silkscreen or Press Start 2P/);
-  assert.match(sub, /`Chivo Mono` \| JetBrains Mono or IBM Plex Mono/);
-  // Instrument Sans is itself open — recommending it to itself would be absurd.
-  assert.match(sub, /`Instrument Sans` \| openly licensed/);
-  assert.ok(!/`Instrument Sans` \| Instrument Sans/.test(sub));
+
+  // Instrument Sans and Chivo Mono are both on Google Fonts. The old table
+  // listed Chivo Mono as needing a substitute and gave Instrument Sans a row
+  // explaining it did not — both belong in the availability table instead, and
+  // neither should be here at all.
+  assert.ok(!sub.includes('Chivo Mono'),
+    'an openly-licensed family needs no substitute');
+  assert.ok(!sub.includes('Instrument Sans'),
+    'an openly-licensed family does not belong in a substitutes table');
+  assert.ok(!/`([^`]+)` \| [^|]*\1/.test(sub),
+    'no family may be recommended to itself');
 });
 
 test('hsl() and bare HSL triplets parse — Tailwind and shadcn depend on it', () => {

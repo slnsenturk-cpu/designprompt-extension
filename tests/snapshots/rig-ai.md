@@ -107,21 +107,23 @@ Each step above carries its own tracking — negative on display headings, posit
 
 | Family | Source | Used for |
 |---|---|---|
-| `Chalet` | self-hosted (not freely available) | `h1`, `h2`, `h3` |
-| `Geist Pixel Square` | self-hosted (not freely available) | `label` |
-| `Instrument Sans` | self-hosted (not freely available) | `body` |
-| `Chivo Mono` | self-hosted (not freely available) | `code` |
+| `Chalet` | self-hosted, licence unknown — likely proprietary | `h1`, `h2`, `h3` |
+| `Geist Pixel Square` | self-hosted, licence unknown — likely proprietary | `label` |
+| `Instrument Sans` | open (Google Fonts) — self-hosted copy | `body` |
+| `Chivo Mono` | open (Google Fonts) — self-hosted copy | `code` |
+
+Hosting is observed; licensing is a name lookup against the Google Fonts catalogue. That is a sufficient test for "open", not a necessary one, so "licence unknown" means *not found there* — not that the family is proprietary.
+
+`Instrument Sans`, `Chivo Mono` are openly licensed and can be obtained directly, whatever this site chose to do.
 
 ### Substitutes — suggested, not observed
 
-The families above marked self-hosted are licensed to the source site and cannot be reused. These are open alternatives with a comparable classification. They are **suggestions, not measurements** — nothing here was seen on the page.
+These families were not found in the open catalogue, so they may not be reusable. The alternatives below are openly licensed and comparably classified. They are **suggestions, not measurements** — nothing here was seen on the page.
 
-| Unavailable family | Open alternative (suggested) |
+| Family | Open alternative (suggested) |
 |---|---|
 | `Chalet` | Inter Tight or Space Grotesk |
 | `Geist Pixel Square` | Silkscreen or Press Start 2P |
-| `Instrument Sans` | openly licensed — self-hosted here, but obtainable directly |
-| `Chivo Mono` | JetBrains Mono or IBM Plex Mono |
 
 ## Components
 

@@ -111,20 +111,23 @@ Each step above carries its own tracking — negative on display headings, posit
 
 | Family | Source | Used for |
 |---|---|---|
-| `IBM Plex Sans Variable` | self-hosted (not freely available) | — |
-| `Fairytale` | self-hosted (not freely available) | — |
-| `Computer Modern` | self-hosted (not freely available) | — |
-| `Squeak` | self-hosted (not freely available) | — |
-| `RoundHog` | self-hosted (not freely available) | `h1`, `h2`, `h3`, `body`, `small` |
-| `Charter` | self-hosted (not freely available) | — |
+| `IBM Plex Sans Variable` | open (Google Fonts) — self-hosted copy | — |
+| `Fairytale` | self-hosted, licence unknown — likely proprietary | — |
+| `Computer Modern` | self-hosted, licence unknown — likely proprietary | — |
+| `Squeak` | self-hosted, licence unknown — likely proprietary | — |
+| `RoundHog` | self-hosted, licence unknown — likely proprietary | `h1`, `h2`, `h3`, `body`, `small` |
+| `Charter` | self-hosted, licence unknown — likely proprietary | — |
+
+Hosting is observed; licensing is a name lookup against the Google Fonts catalogue. That is a sufficient test for "open", not a necessary one, so "licence unknown" means *not found there* — not that the family is proprietary.
+
+`IBM Plex Sans Variable` is openly licensed and can be obtained directly, whatever this site chose to do.
 
 ### Substitutes — suggested, not observed
 
-The families above marked self-hosted are licensed to the source site and cannot be reused. These are open alternatives with a comparable classification. They are **suggestions, not measurements** — nothing here was seen on the page.
+These families were not found in the open catalogue, so they may not be reusable. The alternatives below are openly licensed and comparably classified. They are **suggestions, not measurements** — nothing here was seen on the page.
 
-| Unavailable family | Open alternative (suggested) |
+| Family | Open alternative (suggested) |
 |---|---|
-| `IBM Plex Sans Variable` | Instrument Sans or DM Sans |
 | `Fairytale` | Instrument Sans or DM Sans |
 | `Computer Modern` | Instrument Sans or DM Sans |
 | `Squeak` | Instrument Sans or DM Sans |
