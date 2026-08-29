@@ -891,6 +891,12 @@ body {
   border-bottom: 1px dashed var(--border);
   margin-bottom: 6px;
 }
+.dev-dl {
+  min-width: 24px;
+  padding-left: 6px;
+  padding-right: 6px;
+  font-weight: 600;
+}
 .dev-tools-label {
   font-family: var(--font-mono);
   font-size: 9px;

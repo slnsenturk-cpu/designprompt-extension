@@ -618,7 +618,16 @@
       "eyebrow": null,
       "entryCount": 0,
       "paddingY": null,
-      "headingToSubtitleGap": "32px"
+      "headingToSubtitleGap": "32px",
+      "heroCtaStyle": {
+        "width": 170,
+        "height": 53,
+        "borderRadius": "0px",
+        "padding": "16px 32px",
+        "fontSize": "13.6px",
+        "fontWeight": "700",
+        "hasIcon": false
+      }
     },
     {
       "type": "text-block",

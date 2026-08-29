@@ -420,17 +420,30 @@ test('dev copy buttons are gated on an unpacked build', () => {
   // The row ships hidden and is only revealed behind the gate.
   assert.match(ui, /id="devToolsRow" style="display:none"/,
     'the dev row must be hidden in the template');
-  const reveal = ui.indexOf("devRow.style.display = 'flex'");
   const gate = ui.indexOf('if (isUnpackedBuild())');
   assert.notEqual(gate, -1, 'the reveal must be gated');
-  assert.ok(gate < reveal && reveal - gate < 400, 'the reveal must sit inside the gate');
+
+  // Find the guard block by brace matching rather than by a character window,
+  // so adding a button to it cannot break this test for the wrong reason.
+  const open = ui.indexOf('{', gate);
+  let depth = 0, close = -1;
+  for (let i = open; i < ui.length; i++) {
+    if (ui[i] === '{') depth++;
+    else if (ui[i] === '}') { depth--; if (depth === 0) { close = i; break; } }
+  }
+  assert.notEqual(close, -1, 'the guard block must be balanced');
+  const inGuard = pos => pos > open && pos < close;
+
+  const reveal = ui.indexOf("devRow.style.display = 'flex'");
+  assert.ok(inGuard(reveal), 'the reveal must sit inside the gate');
 
   // Every dev listener is looked up inside the same guarded block, and the
   // only other mention of each id is its (hidden) markup in the template.
-  ['devDesignMdFreeBtn', 'devDesignMdProBtn', 'devTokensJsonBtn'].forEach(id => {
+  ['devDesignMdFreeBtn', 'devDesignMdProBtn', 'devTokensJsonBtn',
+   'devDlFreeBtn', 'devDlProBtn'].forEach(id => {
     const lookup = ui.indexOf(`$('${id}')`);
     assert.notEqual(lookup, -1, `${id} is never looked up`);
-    assert.ok(lookup > gate && lookup - gate < 400,
+    assert.ok(inGuard(lookup),
       `${id} must only be wired up inside the isUnpackedBuild() guard`);
   });
 
@@ -707,4 +720,81 @@ test('rig: typography lists every face including the pixel label', () => {
   assert.ok(md.includes('-3.3344px'), 'h1 tracking');
   assert.ok(md.includes('1.28px'), 'label tracking');
   assert.ok(md.includes('uppercase'), 'label transform');
+});
+
+// ── hoverStates.before is the BASE state, not a pseudo-element ─────────────
+
+test('rig: interaction rows read base → hover and never say ::before', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const states = md.slice(md.indexOf('## Interaction states'), md.indexOf('## Component anatomy'));
+
+  assert.ok(!md.includes('::before'), '`before` is the base state, not a pseudo-element');
+  assert.ok(states.includes('Base → Hover'), 'the column must be labelled base → hover');
+  // btn-cta starts red and keeps its fill; only the shadow changes.
+  assert.match(states, /`btn-cta`[^|]*\|[^|]*background: `#ed462d` → —/);
+  // The brutalist offset shadow is a genuine base → hover transition.
+  assert.match(states, /box-shadow: `[^`]*40px[^`]*` → `4px 4px 0 #2b4fff`/);
+  // submit-button darkens on hover: both sides captured.
+  assert.match(states, /background: `#ed462d` → `#d93d26`/);
+});
+
+test('rig: rows are labelled by variant and duplicates collapse', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
+
+  ['btn-cta', 'btn-outline', 'btn-ghost', 'offline-card', 'faq-question', 'footer-col']
+    .forEach(v => assert.ok(states.includes('`' + v + '`'), `variant ${v} missing`));
+
+  // The five svg-card sub-element rules are one behaviour.
+  const svgRows = (states.match(/`svg-card`/g) || []).length;
+  assert.equal(svgRows, 1, `svg-card should collapse to one row, got ${svgRows}`);
+
+  // Collapsing must not swallow genuinely different behaviour: offline-card
+  // has two distinct rules (the card, and its accent child).
+  assert.equal((states.match(/`offline-card`/g) || []).length, 2);
+
+  // Class names are safe; element text is not.
+  assert.ok(!states.includes(SENTINEL));
+});
+
+// ── surface context ───────────────────────────────────────────────────────
+
+test('rig: hero-measured components are flagged and composited over the hero', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const buttons = md.slice(md.indexOf('### Buttons'), md.indexOf('### Inputs'));
+
+  assert.ok(buttons.includes('Surface context'), 'the hero sampling must be declared');
+  assert.ok(buttons.includes('#ed462d'), 'the hero surface must be named');
+  assert.ok(buttons.includes('Measured on the hero surface'), 'per-variant note');
+  // rgba(10,10,10,0.3) over #ed462d, not over #0a0a0a.
+  assert.ok(buttons.includes('2px solid #a93423'),
+    'the ghost border must composite over the hero, not the page background');
+
+  // A link colour equal to the page background is called out, with the
+  // on-page equivalent taken from the body-copy hover rule.
+  const links = md.slice(md.indexOf('### Links'), md.indexOf('### Footer'));
+  assert.ok(links.includes('Sampled off the page background'));
+  assert.ok(links.includes('1.00:1'), 'the invisible contrast must be stated');
+  assert.ok(links.includes('`#f0ede6`'), 'the on-page link colour must be supplied');
+});
+
+test('a component measured on the page background gets no surface note', () => {
+  // dark-dev-tool has no hero fill distinct from the page.
+  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts({ tier: 'pro' }));
+  assert.ok(!md.includes('Surface context'));
+  assert.ok(!md.includes('Measured on the hero surface'));
+});
+
+// ── the accent-fill rule is conditional ───────────────────────────────────
+
+test('the accent rule adapts when the site fills a section with the accent', () => {
+  // rig paints its hero in the accent, so forbidding large fills would
+  // contradict the document's own Layout section.
+  const rig = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'free' }));
+  assert.match(rig, /^- The accent `#ed462d` is used as a full-bleed fill only for the hero/m);
+  assert.ok(!/Do not use `#ed462d` for large background fills/.test(rig));
+
+  // Where the accent is never a section background, the prohibition stands.
+  const saas = build.buildDesignMd(fixture('light-saas'), opts({ tier: 'free' }));
+  assert.match(saas, /Do not use `#2563eb` for large background fills/);
 });
