@@ -570,6 +570,9 @@ test('an unreadable page says what to try instead', async t => {
 
 test('a page with almost no design data says so instead of showing ones', async t => {
   const p = await boot(t);
+  // Analyse the sparse fixture AS the current page. Left on rig.ai the panel
+  // would correctly say "Showing tiny.example" instead — one notice, not two.
+  p.run('state.currentUrl = "https://tiny.example/";');
   p.analyze('sparse');
   assert.match(p.text(), /Very little design data on this page/);
   assert.equal(p.$$('.vd-stat').length, 0, 'a strip of ones is worse than a sentence');
@@ -771,6 +774,7 @@ test('sparse means genuinely sparse, not merely unfinished', async t => {
     'a full capture was called sparse');
 
   const thin = await boot(t);
+  thin.run('state.currentUrl = "https://tiny.example/";');
   thin.analyze('sparse');
   assert.match(thin.text(), /Very little design data/);
 });

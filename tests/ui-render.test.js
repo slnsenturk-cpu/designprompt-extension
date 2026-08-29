@@ -129,8 +129,15 @@ test('panel rules use the scale rather than raw values', () => {
   // §6: "values come only from the scale; no 13px, no 27px." Checked over the
   // panel's own rules — the pre-existing stylesheet above them is not in scope.
   const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
-  const panel = css.slice(css.indexOf('/* ── shell (§3) ──'));
-  const ALLOWED = new Set([0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 30, 32, 34, 36, 40, 48, 56, 72, 100]);
+  // Comments are prose and may quote a measurement while explaining it; only
+  // declarations are the stylesheet's actual behaviour.
+  const panel = css.slice(css.indexOf('/* ── shell (§3) ──'))
+    .replace(/\/\*[\s\S]*?\*\//g, '')          // comments are prose, not behaviour
+    .replace(/@media[^{]*\{/g, '{');            // a breakpoint is not a spacing value
+  // The scale (§6) plus the control heights it names, and 380 — the popup
+  // window's own width, which is a viewport dimension rather than spacing.
+  const ALLOWED = new Set([0, 1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 30, 32,
+    34, 36, 40, 48, 56, 72, 100, 380]);
   const offenders = [];
   (panel.match(/(?:padding|margin|gap|width|height|top|left|bottom|right)[^:;]*:\s*[^;]+;/g) || [])
     .forEach(decl => {
@@ -332,13 +339,45 @@ test('every tab panel opens with its own title', () => {
 test('the tab bar and header meet the sizes §3 gives', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
   const panel = css.slice(css.indexOf('/* ── shell (§3) ──'));
-  assert.match(panel, /\.vd-header__logo \{ height: 20px/, 'the wordmark is not 20px');
-  assert.match(panel, /\.vd-tab \{[^}]*min-height: 48px/, 'the touch target is under 48px');
-  assert.match(panel, /\.vd-tab__icon \{ font-size: 20px/, 'the tab icon is not 20px');
+  // Matched on the declaration, not on the rule's formatting — the previous
+  // form broke the moment the rule gained a second line.
+  const rule = re => (panel.match(re) || [''])[0];
+  assert.match(rule(/\.vd-header__logo \{[^}]*\}/), /height: 20px/, 'the wordmark is not 20px');
+  assert.match(panel, /min-height: 48px/, 'the touch target is under 48px');
+  assert.match(rule(/\.vd-tab \{[^}]*\}/), /flex: 1 1 0/,
+    'tabs are not equal shrinkable columns');
+  assert.match(rule(/\.vd-tab \{[^}]*\}/), /min-width: 0/,
+    'a tab that cannot shrink below its label widens the bar');
+  assert.match(rule(/\.vd-tab__icon \{[^}]*\}/), /font-size: 20px/, 'the tab icon is not 20px');
   assert.match(panel, /\.vd-tab\.is-dim \{ opacity: 0\.4/, 'dimmed tabs are not at 40%');
   assert.match(panel, /\.vd-tab\.is-on \.vd-tab__label \{ font-weight: 600/,
     'the active tab label is not 600');
   // The header domain is body size, the status is caption.
   assert.match(panel, /\.vd-header__domain \{\s*font: var\(--vd-body\)/);
   assert.match(panel, /\.vd-header__state \{ font: var\(--vd-caption\)/);
+});
+
+test('the sparse warning and the page-context notice never appear together', () => {
+  // §4.5: one notice or the other. "Showing tiny.example" already answers what
+  // the reader is looking at; stacking "very little design data" underneath
+  // asks them to judge a result for a page they are not even on.
+  const thin = model.buildDesignModel(fixture('sparse'));
+  assert.equal(U.isSparse(thin), true, 'fixture premise');
+
+  const elsewhere = V.overviewView(thin, {
+    output: 'prompt', context: 'other', domain: 'posthog.com',
+    resultDomain: 'tiny.example', resultTime: '12:41',
+  });
+  assert.match(elsewhere, /Showing tiny\.example/, 'the page-context notice is missing');
+  assert.ok(!elsewhere.includes(U.COPY.sparse),
+    'both notices rendered — §4.5 allows one or the other');
+
+  // On its own page the sparse warning is exactly what should be said.
+  const athome = V.overviewView(thin, { output: 'prompt', context: 'same' });
+  assert.ok(athome.includes(U.COPY.sparse), 'the sparse warning went missing entirely');
+  assert.ok(!athome.includes('Showing'), 'a page-context notice on the same page');
+
+  // And a sparse model never gets a strip of ones either way.
+  assert.ok(!elsewhere.includes('vd-stats') && !athome.includes('vd-stats'),
+    'a sparse model was given a summary strip');
 });

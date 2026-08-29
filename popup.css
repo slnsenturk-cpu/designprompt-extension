@@ -26,7 +26,12 @@
   --transition: 0.2s ease;
 }
 
-html { width: 380px; font-size: 13px; }
+/* The panel is whatever width Chrome gives it — 320px and up. A fixed width
+   here made <html> 380px in every surface, so a narrower side panel clipped
+   its own content and tab bar by exactly (380 - viewport). The popup keeps a
+   fixed width, but it is set on .app, where it belongs: the popup window sizes
+   itself to its content. */
+html { width: 100%; font-size: 13px; }
 
 body {
   background: var(--bg);
@@ -37,7 +42,7 @@ body {
 }
 
 .app {
-  width: 380px;
+  width: 100%;
   min-height: 200px;
   max-height: 600px;
   overflow-y: auto;
@@ -1418,8 +1423,15 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
   border-bottom: 1px solid var(--vd-border);
   flex: 0 0 auto;
 }
-/* §3: wordmark 20px, domain at body size, status as caption. One row. */
-.vd-header__logo { height: 20px; width: auto; }
+/* §3: wordmark 20px, domain at body size, status as caption. One row.
+   `flex: 0 0 auto` keeps the mark at 20px when the row is tight — without it
+   a flex item shrinks and the wordmark ends up 17px next to a long domain.
+   The intrinsic size is 317x108, so width:auto gives 58.7px and the aspect is
+   never guessed. align-self:center puts its optical centre on the row's. */
+.vd-header__logo {
+  height: 20px; width: auto; flex: 0 0 auto;
+  display: block; align-self: center;
+}
 .vd-header__status {
   flex: 1; min-width: 0;
   display: flex; align-items: baseline; gap: var(--vd-space-2);
@@ -1446,16 +1458,20 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
 
 /* The tab bar is the one navigation level, and it does not scroll away. */
 .vd-tabbar-slot { flex: 0 0 auto; }
+/* Six equal columns that can actually shrink. A grid with 1fr tracks still
+   honours each item's min-content width, so a label wider than its share
+   pushes the bar past the panel. flex 1 1 0 with min-width 0 cannot. */
 .vd-tabbar {
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: flex; width: 100%;
   height: var(--vd-h-tabbar);
   border-top: 1px solid var(--vd-border);
   background: var(--vd-bg);
 }
 .vd-tab {
+  flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: var(--vd-space-1);
-  background: none; border: 0; cursor: pointer;
+  background: none; border: 0; cursor: pointer; padding: 0;
   color: var(--vd-text-muted);
   transition: color var(--vd-duration-fast) var(--vd-ease);
 }
@@ -1463,8 +1479,17 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
    opacity for a category tab before an analysis exists. */
 .vd-tab { min-height: 48px; position: relative; }
 .vd-tab__icon { font-size: 20px; line-height: 1; }
+/* Sentence case, not uppercase: uppercase plus 0.06em tracking does not fit
+   six labels into a 320px panel, and §5 reserves that treatment for the stat
+   tiles. One line, no ellipsis at 320px. */
 .vd-tab__label {
-  font: var(--vd-label); text-transform: uppercase; letter-spacing: 0.06em;
+  font: var(--vd-label);
+  /* At 320px each tab gets 53.3px and "Overview" sets at 56.4px, so the
+     longest label needs the tracking pulled in slightly to fit without an
+     ellipsis. §5's +0.06em belongs to the uppercase stat-tile label, which
+     this is deliberately not. */
+  letter-spacing: -0.03em;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .vd-tab:hover { color: var(--vd-text-secondary); }
 .vd-tab.is-on { color: var(--vd-accent); }
@@ -1716,7 +1741,9 @@ body[data-context="sidepanel"] { height: 100vh; overflow: hidden; }
 body[data-context="sidepanel"] .app {
   width: 100%; height: 100vh; max-height: none; overflow: hidden;
 }
-body[data-context="popup"] .app { overflow: hidden; }
+/* The popup is a fixed-width window; the side panel is not. Setting it here
+   rather than on <html> keeps the side panel fluid. */
+body[data-context="popup"] .app { width: 380px; overflow: hidden; }
 .vd-toggle__state { font: var(--vd-body); color: var(--vd-text-secondary); }
 
 /* §3: each tab's content opens with an 18px title, so "where am I" is
@@ -1736,4 +1763,33 @@ body[data-context="popup"] .app { overflow: hidden; }
 .vd-kv__value--wrap {
   margin-left: 0; text-align: left; white-space: normal; overflow: visible;
   text-overflow: clip; line-height: 1.4;
+}
+
+/* Flex and grid children default to min-width:auto, which means "never shrink
+   below your content". That is what turns one long value into a horizontally
+   scrolling panel, so every flexible child that holds text opts out. */
+.vd-stat { min-width: 0; }
+.vd-seg__item { min-width: 0; }
+.vd-kv__label { min-width: 0; }
+.vd-field__label { min-width: 0; }
+.vd-field .vd-select, .vd-field .vd-input { min-width: 0; }
+.vd-notice__text { min-width: 0; overflow-wrap: anywhere; }
+.vd-where__row { min-width: 0; }
+.vd-where__path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vd-recent__domain { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Nothing scrolls sideways. A wide value wraps or ellipses; it never widens
+   the panel. */
+.vd-main { overflow-x: hidden; }
+.vd-panel, .vd-section, .vd-section__body, .vd-card { min-width: 0; max-width: 100%; }
+.vd-pre { overflow-x: auto; }
+
+/* §5 sets the stat-tile label at 11px uppercase with +0.06em tracking, and
+   "KEYFRAMES" needs 73px of that. Four tiles across only give it that much
+   from a 380px panel up; below there the label was painting outside its tile
+   and being clipped by the panel edge. So the strip goes two-up instead of
+   shrinking the type — the numbers are the point, and a cut label is worse
+   than a second row. */
+@media (max-width: 379px) {
+  .vd-stats { grid-template-columns: repeat(2, 1fr); }
 }
