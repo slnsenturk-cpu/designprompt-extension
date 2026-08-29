@@ -49,7 +49,7 @@ Kural: bir alan modelde yoksa UI'da da yoktur. UI için yeni veri uydurulmaz.
 
 ```
 Header (sabit, 60px, iki satır):
-   satır 1:  [logo 20px]                                   [avatar | Sign in]
+   satır 1:  [logo 18px]                                   [avatar | Sign in]
    satır 2:  [domain · durum]                          (tek satır, ellipsis)
 
 İçerik (kayar):         seçili sekmenin içeriği
@@ -59,7 +59,7 @@ Alt sekme çubuğu (sticky, 56px, ikon + kısa etiket):
 ```
 
 - **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok.
-- **Header ölçüleri:** toplam 60px, iki satır. Satır 1: wordmark 20px yüksekliğinde, solda; hesap kontrolü sağda; ikisinin merkez çizgisi aynı. Wordmark asset'i (`icons/wordmark.png`) **kırpılmış** olmalı — saydam kenar boşluğu olan bir asset'te `height` çoğu boş bir kutuyu ölçer ve marka içerik kenarından kayar. Wordmark'ın sol kenarı, altındaki domain ve panel içeriğiyle **aynı x**'te başlar (16px). Satır 2: domain 13px `body` + durum `caption`, **tek satır**, taşarsa ellipsis. Header'ın üstünde/altında başka satır yoktur.
+- **Header ölçüleri:** toplam 60px, iki satır. Satır 1: wordmark 18px yüksekliğinde, solda; hesap kontrolü sağda; ikisinin merkez çizgisi aynı. Wordmark asset'i (`icons/wordmark.png`) **kırpılmış** olmalı — saydam kenar boşluğu olan bir asset'te `height` çoğu boş bir kutuyu ölçer ve marka içerik kenarından kayar. Wordmark'ın sol kenarı, altındaki domain ve panel içeriğiyle **aynı x**'te başlar (16px). Satır 2: domain 13px `body` + durum `caption`, **tek satır**, taşarsa ellipsis. Header'ın üstünde/altında başka satır yoktur.
 - **Odak halkası:** her kontrolde (düğme, select, segmented, çip, sekme, swatch, link) yalnız `:focus-visible` ile 2px accent halka, 2px offset. Fare ile kapatılan bir select halka göstermez. `:focus` üzerinde `outline: none` yazılmaz — halka yalnızca eklenir, hiçbir yerde bastırılmaz.
 - **Model dürtmesi yaşa göredir, liste sırasına göre değil.** Seçili model sağlayıcının varsayılanından *daha eski* olduğunda görünür; canlı listedeki oluşturma tarihi varsa o, yoksa küratörlü listenin sırası kullanılır. En yeni model için dürtme asla çıkmaz.
 - **Giriş durumu header'ın sağında görünür:** giriş yapılmışsa 24px avatar (yoksa ilk harf); yapılmamışsa 28px ghost düğme **Sign in**. İkisi de Settings → Account'a gider (Sign in düğmesi doğrudan giriş akışını başlatır). Giriş isteyen her mesaj bir düğmedir, metin değil.

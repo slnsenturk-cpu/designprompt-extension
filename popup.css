@@ -1442,8 +1442,8 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
      mostly empty. The old asset carried 32px of transparent padding on the
      left, which pushed the visible wordmark ~9px right of the 16px content
      edge and made every size look two-thirds smaller than it was set to.
-     20px of actual wordmark now starts exactly where "rig.ai" below it does. */
-  height: 20px; width: auto; flex: 0 0 auto;
+     18px of actual wordmark now starts exactly where "rig.ai" below it does. */
+  height: 18px; width: auto; flex: 0 0 auto;
   display: block; align-self: center;
 }
 /* One line, and it ellipses rather than pushing the panel wider. */

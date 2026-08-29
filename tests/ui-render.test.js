@@ -350,7 +350,7 @@ test('the tab bar and header meet the sizes §3 gives', () => {
   // Matched on the declaration, not on the rule's formatting — the previous
   // form broke the moment the rule gained a second line.
   const rule = re => (panel.match(re) || [''])[0];
-  assert.match(rule(/\.vd-header__logo \{[^}]*\}/), /height: 20px/, 'the wordmark is not 20px');
+  assert.match(rule(/\.vd-header__logo \{[^}]*\}/), /height: 18px/, 'the wordmark is not 18px');
   assert.match(panel, /min-height: 48px/, 'the touch target is under 48px');
   assert.match(rule(/\.vd-tab \{[^}]*\}/), /flex: 1 1 0/,
     'tabs are not equal shrinkable columns');
