@@ -569,20 +569,142 @@ test('heuristic visual flags need a second signal', () => {
 test('layout reports repeating structures and the hero treatment', () => {
   const t = fixture('dark-dev-tool');
   t.masonryGrid = { name: 'problem-grid', columns: 3 };
-  t.typographyPatterns.hasPricingGrid = true;
-  t.typographyPatterns.pricingColumnCount = 2;
-  t.typographyPatterns.hasAccordion = true;
-  t.typographyPatterns.hasMarquee = true;
-  t.visualProfile.heroBackground = 'oklch(0.6329 0.2075 31.49)';
-  t.visualProfile.isFullBleed = true;
+  // UI patterns live under visualProfile.uiPatterns in real captures.
+  t.visualProfile.uiPatterns = {
+    hasPricingGrid: true, pricingColumnCount: 2, hasAccordion: true, hasMarquee: true,
+  };
+  // Real captures carry the hero fill in visualProfile.sectionRhythm[0].
+  t.visualProfile.sectionRhythm = [
+    { bgHex: 'oklch(0.6329 0.2075 31.49)', isFullBleed: true, height: 538 },
+    { bgHex: null, isFullBleed: true, height: 672 },
+  ];
+  t.visualProfile.spacingSystem = { cardGap: '12px' };
 
   const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
   const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
-  assert.match(layout, /Masonry grid \| problem-grid, 3 columns/);
-  assert.match(layout, /Pricing grid \| 2 columns/);
-  assert.match(layout, /Accordion \| present/);
-  assert.match(layout, /Marquee \| present/);
+  // Page-level geometry stays in Layout; repeating structures move to anatomy.
+  const anatomy = md.slice(md.indexOf('## Component anatomy'));
+  assert.match(anatomy, /problem-grid \| 3 columns/);
+  assert.match(anatomy, /pricing grid \| 2 columns/);
+  assert.match(anatomy, /\| Accordion \|/);
+  assert.match(anatomy, /\| Marquee \|/);
   // The hero colour is resolved from oklch to hex and marked full-bleed.
   assert.match(layout, /Hero background \| `#ed462d` \(full-bleed\)/);
   assert.match(layout, /Card gap \| 12px/);
+});
+
+// ── rig.ai: a real capture, asserted against the live site ────────────────
+// Every expectation below was verified against rig.ai itself, so a regression
+// here means the builder has started describing a site incorrectly — not that
+// a synthetic fixture drifted.
+
+test('rig: colour roles match the live site', () => {
+  const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
+  const c = build._deriveColors(fixture('rig-ai'));
+
+  assert.equal(c.background, '#0a0a0a', 'background comes from pageBackground');
+  assert.equal(c.accent, '#ed462d', 'the red is the accent — hero, badges, icons, glow');
+
+  // The primary button is painted in the page background: an inverse button.
+  // The extractor flagged the ambiguity, so frequency_primary wins.
+  assert.equal(c._meta.inverseButton, true);
+  assert.equal(c.primary, '#ed462d');
+
+  // Red outnumbers everything as a border count, but it is not a border colour.
+  assert.notEqual(c.border, '#ed462d');
+  assert.equal(c.border, '#2a2a29', 'paper at 14% over the page background (--border)');
+
+  // No text token may be darker than the background on a dark theme.
+  const bgLum = cu.wcagLuminance(c.background);
+  ['text-primary', 'text-secondary', 'text-muted'].forEach(k => {
+    if (!c[k]) return;
+    assert.ok(cu.wcagLuminance(c[k]) > bgLum, `${k} (${c[k]}) is darker than the background`);
+  });
+
+  // Nothing fabricated: rig's hoverStates measure no button background that
+  // reads as a primary hover, so the token must be absent.
+  assert.ok(!('primary-hover' in c), 'primary-hover must not be invented');
+});
+
+test('rig: chamfer, motion, states and required sections', () => {
+  const t = fixture('rig-ai');
+  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+
+  // Shape: a clip-path polygon, not a radius.
+  assert.match(md, /^  button: "0px"$/m);
+  assert.ok(md.includes('chamfer'), 'the chamfer must be described');
+  assert.ok(md.includes('14px'), 'the --chamfer size must appear');
+  assert.ok(md.includes('clip-path: polygon('));
+
+  // Motion: rig declares 16 keyframes.
+  const kf = md.slice(md.indexOf('### Keyframes'), md.indexOf('### Ambient loops'));
+  const kfRows = (kf.match(/^\| `/gm) || []).length;
+  assert.ok(kfRows >= 5, `expected >= 5 keyframes listed, got ${kfRows}`);
+  assert.ok(kf.includes('scale 1 → 2'), 'pulse-ring');
+  assert.ok(kf.includes('seamless marquee loop'), 'ticker');
+  assert.ok(kf.includes('blur 8px → 12px'), 'hdr-glow-pulse');
+  // And it must admit which ones it could not fully capture.
+  assert.ok(kf.includes('not fully captured'), 'undescribed keyframes must say so');
+
+  // Interaction states: rig has 21 measured hovers.
+  const states = md.slice(md.indexOf('### Measured'), md.indexOf('### Recommended'));
+  const stateRows = (states.match(/^\| /gm) || []).length - 2;   // minus header+rule
+  assert.ok(stateRows >= 8, `expected >= 8 measured rows, got ${stateRows}`);
+  assert.ok(states.includes('4px 4px 0 #'), 'the brutalist offset shadow must resolve');
+
+  // Nothing unresolved reaches the reader — no var(), no raw colour function.
+  assert.ok(!md.includes('var(--'), 'an unresolved var() reached the document');
+  const body = md.slice(md.indexOf('# Rig'));
+  assert.ok(!/oklch\(/.test(body), 'a raw oklch() reached the document body');
+  assert.ok(md.includes('1px solid #2a2a29'), 'composite border colours must resolve');
+  // "ease, ease" is one easing repeated.
+  assert.match(md, /\| Dominant easing \| ease \|/);
+
+  // All required sections, free and pro.
+  [...REQUIRED, ...PRO_SECTIONS].forEach(h => assert.ok(md.includes(h), `missing "${h}"`));
+  assert.ok(md.includes('## Elevation & shadows'));
+
+  // The style line must describe this site, not a generic one.
+  const style = parseFrontmatter(md).scalars.style;
+  assert.match(style, /dark/);
+  assert.match(style, /chamfered/);
+  assert.ok(!/monochrome/.test(style), 'an accent-led site is not monochrome');
+});
+
+test('rig: layout and accessibility read from the real field paths', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'pro' }));
+  const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
+
+  assert.ok(layout.includes('128px'), 'sectionPaddingY from visualProfile.spacingSystem');
+  assert.ok(layout.includes('90%'), 'containerMaxWidth, not layoutInfo.maxWidth "none"');
+  assert.ok(layout.includes('24px'), 'cardGap');
+  assert.ok(layout.includes('#ed462d'), 'hero background from sectionRhythm[0].bgHex');
+  const anat = md.slice(md.indexOf('## Component anatomy'));
+  assert.match(anat, /problem-grid \| 3 columns/);
+  assert.match(anat, /pricing grid \| 2 columns/);
+  assert.match(anat, /\| Accordion \|/);
+  assert.match(anat, /\| Marquee \|/);
+
+  // Desktop-first: these are max-width queries and must not be mislabelled.
+  assert.ok(md.includes('desktop-first'), 'max-width breakpoints must be labelled');
+
+  // The hero heading is #0a0a0a on #ed462d — its own contrast pairing.
+  const a11y = md.slice(md.indexOf('## Accessibility notes'));
+  assert.ok(a11y.includes('hero heading'), 'the hero pairing must be computed');
+  assert.match(a11y, /#0a0a0a` on hero `#ed462d/);
+
+  // Heuristic flags with no corroboration stay out.
+  assert.ok(!md.includes('Glassmorphism'), 'filterEffects is null — omit');
+  assert.ok(!md.includes('Noise texture'), 'subtleTextures is null — omit');
+  assert.ok(!md.includes('aurora'), 'gradients is empty — omit gradientStyle');
+});
+
+test('rig: typography lists every face including the pixel label', () => {
+  const md = build.buildDesignMd(fixture('rig-ai'), opts({ tier: 'free' }));
+  ['Chalet', 'Instrument Sans', 'Chivo Mono', 'Geist Pixel Square']
+    .forEach(f => assert.ok(md.includes(f), `${f} missing`));
+  // Per-step tracking, not a floating list.
+  assert.ok(md.includes('-3.3344px'), 'h1 tracking');
+  assert.ok(md.includes('1.28px'), 'label tracking');
+  assert.ok(md.includes('uppercase'), 'label transform');
 });

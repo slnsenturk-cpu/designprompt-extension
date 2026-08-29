@@ -35,7 +35,14 @@ You need an **unpacked** build — the dev buttons are hidden in Web Store build
 2. Open the site you want to capture and open the VibeDesign side panel.
 3. Click **Analyze Page** and wait for the prompt to appear.
 4. In the result header you'll see a dashed **dev** strip with three buttons.
-   Click **Copy raw tokens JSON**. The button flashes the copied size.
+   Click **Copy RAW capture (dev)** — the third button. The button flashes the
+   copied size.
+
+   > This is *not* the **JSON** button in the result header. That one exports the
+   > W3C design-token format, which has already collapsed the palette into nine
+   > semantic roles and dropped `colorUsage`, `cssVars`, `hoverStates`,
+   > `buttonStyles`, `sectionContentMap` and `visualProfile`. The builder cannot
+   > read it.
 5. Paste into a new file:
 
 ```bash
