@@ -150,9 +150,9 @@ test('the side panel is a header, one scrolling area, and a sticky tab bar', asy
   assert.deepEqual(p.$$('.vd-tab').map(t => t.dataset.tab),
     ['overview', 'colors', 'type', 'components', 'motion', 'settings']);
 
-  // §3: the header carries navigation for nothing — only status and re-run.
-  assert.equal(p.$$('.vd-header button').length, 1);
-  assert.ok(p.$('#vdReanalyze').hidden, 'nothing to re-analyze yet');
+  // §3: the header carries no controls at all — wordmark, domain, status.
+  // Re-analyze is the panel's primary action, labelled; a bare ↺ is forbidden.
+  assert.equal(p.$$('.vd-header button').length, 0);
 });
 
 test('category tabs are dimmed until an analysis exists, and say so when tapped', async t => {
@@ -216,12 +216,15 @@ test('Overview leads with the numbers, the palette and Export', async t => {
   assert.equal(p.$('#vdExportBtn').textContent.trim(), 'Copy prompt');
 });
 
-test('the header reports the domain and what has happened to it', async t => {
+test('the header reports the current page and what has happened to it', async t => {
   const p = await boot(t);
-  assert.match(p.$('#urlBadge').textContent, /^rig\.ai · Ready$/);
+  // §3: the header is one row — domain at body size, status as caption.
+  assert.equal(p.$('.vd-header__domain').textContent, 'rig.ai');
+  assert.equal(p.$('.vd-header__state').textContent, 'Not analyzed');
+
   p.analyze('rig-ai');
-  assert.match(p.$('#urlBadge').textContent, /^rig\.ai · Analyzed \d{1,2}:\d{2}/);
-  assert.ok(!p.$('#vdReanalyze').hidden, 're-analyze appears once there is a result');
+  assert.equal(p.$('.vd-header__domain').textContent, 'rig.ai');
+  assert.match(p.$('.vd-header__state').textContent, /^Analyzed \d{1,2}:\d{2}/);
 });
 
 test('category tabs are full lists, and every row is the same component', async t => {
@@ -539,12 +542,14 @@ test('analysing turns the action into named progress with a way out', async t =>
   const p = await boot(t);
   p.run('showStage(0)');
   assert.equal(p.$('#vdPanel').style.display, 'none', 'the panel is still showing');
-  assert.match(p.$('#loadingText').textContent, /Reading… 1\/6/);
+  assert.match(p.$('#loadingText').textContent, /Reading… 1\/7/);
   assert.ok(p.$('#vdCancelAnalyze'), 'no way to cancel');
 
+  // Seven stages now: §4.5 adds "Generating direction" for the AI pass.
+  assert.match(p.$('#loadingText').textContent, /1\/7/);
   p.run('showStage(4)');
-  assert.match(p.$('#loadingText').textContent, /Motion… 5\/6/);
-  assert.equal(p.$('#vdProgressFill').style.width, '83%');
+  assert.match(p.$('#loadingText').textContent, /Motion… 5\/7/);
+  assert.equal(p.$('#vdProgressFill').style.width, '71%');
 
   // Cancel puts the panel back rather than leaving a dead progress bar.
   p.click('#vdCancelAnalyze');
@@ -588,4 +593,184 @@ test('the popup is the short form: no tab bar, and a way into the panel', async 
   assert.ok(p.$('.vd-seg'), 'no Page/Element switch');
   assert.ok(p.$('#vdOpenPanel'), 'no way into the side panel');
   assert.equal(p.$$('.vd-btn--primary').length, 1);
+});
+
+// ── PROMPT 3b ─────────────────────────────────────────────────────────────
+
+test('the summary strip and palette are always drawn for a real capture', async t => {
+  // 3b#2. They went missing on rig.ai in the browser. Driven through the REAL
+  // analysis path — buildPromptFromData — because the shortcut used elsewhere
+  // in this file sets state directly and would not have caught it.
+  const p = await boot(t);
+  p.ctx.__cap = fixture('rig-ai');
+  await p.run('buildPromptFromData(__cap, "page")');
+  await new Promise(r => setImmediate(r));
+
+  assert.ok(p.run('!!state.model'), 'no model was built from a full capture');
+  assert.equal(p.$$('.vd-stat').length, 4, 'the summary strip is missing');
+  assert.equal(p.$$('.vd-swatch').length, p.run('state.model.colorRoles.length'),
+    'the palette strip is missing');
+
+  // §4.2: they are Overview's first two elements, in that order.
+  const html = p.$('#vdPanel').innerHTML;
+  assert.ok(html.indexOf('vd-stats') < html.indexOf('vd-swatches'),
+    'the palette is drawn before the counts');
+  assert.ok(html.indexOf('vd-swatches') < html.indexOf('vdExportCard'),
+    'Export comes before the palette');
+  assert.ok(!p.text().includes('Very little design data'),
+    'a full capture was reported as sparse');
+});
+
+test('the Export meta counts every heading in the prompt', async t => {
+  // 3b#8. The prompt uses `##` once for its title and `###` for each real
+  // section, so counting `##` alone reported "1 sections" for a 33k prompt.
+  const p = await boot(t);
+  p.ctx.__cap = fixture('rig-ai');
+  await p.run('buildPromptFromData(__cap, "page")');
+  await new Promise(r => setImmediate(r));
+
+  const meta = p.$('.vd-card__meta').textContent;
+  assert.match(meta, /^\d+ sections · [\d.]+k chars$/);
+  const sections = Number(meta.split(' ')[0]);
+  assert.equal(sections, p.run('countSections(state.lastPrompt)'));
+  assert.ok(sections > 10, `${sections} sections for a 33k prompt is a miscount`);
+  assert.ok(!meta.startsWith('1 sections'), 'the "1 sections" bug is back');
+});
+
+test('page context: the header follows the tab, and the result is kept', async t => {
+  // 3b#6 / §3's table, all three rows.
+  const p = await boot(t);
+  assert.equal(p.run('pageContext()'), 'none');
+  assert.equal(p.$('#analyzeBtn').textContent.trim(), 'Analyze page');
+  assert.ok(p.$('#analyzeBtn').classList.contains('vd-btn--primary'));
+
+  p.analyze('rig-ai');
+  assert.equal(p.run('pageContext()'), 'same');
+  assert.match(p.$('#analyzeBtn').textContent, /↺\s*Re-analyze/);
+  assert.ok(p.$('#analyzeBtn').classList.contains('vd-btn--ghost'),
+    'Re-analyze is secondary — the result is already here');
+
+  // The user switches to another site.
+  p.run('state.currentUrl = "https://posthog.com/"; renderPanel();');
+  assert.equal(p.run('pageContext()'), 'other');
+  assert.equal(p.$('.vd-header__domain').textContent, 'posthog.com');
+  assert.equal(p.$('.vd-header__state').textContent, 'Not analyzed');
+  assert.equal(p.$('#analyzeBtn').textContent.trim(), 'Analyze posthog.com');
+  assert.match(p.text(), /Showing rig\.ai \(analyzed \d{1,2}:\d{2}/);
+  assert.ok(p.run('!!state.model'), 'the previous result was thrown away');
+  assert.equal(p.$$('.vd-stat').length, 4, 'the previous result stopped rendering');
+
+  // …and back again.
+  p.run('state.currentUrl = "https://rig.ai/"; renderPanel();');
+  assert.equal(p.run('pageContext()'), 'same');
+  assert.match(p.$('#analyzeBtn').textContent, /↺\s*Re-analyze/);
+});
+
+test('the reload glyph is never used on its own', async t => {
+  // §3: "↺ ikonu tek başına hiçbir yerde kullanılmaz."
+  const p = await boot(t);
+  p.analyze('rig-ai');
+  [...p.win.document.querySelectorAll('button')].forEach(b => {
+    const text = b.textContent.replace(/\s+/g, ' ').trim();
+    if (text.includes('↺')) {
+      assert.ok(text.replace('↺', '').trim().length > 0,
+        'a bare ↺ button: the glyph must always carry a label');
+    }
+  });
+});
+
+test('the AI indicator says what will run, and links to Settings', async t => {
+  // 3b#7.
+  const off = await boot(t, { storage: { vd_ai_enabled: false } });
+  assert.match(off.text(), /AI enhancement off/);
+  assert.ok(off.$('[data-action="openSettings"]'), 'no way to turn it on');
+  off.click('[data-action="openSettings"]');
+  assert.equal(off.run('state.tab'), 'settings');
+
+  const on = await boot(t, {
+    storage: { vd_ai_enabled: true, provider: 'claude', apiKeys: { claude: 'k' } },
+  });
+  assert.match(on.text(), /AI enhancement: Claude · /);
+  assert.match(on.text(), /Change/);
+
+  // The same line appears while analysing (§3).
+  on.run('showStage(6)');
+  assert.match(on.$('#vdLoadingAi').textContent, /AI enhancement: Claude · /);
+});
+
+test('the analyzing line shows a stage name and never AI content', async t => {
+  // 3b#10. The old build passed the model's streaming markdown into this line.
+  const p = await boot(t);
+  ['Reading', 'Colors', 'Type', 'Components', 'Motion', 'Building', 'Generating direction']
+    .forEach((stage, i) => {
+      p.run(`showStage(${i})`);
+      assert.equal(p.$('#loadingText').textContent, `${stage}… ${i + 1}/7`);
+    });
+
+  // The source of the leak: nothing in the panel writes into #loadingText
+  // except showLoading, and nothing hands it prompt content.
+  const src = fs.readFileSync(path.join(ROOT, 'lib', 'prompt-builder.js'), 'utf8');
+  assert.ok(!/loadingText.*partialText|partialText.*loadingText/.test(src),
+    'the prompt builder still writes streamed AI text into the status line');
+});
+
+test('no floating sign-in pill; signed-out is a dot on the Settings tab', async t => {
+  // 3b#3.
+  const p = await boot(t);
+  assert.ok(!p.text().includes('Sign in to sync'), 'the floating pill is back');
+  assert.equal(p.$('.vd-auth-pill'), null, 'a pill element was rendered');
+
+  // Nothing renders above or below the header row (§3 / 3b#4).
+  const header = p.$('.vd-header');
+  assert.equal(header.previousElementSibling, null, 'something sits above the header');
+
+  assert.ok(p.$('.vd-tab__dot'), 'no signed-out badge on the Settings tab');
+  const dotTab = p.$('.vd-tab__dot').closest('.vd-tab');
+  assert.equal(dotTab.dataset.tab, 'settings', 'the badge is on the wrong tab');
+
+  // Account itself is in Settings, as a row with a labelled action.
+  p.click('[data-tab="settings"]');
+  assert.ok(p.$('#vdSignIn'), 'no way to sign in from Settings');
+});
+
+test('every tab keeps its label, and each tab titles its own content', async t => {
+  // 3b#1 and 3b#5.
+  const p = await boot(t);
+  p.$$('.vd-tab').forEach(tab => {
+    const label = tab.querySelector('.vd-tab__label');
+    assert.ok(label && label.textContent.trim(), `${tab.dataset.tab} has no label`);
+    assert.ok(tab.querySelector('.vd-tab__icon'), `${tab.dataset.tab} has no icon`);
+  });
+
+  assert.equal(p.$('.vd-tabtitle').textContent, 'Overview');
+  p.analyze('rig-ai');
+  [['colors', 'Colors'], ['type', 'Type'], ['components', 'Components'],
+   ['motion', 'Motion'], ['settings', 'Settings'], ['overview', 'Overview']]
+    .forEach(([tab, title]) => {
+      p.click(`[data-tab="${tab}"]`);
+      assert.equal(p.$('.vd-tabtitle').textContent, title, `${tab} has the wrong title`);
+    });
+});
+
+test('a page that has not finished loading is not measured', async t => {
+  // 3b#9. The capture from a half-loaded page is nearly empty, and the panel
+  // then tells the user their full site has "very little design data".
+  const p = await boot(t);
+  p.run('chrome.scripting.executeScript = () => Promise.resolve([{result:{ready:"loading",body:false}}]);');
+  await p.run('handleAnalyze()');
+  await new Promise(r => setImmediate(r));
+  assert.match(p.$('#errorText').textContent, /Page is still loading — try again/);
+  assert.ok(p.run('!state.model'), 'a half-loaded page was measured anyway');
+});
+
+test('sparse means genuinely sparse, not merely unfinished', async t => {
+  // 3b#9's second half: the rule is <3 colour roles AND no components.
+  const rig = await boot(t);
+  rig.analyze('rig-ai');
+  assert.ok(!rig.text().includes('Very little design data'),
+    'a full capture was called sparse');
+
+  const thin = await boot(t);
+  thin.analyze('sparse');
+  assert.match(thin.text(), /Very little design data/);
 });

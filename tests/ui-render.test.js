@@ -31,7 +31,12 @@ const sparse = model.buildDesignModel(fixture('sparse'));
 
 // One entry per screen/state pair the spec describes (§4).
 const STATES = {
-  'home-page':        () => V.homeView({ mode: 'page', recent: [] }),
+  'home-page':        () => V.homeView({ mode: 'page', recent: [], context: 'none',
+                             aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5' }),
+  'home-ai-off':      () => V.homeView({ mode: 'page', recent: [], context: 'none' }),
+  'overview-other':   () => V.overviewView(rig, { output: 'prompt', context: 'other',
+                             domain: 'posthog.com', resultDomain: 'rig.ai',
+                             resultTime: '12:41', aiEnabled: false }),
   'home-element':     () => V.homeView({ mode: 'element', recent: [] }),
   'home-recent':      () => V.homeView({ mode: 'page', recent: [
                              { key: 'a', domain: 'linear.app', ago: '2h ago', meta: '' },
@@ -215,4 +220,125 @@ test('a colour role name never renders as a bare number', () => {
   counts.forEach(c => assert.ok(c.value > 0));
   const html = STATES['overview-sparse']();
   assert.ok(!/vd-stat__value">0</.test(html), 'a zero was rendered as a stat');
+});
+
+// ── PROMPT 3b ─────────────────────────────────────────────────────────────
+
+test('Overview always opens with the summary strip and the palette', () => {
+  // 3b#2. This is the test that must fail if either disappears for rig.
+  const html = V.overviewView(rig, { output: 'prompt', context: 'same' });
+  assert.ok(html.includes('vd-stats'), 'the summary strip is missing for the rig fixture');
+  assert.ok(html.includes('vd-swatches'), 'the palette strip is missing for the rig fixture');
+  assert.equal((html.match(/vd-stat"/g) || []).length, 4, 'wrong number of stat tiles');
+  assert.equal((html.match(/vd-swatch"/g) || []).length, rig.colorRoles.length);
+  assert.ok(!html.includes('Very little design data'), 'rig was reported as sparse');
+
+  // And they lead: nothing but the title, the page-context block and the
+  // action come before them.
+  const before = html.slice(0, html.indexOf('vd-stats'));
+  assert.ok(!before.includes('vd-card'), 'the Export card is drawn before the counts');
+  assert.ok(!before.includes('vd-kv'), 'Snapshot is drawn before the counts');
+});
+
+test('sparse is <3 colour roles AND no components', () => {
+  // 3b#9. The old rule ("fewer than two non-zero tiles") fired on real pages.
+  assert.equal(U.isSparse(rig), false, 'a 10-role capture is not sparse');
+  assert.equal(U.isSparse(sparse), true);
+  assert.equal(U.isSparse(null), true, 'no model at all is as sparse as it gets');
+
+  // A page with few colours but real components is NOT sparse.
+  const fewColours = {
+    colorRoles: ['background', 'text-primary'],
+    colors: { background: '#fff', 'text-primary': '#000' },
+    theme: {}, typography: { stacks: {}, detail: {} }, radius: {}, shape: null,
+    tokens: { buttonStyles: { primary: { padding: '8px' } } },
+  };
+  assert.equal(U.isSparse(fewColours), false,
+    'two colours plus a real button is a design, not an empty page');
+});
+
+test('the reload glyph never appears without a label', () => {
+  Object.keys(STATES).forEach(name => {
+    const html = STATES[name]();
+    (html.match(/<button[^>]*>(?:(?!<\/button>).)*<\/button>/gs) || []).forEach(btn => {
+      if (!btn.includes('↺')) return;
+      const text = btn.replace(/<[^>]+>/g, ' ').replace(/↺/g, '').replace(/\s+/g, ' ').trim();
+      assert.ok(text.length > 0, `${name}: a bare ↺ button`);
+    });
+  });
+});
+
+test('the page-context block names both pages when they differ', () => {
+  const html = STATES['overview-other']();
+  assert.match(html, /Showing rig\.ai \(analyzed 12:41\)/,
+    'the result must say which page it describes');
+  assert.match(html, /Analyze posthog\.com/,
+    'the action must name the page it will read');
+});
+
+test('the AI indicator reads either way round', () => {
+  assert.match(STATES['home-page'](), /AI enhancement: Claude · Fable 5/);
+  assert.match(STATES['home-page'](), /Change/);
+  assert.match(STATES['home-ai-off'](), /AI enhancement off/);
+  assert.match(STATES['home-ai-off'](), /Turn on/);
+});
+
+test('a long Snapshot value stacks under its label instead of truncating', () => {
+  // 3b#11. The Style line is a sentence; cutting it mid-word loses the point.
+  const rows = U.snapshotRows(rig);
+  const style = rows.find(r => r.label === 'Style');
+  assert.ok(style, 'no Style row');
+  assert.equal(style.wrap, true, 'the Style value is not marked as wrapping');
+  assert.ok(style.value.length > 40, 'fixture premise: this value is long');
+
+  const html = U.kvRow(style);
+  assert.match(html, /vd-kv--stacked/);
+  assert.match(html, /vd-kv__value--wrap/);
+
+  const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
+  assert.match(css, /\.vd-kv__value--wrap \{[^}]*white-space: normal/,
+    'the wrapping class does not actually wrap');
+});
+
+test('every tab entry carries an icon and a label', () => {
+  // 3b#1: an icon-only bar is not accepted.
+  const bar = U.tabBar({ active: 'overview', ready: true });
+  U.TABS.forEach(t => {
+    assert.ok(bar.includes(`data-tab="${t.id}"`), `${t.id} missing from the bar`);
+    assert.ok(bar.includes(`>${t.label}<`), `${t.id} has no visible label`);
+  });
+  assert.equal((bar.match(/vd-tab__icon/g) || []).length, U.TABS.length);
+  assert.equal((bar.match(/vd-tab__label/g) || []).length, U.TABS.length);
+
+  // The signed-out dot rides on Settings and nowhere else.
+  assert.ok(!bar.includes('vd-tab__dot'), 'a dot appeared while signed in');
+  const out = U.tabBar({ active: 'overview', ready: true, signedOut: true });
+  assert.equal((out.match(/vd-tab__dot/g) || []).length, 1);
+  const settingsTab = out.slice(out.lastIndexOf('<button', out.indexOf('vd-tab__dot')));
+  assert.match(settingsTab, /data-tab="settings"/);
+});
+
+test('every tab panel opens with its own title', () => {
+  // 3b#5.
+  [['overview-prompt', 'Overview'], ['home-page', 'Overview'], ['colors', 'Colors'],
+   ['type', 'Type'], ['components', 'Components'], ['motion', 'Motion']]
+    .forEach(([state, title]) => {
+      const html = STATES[state]();
+      assert.match(html, new RegExp(`^<h1 class="vd-tabtitle">${title}</h1>`),
+        `${state} does not open with its title`);
+    });
+});
+
+test('the tab bar and header meet the sizes §3 gives', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
+  const panel = css.slice(css.indexOf('/* ── shell (§3) ──'));
+  assert.match(panel, /\.vd-header__logo \{ height: 20px/, 'the wordmark is not 20px');
+  assert.match(panel, /\.vd-tab \{[^}]*min-height: 48px/, 'the touch target is under 48px');
+  assert.match(panel, /\.vd-tab__icon \{ font-size: 20px/, 'the tab icon is not 20px');
+  assert.match(panel, /\.vd-tab\.is-dim \{ opacity: 0\.4/, 'dimmed tabs are not at 40%');
+  assert.match(panel, /\.vd-tab\.is-on \.vd-tab__label \{ font-weight: 600/,
+    'the active tab label is not 600');
+  // The header domain is body size, the status is caption.
+  assert.match(panel, /\.vd-header__domain \{\s*font: var\(--vd-body\)/);
+  assert.match(panel, /\.vd-header__state \{ font: var\(--vd-caption\)/);
 });
