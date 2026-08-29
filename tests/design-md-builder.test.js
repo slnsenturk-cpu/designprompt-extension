@@ -565,3 +565,24 @@ test('heuristic visual flags need a second signal', () => {
   assert.ok(rich.includes('Noise texture'));
   assert.ok(rich.includes('Gradient style'));
 });
+
+test('layout reports repeating structures and the hero treatment', () => {
+  const t = fixture('dark-dev-tool');
+  t.masonryGrid = { name: 'problem-grid', columns: 3 };
+  t.typographyPatterns.hasPricingGrid = true;
+  t.typographyPatterns.pricingColumnCount = 2;
+  t.typographyPatterns.hasAccordion = true;
+  t.typographyPatterns.hasMarquee = true;
+  t.visualProfile.heroBackground = 'oklch(0.6329 0.2075 31.49)';
+  t.visualProfile.isFullBleed = true;
+
+  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const layout = md.slice(md.indexOf('## Layout'), md.indexOf('## Color usage'));
+  assert.match(layout, /Masonry grid \| problem-grid, 3 columns/);
+  assert.match(layout, /Pricing grid \| 2 columns/);
+  assert.match(layout, /Accordion \| present/);
+  assert.match(layout, /Marquee \| present/);
+  // The hero colour is resolved from oklch to hex and marked full-bleed.
+  assert.match(layout, /Hero background \| `#ed462d` \(full-bleed\)/);
+  assert.match(layout, /Card gap \| 12px/);
+});
