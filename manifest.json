@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "VibeDesign",
-  "version": "2.0.1",
-  "description": "Analyze any website and generate detailed design prompts for AI tools like v0, Lovable, Bolt, and Figma Make. No API key required.",
+  "version": "3.0.0",
+  "description": "Extract any website's design system into DESIGN.md, Skills & design tokens for Claude Code, Cursor, Codex, Stitch, Lovable, v0, Bolt",
   "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel", "identity", "alarms"],
   "host_permissions": ["<all_urls>"],
   "action": {

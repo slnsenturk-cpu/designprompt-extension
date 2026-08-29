@@ -1077,3 +1077,19 @@ test('the capture viewport is declared, and omitted when unknown', () => {
   bad.viewport = { width: 'wide', height: null };
   assert.ok(!build.buildDesignMd(bad, opts()).includes('viewport:'));
 });
+
+// ── the manifest ships what the store will accept ─────────────────────────
+
+test('the manifest version and description are within the store limits', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
+
+  // Chrome caps the description at 132 characters and rejects the upload
+  // outright above it — a limit that is easy to cross while editing copy.
+  assert.ok(manifest.description.length <= 132,
+    `the description is ${manifest.description.length} chars; the store allows 132`);
+  assert.ok(manifest.description.length > 0, 'the description is empty');
+  assert.ok(!/\n/.test(manifest.description), 'the description spans lines');
+
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'the version is not x.y.z');
+  assert.equal(manifest.manifest_version, 3);
+});
