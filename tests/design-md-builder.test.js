@@ -333,13 +333,34 @@ test('colors are assigned to the role they are most used for', () => {
   assert.equal(c['text-secondary'], '#475569');
 });
 
-test('primary-hover moves away from the page background in both themes', () => {
-  const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
+test('hover colours are measured, never synthesised', () => {
+  // A derived hover shade is a guess presented as a fact. The token may only
+  // appear when hoverStates actually measured one.
   const light = build._deriveColors(fixture('light-saas'));
+  assert.equal(light['primary-hover'], '#1d4ed8',
+    'must come from the .btn-primary:hover measurement');
+
   const dark = build._deriveColors(fixture('dark-dev-tool'));
-  // Light theme: hover darkens. Dark theme: hover lightens.
-  assert.ok(cu.wcagLuminance(light['primary-hover']) < cu.wcagLuminance(light.primary));
-  assert.ok(cu.wcagLuminance(dark['primary-hover']) > cu.wcagLuminance(dark.primary));
+  assert.equal(dark['primary-hover'], '#6d28d9');
+
+  // Strip the measurements and the key must disappear rather than be invented.
+  const noHover = fixture('light-saas');
+  noHover.hoverStates = [];
+  const derived = build._deriveColors(noHover);
+  assert.ok(!('primary-hover' in derived),
+    'with nothing measured there must be no primary-hover token');
+
+  // And it must not reappear anywhere in the document.
+  const md = build.buildDesignMd(noHover, opts({ tier: 'pro' }));
+  assert.ok(!md.includes('primary-hover'));
+});
+
+test('a colour may fill two roles rather than one being dropped', () => {
+  // On most sites the primary action IS the accent. Emitting both, aliased,
+  // is more useful than silently losing the `primary` role to dedup.
+  const c = build._deriveColors(fixture('light-saas'));
+  assert.equal(c.accent, '#2563eb');
+  assert.equal(c.primary, '#2563eb');
 });
 
 test('accessibility notes flag pairings below 4.5:1', () => {
@@ -416,4 +437,131 @@ test('dev copy buttons are gated on an unpacked build', () => {
   // The row is revealed in exactly one place — the guarded block above.
   assert.equal(ui.split("devRow.style.display = 'flex'").length - 1, 1,
     'the dev row must be revealed in exactly one (guarded) place');
+});
+
+// ── colour resolution: nothing unresolved may reach the reader ─────────────
+
+test('rgba / oklch / var() are all resolved to opaque hex', () => {
+  const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
+  // OKLCH is exact, not approximated — this is a real value from a live site.
+  assert.equal(cu.compositeOver('oklch(0.6329 0.2075 31.49)', '#0a0a0a'), '#ed462d');
+  // Alpha composites over the page background rather than being printed raw.
+  assert.equal(cu.compositeOver('rgba(240,237,230,0.14)', '#0a0a0a'), '#2a2a29');
+  assert.equal(cu.compositeOver('#ffffff14', '#0a0a0a'), '#1d1d1d');
+  // var() chains follow through cssVars, with a fallback, and terminate.
+  const vars = { '--paper': '#f0ede6', '--border': 'var(--paper-14)',
+                 '--paper-14': 'rgba(240,237,230,0.14)', '--loop': 'var(--loop)' };
+  assert.equal(cu.resolveColor('var(--border)', vars, '#0a0a0a'), '#2a2a29');
+  assert.equal(cu.resolveColor('var(--nope, #ed462d)', vars, '#0a0a0a'), '#ed462d');
+  assert.equal(cu.resolveColor('var(--loop)', vars, '#0a0a0a'), null, 'cyclic var must not hang');
+});
+
+test('no unresolved var() or alpha colour ever reaches the output', () => {
+  ALL.forEach(name => {
+    ['free', 'pro'].forEach(tier => {
+      const md = build.buildDesignMd(fixture(name), opts({ tier }));
+      assert.ok(!md.includes('var(--'), `${name}/${tier}: an unresolved var() reached the document`);
+    });
+  });
+});
+
+test('on a dark theme no text token is darker than the background', () => {
+  const cu = require(path.join(__dirname, '..', 'lib', 'color-utils.js'));
+  const c = build._deriveColors(fixture('dark-dev-tool'));
+  const bgLum = cu.wcagLuminance(c.background);
+  ['text-primary', 'text-secondary', 'text-muted'].forEach(k => {
+    if (!c[k]) return;
+    assert.ok(cu.wcagLuminance(c[k]) > bgLum,
+      `${k} (${c[k]}) is darker than the background on a dark theme`);
+  });
+});
+
+// ── shape language ─────────────────────────────────────────────────────────
+
+test('a polygon clip-path zeroes the radius and is described instead', () => {
+  const t = fixture('dark-dev-tool');
+  t.buttonStyles.primary.clipPath = 'polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px)';
+  t.cssVars['--chamfer'] = '14px';
+
+  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  assert.match(md, /^  button: "0px"$/m, 'a clip-path button has no border-radius');
+  assert.ok(md.includes('chamfer'), 'the chamfer must be described');
+  assert.ok(md.includes('clip-path: polygon('), 'the polygon itself must be reproducible');
+  assert.match(parseFrontmatter(md).scalars.style, /chamfered/);
+  // And the card/input radii still come through from the observed list.
+  assert.match(md, /^  card: "/m);
+});
+
+// ── motion ─────────────────────────────────────────────────────────────────
+
+test('every keyframe is listed with an effect derived from its from/to', () => {
+  const t = fixture('dark-dev-tool');
+  t.animations = [
+    { name: 'pulse-ring', from: '0%, 100% { opacity: 0.4; transform: scale(1); }', to: '50% { opacity: 0; transform: scale(2); }' },
+    { name: 'blink', from: '0%, 100% { opacity: 1; }', to: '50% { opacity: 0; }' },
+    { name: 'ticker', from: '0% { transform: translate(0px); }', to: '100% { transform: translate(-50%); }' },
+    { name: 'hdr-glow-pulse', from: '0%, 100% { opacity: 0.4; filter: blur(8px); }', to: '50% { opacity: 0.7; filter: blur(12px); }' },
+    { name: 'glitch-subtle-1', from: '0% { clip: rect(12px, 9999px, 5px, 0px); }', to: '100% { clip: rect(60px, 9999px, 100px, 0px); }' },
+  ];
+  t.ambientAnimations = [{ name: 'signal-flicker', duration: '4s', timingFunction: 'ease-in-out', iterationCount: 'infinite' }];
+
+  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  const section = md.slice(md.indexOf('### Keyframes'));
+  assert.ok(md.includes('### Keyframes'));
+  t.animations.forEach(a => assert.ok(section.includes('`' + a.name + '`'), `${a.name} missing`));
+  // Effects are derived, not guessed from the name.
+  assert.ok(section.includes('scale 1 → 2'), 'pulse-ring scale not derived');
+  assert.ok(section.includes('blur 8px → 12px'), 'glow blur not derived');
+  assert.ok(section.includes('seamless marquee loop'), 'ticker not recognised as a marquee');
+  assert.ok(section.includes('clip-rect slice'), 'glitch clip not derived');
+  // Ambient loops carry their durations.
+  assert.ok(md.includes('### Ambient loops') && md.includes('4000ms'));
+});
+
+test('repeated easing tokens are collapsed', () => {
+  const t = fixture('dark-dev-tool');
+  t.transitions = ['all 200ms ease, ease', 'all 200ms ease, ease', 'color 100ms ease-out'];
+  const md = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  assert.ok(!md.includes('ease, ease'), 'duplicated easing must be collapsed');
+});
+
+// ── measured vs recommended ────────────────────────────────────────────────
+
+test('measured interaction states are visibly separated from recommendations', () => {
+  const md = build.buildDesignMd(fixture('dark-dev-tool'), opts({ tier: 'pro' }));
+  const section = md.slice(md.indexOf('## Interaction states'));
+  assert.ok(section.includes('### Measured'), 'measurements need their own block');
+  assert.ok(section.includes('### Recommended (not observed)'), 'advice must be fenced off');
+  assert.ok(section.indexOf('### Measured') < section.indexOf('### Recommended'),
+    'facts come before advice');
+  // Recommendations only cover states with no measurement. Match the bullet
+  // label, not the word — "remove hover/active feedback" legitimately mentions
+  // hover inside the *disabled* recommendation.
+  const recs = section.slice(section.indexOf('### Recommended'));
+  assert.ok(!/^- \*\*hover\*\*/m.test(recs),
+    'hover was measured, so it must not be offered as a recommendation');
+  ['focus', 'active', 'disabled'].forEach(st => {
+    assert.match(recs, new RegExp('^- \\*\\*' + st + '\\*\\*', 'm'), `${st} should be recommended`);
+  });
+});
+
+// ── low-confidence flags ───────────────────────────────────────────────────
+
+test('heuristic visual flags need a second signal', () => {
+  const t = fixture('dark-dev-tool');
+  // The fixture claims glassmorphism and noise with nothing to back them.
+  const bare = build.buildDesignMd(t, opts({ tier: 'pro' }));
+  assert.ok(!bare.includes('Glassmorphism'), 'unsupported glassmorphism must be omitted');
+  assert.ok(!bare.includes('Noise texture'), 'unsupported noise must be omitted');
+  assert.ok(!bare.includes('Gradient style'), 'gradientStyle with no gradients must be omitted');
+
+  // Corroborate each and they may be stated.
+  const t2 = fixture('dark-dev-tool');
+  t2.filterEffects = { backdropFilter: 'blur(12px)' };
+  t2.subtleTextures = [{ type: 'noise' }];
+  t2.gradients = ['linear-gradient(180deg, #7c3aed, #22d3ee)'];
+  const rich = build.buildDesignMd(t2, opts({ tier: 'pro' }));
+  assert.ok(rich.includes('Glassmorphism'));
+  assert.ok(rich.includes('Noise texture'));
+  assert.ok(rich.includes('Gradient style'));
 });
