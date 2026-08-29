@@ -21,10 +21,24 @@ Verify it is active:
 git config --get core.hooksPath
 ```
 
-Must print `scripts/hooks`. If it prints nothing, the hook is not running and
+Must print `scripts/hooks`. If it prints nothing, neither hook is running and
 a failing test can reach a commit. `.git/hooks/` ships only Git's inert
 `*.sample` templates — Git executes a file named exactly `pre-commit`, so
 `pre-commit.sample` never runs.
+
+`scripts/hooks/pre-push` is the second gate. pre-commit only ever sees one
+commit's staged content; a push publishes a **range**, so anything that reached
+history another way — an amend, a rebase, a `--no-verify` commit, or work
+predating the hooks — is unreviewed until then. pre-push scans the added lines
+across the whole range being published for provider credentials, and re-runs
+the suite at the tip.
+
+**On the fixture poison.** `tests/cloud-sync-no-keys.test.js` builds its fake
+keys from fragments at runtime, so no vendor prefix exists as a literal in the
+source. GitHub secret scanning flagged an earlier revision that used whole
+literals. Those values were synthetic throughout — the word POISON padded with
+zeros — but a fixture should not trip a scanner. If you add a fixture that
+needs a key-shaped value, assemble it the same way.
 
 ## Key safety
 

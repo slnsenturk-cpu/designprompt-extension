@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# VibeDesign — pre-push hook.
+#
+# The pre-commit hook scans staged content, which only ever sees one commit.
+# A push publishes a RANGE, so anything that reached history another way — an
+# amend, a rebase, a merge, a commit made with --no-verify, or work created
+# before the hook existed — is unreviewed until now. This is the last gate
+# before content leaves the machine.
+#
+# Activated together with the pre-commit hook:
+#     git config core.hooksPath scripts/hooks
+#
+# Bypass with `git push --no-verify` only when you know why.
+#
+# stdin: <local ref> <local oid> <remote ref> <remote oid>, one line per ref.
+
+set -uo pipefail
+
+RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; OFF=$'\033[0m'
+ZERO='0000000000000000000000000000000000000000'
+
+remote_name="${1:-origin}"
+
+repo_root=$(git rev-parse --show-toplevel) || exit 1
+cd "$repo_root" || exit 1
+
+# Real provider credentials. The lengths are deliberately at real-key scale so
+# the fixture poison — assembled from fragments at runtime, with no literal
+# prefix in the source — cannot trip this.
+KEY_RE='AIza[A-Za-z0-9_-]{30,}|sk-ant-api03-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|gsk_[A-Za-z0-9]{30,}|xai-[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|glpat-[A-Za-z0-9_-]{20,}'
+
+found=0
+
+scan_range() {
+  local range="$1"
+  # Added lines only: history already on the remote is not re-flagged, and a
+  # deletion never trips the scanner. docs/ is excluded because the release
+  # checklist quotes these patterns.
+  local hits
+  hits=$(git diff --unified=0 $range -- . ':!docs/' 2>/dev/null \
+    | grep -E '^\+' | grep -vE '^\+\+\+' \
+    | grep -oE "$KEY_RE" | sort -u || true)
+  if [ -n "$hits" ]; then
+    printf '%s✗ pre-push: a provider credential appears in the commits being pushed%s\n' "$RED" "$OFF" >&2
+    printf '%s\n' "$hits" | head -5 | sed 's/^/    /' >&2
+    printf '%s  Locate it with:%s\n' "$YELLOW" "$OFF" >&2
+    printf '    git log -S<the-string> --oneline %s\n' "$range" >&2
+    printf '%s  A real key must be REVOKED first — removing it from history is not enough.%s\n' "$YELLOW" "$OFF" >&2
+    found=1
+  fi
+}
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  [ -z "${local_oid:-}" ] && continue
+  # Branch deletion — nothing to scan.
+  [ "$local_oid" = "$ZERO" ] && continue
+
+  if [ "$remote_oid" = "$ZERO" ]; then
+    # New remote branch: everything not already published to this remote.
+    commits=$(git rev-list "$local_oid" --not --remotes="$remote_name" 2>/dev/null)
+    [ -z "$commits" ] && continue
+    oldest=$(printf '%s\n' "$commits" | tail -1)
+    parent=$(git rev-parse "$oldest^" 2>/dev/null || echo '')
+    if [ -n "$parent" ]; then scan_range "$parent..$local_oid"; else scan_range "$local_oid"; fi
+  else
+    scan_range "$remote_oid..$local_oid"
+  fi
+done
+
+[ "$found" -ne 0 ] && exit 1
+
+# The suite must also be green at the tip being pushed.
+if ls tests/*.test.js >/dev/null 2>&1; then
+  if ! out=$(node --test tests/*.test.js 2>&1); then
+    printf '%s\n' "$out" | grep -E '^(✖|ℹ (tests|pass|fail))' | head -20 >&2
+    printf '%s✗ pre-push: the test suite is failing%s\n' "$RED" "$OFF" >&2
+    exit 1
+  fi
+  printf '%s✓ pre-push: %s, no credentials in range%s\n' \
+    "$GREEN" "$(printf '%s\n' "$out" | grep -E '^ℹ pass' | tr -s ' ')" "$OFF"
+fi
+
+exit 0

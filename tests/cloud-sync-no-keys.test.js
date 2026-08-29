@@ -50,23 +50,34 @@ const KEY_VALUE_RE = /sk-ant-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-
 
 // The poison. Every one of these must be dropped on the floor.
 //
-// Assembled at runtime rather than written as literals: the release checklist
-// greps the repo for key-shaped strings, and a literal here would be a
-// permanent false positive that trains people to ignore the check. The runtime
-// values are fully key-shaped, which is what KEY_VALUE_RE actually sees.
+// Assembled from fragments so that no scanner-recognisable prefix exists as a
+// literal anywhere in this file — not the full key, and not the vendor prefix
+// either. Two reasons:
+//
+//   1. The release checklist greps the repo for key-shaped strings. A literal
+//      here is a permanent false positive that trains people to ignore it.
+//   2. GitHub secret scanning flagged an earlier revision of this fixture. The
+//      values were always synthetic — the word POISON padded with zeros, no
+//      entropy, never derived from any real credential — but a test fixture
+//      should not trip a scanner in the first place, and every such alert
+//      costs someone the time to prove it is a false positive.
+//
+// The assembled runtime values are still fully key-shaped, which is all that
+// KEY_VALUE_RE and the code under test ever see.
 const PAD = 'POISON'.padEnd(32, '0');
+const join = parts => parts.join('');
 const POISON_KEYS = {
-  apiKey: 'sk-' + 'ant-api03-' + PAD,
+  apiKey: join(['s', 'k-', 'ant', '-api03-', PAD]),
   apiKeys: {
-    claude: 'sk-' + 'ant-api03-' + PAD,
-    openai: 'sk-' + 'proj-' + PAD,
-    gemini: 'AIza' + 'Sy' + PAD,
+    claude: join(['s', 'k-', 'ant', '-api03-', PAD]),
+    openai: join(['s', 'k-', 'proj', '-', PAD]),
+    gemini: join(['A', 'I', 'z', 'a', 'Sy', PAD]),
   },
-  api_key: 'sk-' + PAD,
-  apikey: 'AIza' + 'Sy' + PAD,
+  api_key: join(['s', 'k-', PAD]),
+  apikey: join(['A', 'I', 'z', 'a', 'Sy', PAD]),
   secret: 'POISON-secret',
   password: 'POISON-password',
-  authorization: 'Bearer ' + 'sk-' + 'ant-' + PAD,
+  authorization: join(['Bearer ', 's', 'k-', 'ant', '-', PAD]),
 };
 
 // ── harness ────────────────────────────────────────────────────────────────
