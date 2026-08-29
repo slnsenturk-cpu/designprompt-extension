@@ -35,18 +35,10 @@ let _vdVisibilityHandlerAttached = false;
 // gotrue-js refreshes inside __loadSession() whenever the token is within
 // EXPIRY_MARGIN (90s) of expiring, and that path is NOT gated by
 // autoRefreshToken:false. Any bare getUser()/getSession() can therefore mint a
-// token. We keep well clear of that window: once the token is inside
-// VD_NUDGE_MARGIN_MS we ask the SW to refresh and skip this tick entirely.
+// token. VD_AUTH.ensureFreshToken() keeps us clear of that window by handing
+// the refresh to the worker first; this constant is the floor we refuse to go
+// below if that handoff didn't succeed.
 const VD_SDK_REFRESH_MARGIN_MS = 90 * 1000;      // gotrue-js EXPIRY_MARGIN
-const VD_NUDGE_MARGIN_MS = Math.max(5 * 60 * 1000, VD_SDK_REFRESH_MARGIN_MS * 3);
-
-async function _vdRequestTokenRefresh() {
-  try {
-    await chrome.runtime.sendMessage({ type: 'VD_REFRESH_TOKEN' });
-  } catch (e) {
-    // No receiver / SW still starting — the periodic alarm still covers it.
-  }
-}
 
 // Two-way logout sync: poll Supabase every 30s while the sidepanel is open,
 // and re-check whenever the sidepanel regains visibility. If the server
@@ -58,16 +50,19 @@ async function _vdCheckServerAuth() {
   try {
     const auth = self.VD_AUTH;
     if (!auth || typeof auth.peekSession !== 'function') return;
-    const sess = await auth.peekSession();
+    // Top the token up via the worker before touching the SDK. After a
+    // sleep/wake the stored token is often already expired, and this is what
+    // stops the SDK deciding to refresh it for us.
+    const sess = typeof auth.ensureFreshToken === 'function'
+      ? await auth.ensureFreshToken()
+      : await auth.peekSession();
     if (!sess || !sess.access_token) return; // already anonymous locally
 
-    // Near expiry: hand off to the SW and make no judgement this tick. A token
-    // that is merely stale is not evidence the server revoked anything.
+    // Still inside the SDK's own refresh window means the worker could not
+    // renew it (offline, server down). Make no judgement this tick — a token
+    // we failed to refresh is not evidence that the server revoked anything.
     const ttl = (sess.expires_at ? sess.expires_at * 1000 : Infinity) - Date.now();
-    if (ttl < VD_NUDGE_MARGIN_MS) {
-      await _vdRequestTokenRefresh();
-      return;
-    }
+    if (ttl < VD_SDK_REFRESH_MARGIN_MS) return;
 
     if (!self.VD_SUPABASE || typeof self.VD_SUPABASE.initSupabase !== 'function') return;
     const sb = self.VD_SUPABASE.initSupabase();

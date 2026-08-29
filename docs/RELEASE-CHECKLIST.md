@@ -146,6 +146,47 @@ throwing proxy, which breaks `setSession`, `signOut`, and
 `onAuthStateChange`. If "Already Used" ever resurfaces, this is the path to
 investigate first.
 
+### 4. Manual scenarios (load unpacked, signed in)
+
+These cover what the unit tests cannot: real alarm delivery, real service-worker
+lifecycle, and real sleep/wake. The Settings status line is the instrument for
+all of them — no DevTools required.
+
+**A · Baseline.** Open Settings. The last line should read
+`Session: refreshed N min ago · next in ~M min` (or `Session: active` on a fresh
+sign-in). If it says `refresh failed`, stop and read the reason.
+
+**B · The alarm actually fires.** Note the "refreshed" time, leave the panel
+open for ~10 minutes, look again. `next` should count down and, once it reaches
+`due now`, the `refreshed` time should reset to `just now` within ~5 minutes
+(the alarm period). If `next` sits at `due now` for longer than that, the alarm
+is not being delivered.
+
+**C · Sleep/wake — the actual bug.** Sign in, close the laptop lid for **over
+an hour**, reopen it, then open the side panel and generate a prompt.
+Expected: still signed in, the prompt saves, and the status line shows a
+refresh at roughly the wake moment. Then check `chrome://extensions` → the
+extension's service worker → no `Invalid Refresh Token: Already Used`.
+This is the regression; if it recurs, it will be here.
+
+**D · Worker eviction.** With the panel open, go to `chrome://extensions` and
+click "service worker" to inspect, then leave it idle ~30 s so Chrome evicts it.
+Generate a prompt. It must still save — the panel's `ensureFreshToken()` wakes
+the worker via `VD_REFRESH_TOKEN`.
+
+**E · Offline degrades, never signs out.** Turn off networking, leave the panel
+open through a refresh window, turn it back on. The status line may show
+`refresh failed`, but the account pill must **still show the account** — an
+unreachable server is not proof the session was revoked. Recovery should follow
+within one alarm period.
+
+**F · Two-way logout still works.** Sign out on vibedesign.tech with the panel
+open. Within ~30 s the pill must flip to "Sign in to sync". (This is the check
+that the `jwt_expired` change didn't break genuine revocation detection.)
+
+**G · Anonymous users see nothing new.** Signed out, the Settings status line
+must be absent entirely — no session, nothing to report.
+
 ## Standard release steps
 
 - [ ] Bump `version` in `manifest.json`.

@@ -880,6 +880,19 @@ body {
   margin-top: 2px;
 }
 
+/* ─── Session status line (v3.0) ─── */
+.settings-session-status {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  padding-top: 2px;
+}
+.settings-session-status__error {
+  color: #f59e0b;
+  margin-top: 2px;
+}
+
 /* ─── History item: focus badge ─── */
 .history-focus-badge {
   font-size: 9px;

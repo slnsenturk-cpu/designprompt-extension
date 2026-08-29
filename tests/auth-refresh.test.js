@@ -229,8 +229,41 @@ test('sidepanel.js: never calls a refresh-capable SDK method', () => {
     'sidepanel must not call getSession() — it can mint a token');
   assert.equal(/\.auth\.refreshSession\(/.test(src), false,
     'sidepanel must never refresh directly');
-  // It must instead delegate to the service worker.
-  assert.ok(/VD_REFRESH_TOKEN/.test(src), 'sidepanel must nudge the SW to refresh');
+  // It must instead go through ensureFreshToken(), which delegates the actual
+  // refresh to the service worker.
+  assert.ok(/ensureFreshToken\(\)/.test(src),
+    'sidepanel must top the token up via VD_AUTH.ensureFreshToken() before using the SDK');
+});
+
+test('cloud-sync.js: every Supabase entry point is gated on a fresh token', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'cloud-sync.js'), 'utf8');
+
+  // Each of these hands a token to the SDK, and the SDK refreshes on its own
+  // inside 90s of expiry. Every one must top up first or the panel becomes a
+  // second refresher again.
+  const ENTRY_POINTS = [
+    'syncAnalysis', 'syncPrompt', 'fetchRecentAnalyses',
+    'fetchPromptsForAnalysis', 'deleteAnalysis', 'migrateAnonymousHistory',
+  ];
+  for (const fn of ENTRY_POINTS) {
+    const start = src.indexOf('async function ' + fn + '(');
+    assert.notEqual(start, -1, `${fn} not found in cloud-sync.js`);
+    // The gate must come before the first Supabase call in the function body.
+    const body = src.slice(start, start + 2000);
+    const gateAt = body.indexOf('_ensureFresh()');
+    const callAt = body.search(/_currentUserId\(\)|\.from\(|\.rpc\(/);
+    assert.notEqual(gateAt, -1, `${fn} must await _ensureFresh() before using the SDK`);
+    assert.ok(gateAt < callAt || callAt === -1,
+      `${fn} calls Supabase before awaiting _ensureFresh()`);
+  }
+});
+
+test('auth.js: ensureFreshToken delegates the refresh to the worker', () => {
+  const src = fs.readFileSync(AUTH_PATH, 'utf8');
+  assert.ok(/VD_REFRESH_TOKEN/.test(src),
+    'ensureFreshToken must ask the worker rather than refreshing in the panel');
+  assert.ok(/REFRESH_MSG_TIMEOUT_MS/.test(src),
+    'the worker handoff must be bounded by a timeout');
 });
 
 test('supabase-client.js: autoRefreshToken stays disabled', () => {
