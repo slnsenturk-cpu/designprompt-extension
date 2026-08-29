@@ -1696,3 +1696,4 @@ body[data-context="sidepanel"] .app {
   width: 100%; height: 100vh; max-height: none; overflow: hidden;
 }
 body[data-context="popup"] .app { overflow: hidden; }
+.vd-toggle__state { font: var(--vd-body); color: var(--vd-text-secondary); }

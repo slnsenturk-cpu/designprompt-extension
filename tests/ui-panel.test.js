@@ -366,3 +366,167 @@ test('Preview is a sheet, not the default view', async t => {
   p.click('#vdPreviewClose');
   assert.ok(p.$('#vdPreviewSheet').hidden);
 });
+
+// ── Settings tab (§4.3) ───────────────────────────────────────────────────
+
+test('Settings is a tab, holding everything the main flow gave up', async t => {
+  const p = await boot(t);
+  p.click('[data-tab="settings"]');
+  const text = p.text();
+  ['Account', 'AI enhancement', 'Defaults', 'History', 'About']
+    .forEach(block => assert.match(text, new RegExp(block), `${block} is missing from Settings`));
+  assert.match(text, /VibeDesign 3\.0\.0/, 'the version moved here, not away');
+  // Settings is a tab, not a sheet — it renders into the panel like any other.
+  assert.ok(p.$('#vdPanel').textContent.includes('Defaults'));
+});
+
+test('with AI enhancement off, provider, model and key are not on screen', async t => {
+  const p = await boot(t, { storage: { vd_ai_enabled: false } });
+  p.click('[data-tab="settings"]');
+  assert.equal(p.$('#vdProviderSelect'), null);
+  assert.equal(p.$('#vdModelSelect'), null);
+  assert.equal(p.$('#apiKeyInput'), null);
+  assert.match(p.text(), /Optional\. Improves the prompt's direction paragraph\./);
+
+  // Turning it on reveals exactly those three.
+  const toggle = p.$('#vdAiToggle');
+  toggle.checked = true;
+  toggle.dispatchEvent(new p.win.Event('change', { bubbles: true }));
+  await new Promise(r => setImmediate(r));
+  assert.ok(p.$('#vdProviderSelect'), 'the provider select did not appear');
+  assert.ok(p.$('#vdModelSelect'));
+  assert.ok(p.$('#apiKeyInput'));
+});
+
+test('model choice is a select, not a chip (§8)', async t => {
+  // §11's component test. The old panel drew provider, model, mode and focus
+  // with the same chip, so nothing on screen said which was which.
+  const p = await boot(t, { storage: { vd_ai_enabled: true, provider: 'claude', apiKeys: { claude: 'k' } } });
+  p.click('[data-tab="settings"]');
+
+  assert.equal(p.$('#vdModelSelect').tagName, 'SELECT');
+  assert.equal(p.$('#vdProviderSelect').tagName, 'SELECT');
+  assert.equal(p.$$('#vdPanel .vd-chip').length, 0, 'Settings must contain no filter chips');
+  assert.equal(p.$$('#vdPanel .vd-seg').length, 0, 'Settings must contain no mode switches');
+});
+
+test('a stored key is masked, and Change forgets it rather than revealing it', async t => {
+  const p = await boot(t, { storage: { vd_ai_enabled: true, provider: 'claude', apiKeys: { claude: 'sk-secret-value' } } });
+  p.click('[data-tab="settings"]');
+
+  assert.match(p.text(), /••••/);
+  assert.ok(!p.text().includes('sk-secret-value'), 'the key is printed on screen');
+  assert.equal(p.$('#apiKeyInput'), null, 'a stored key must not sit in an input');
+
+  p.click('#vdChangeKey');
+  await new Promise(r => setImmediate(r));
+  assert.ok(p.$('#apiKeyInput'), 'Change did not bring the input back');
+  assert.equal(p.$('#apiKeyInput').value, '', 'Change revealed the old key instead of forgetting it');
+});
+
+// The model nudge moved here from the main flow. It is the same behaviour —
+// one dismissible line — asserted where the feature now lives.
+test('the model nudge is one dismissible line inside Settings', async t => {
+  const p = await boot(t, {
+    storage: {
+      vd_ai_enabled: true, provider: 'claude', apiKeys: { claude: 'k' },
+      selectedModels: { claude: 'claude-haiku-4-5-20251001' },
+    },
+  });
+  p.click('[data-tab="settings"]');
+
+  const nudge = p.$('#vdModelNudge');
+  if (!nudge) {
+    // The nudge only fires when the chosen model is behind the newest one.
+    // If the curated list ever makes that impossible, say so rather than
+    // passing quietly.
+    const notice = p.run('JSON.stringify(computeModelNotice("claude"))');
+    assert.fail(`no nudge rendered; computeModelNotice returned ${notice}`);
+  }
+  assert.match(nudge.textContent, /Newer model available/);
+  assert.ok(nudge.querySelector('[data-action="switchModel"]'), 'no Switch action');
+  assert.ok(nudge.querySelector('[data-action="dismissNudge"]'), 'the nudge cannot be dismissed');
+
+  // It is inside Settings and nowhere else.
+  p.click('[data-tab="overview"]');
+  assert.equal(p.$('#vdModelNudge'), null, 'the nudge leaked back into the main flow');
+});
+
+test('dismissing the nudge is remembered', async t => {
+  const p = await boot(t, {
+    storage: {
+      vd_ai_enabled: true, provider: 'claude', apiKeys: { claude: 'k' },
+      selectedModels: { claude: 'claude-haiku-4-5-20251001' },
+    },
+  });
+  p.click('[data-tab="settings"]');
+  assert.ok(p.$('#vdModelNudge'));
+  p.click('[data-action="dismissNudge"]');
+  await new Promise(r => setImmediate(r));
+  assert.equal(p.$('#vdModelNudge'), null, 'the nudge survived being dismissed');
+  const stored = p.win.chrome._data.vd_nudge_dismissed;
+  assert.ok(stored && Object.keys(stored).length, 'the dismissal was not persisted');
+});
+
+// The Developer gate moved here too — same rule, asserted on rendered output
+// rather than by grepping a template literal.
+test('the Developer section renders only on an unpacked build', async t => {
+  const packaged = await boot(t);
+  packaged.click('[data-tab="settings"]');
+  assert.equal(packaged.$('#settingsDev'), null,
+    'a packaged build must not show Copy RAW capture');
+  assert.ok(!packaged.text().includes('RAW'));
+
+  // An unpacked build has no update_url in its manifest.
+  const unpacked = await boot(t);
+  unpacked.run('chrome.runtime.getManifest = () => ({ version: "3.0.0" });');
+  unpacked.click('[data-tab="settings"]');
+  assert.ok(unpacked.$('#settingsDev'), 'the Developer section is missing when unpacked');
+  assert.match(unpacked.text(), /Copy RAW capture/);
+});
+
+test('History lives in Settings, with the long list behind a sheet', async t => {
+  const p = await boot(t, {
+    storage: {
+      promptHistory: {
+        a: { domain: 'linear.app', savedAt: Date.now() - 7200000, prompt: '## x', focus: 'all', source: 'page' },
+        b: { domain: 'vibedesign.tech', savedAt: Date.now() - 86400000, prompt: '## y', focus: 'colors', source: 'page' },
+      },
+    },
+  });
+  p.click('[data-tab="settings"]');
+  assert.match(p.text(), /linear\.app/);
+  assert.ok(p.$('[data-action="openHistory"]'), 'no See all');
+
+  assert.ok(p.$('#vdHistorySheet').hidden);
+  p.click('[data-action="openHistory"]');
+  assert.ok(!p.$('#vdHistorySheet').hidden, 'See all did not open the sheet');
+});
+
+test('Recent appears on Home only when there is something to show', async t => {
+  const empty = await boot(t);
+  assert.ok(!empty.text().includes('Recent'), 'an empty Recent block was drawn anyway');
+
+  const withHistory = await boot(t, {
+    storage: {
+      promptHistory: {
+        a: { domain: 'linear.app', savedAt: Date.now() - 7200000, prompt: '## x', source: 'page' },
+      },
+    },
+  });
+  assert.match(withHistory.text(), /Recent/);
+  assert.match(withHistory.text(), /linear\.app/);
+});
+
+test('no real email address appears anywhere in the panel', async t => {
+  // §4.3's mock-up shows a personal address. Using it in a fixture would put a
+  // private address into the repo and into every snapshot.
+  const p = await boot(t, { storage: { vd_ai_enabled: true } });
+  ['overview', 'settings'].forEach(tab => {
+    p.click(`[data-tab="${tab}"]`);
+    const html = p.win.document.body.innerHTML;
+    assert.ok(!/slnsenturk/i.test(html), `a real address is rendered on ${tab}`);
+    const emails = html.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+    emails.forEach(e => assert.equal(e, TEST_EMAIL, `unexpected address ${e} on ${tab}`));
+  });
+});
