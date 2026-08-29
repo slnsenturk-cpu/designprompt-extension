@@ -204,7 +204,7 @@ test('the tab bar is six equal columns that fit at 320px', async () => {
 
 // ── the wordmark ──────────────────────────────────────────────────────────
 
-test('the wordmark renders at exactly 24px, centred on the brand row', async () => {
+test('the wordmark renders at exactly 32px, centred on the brand row', async () => {
   for (const width of WIDTHS) {
     const r = await withPage(SURFACES.overview(), width, p => p.evaluate(async () => {
       const img = document.querySelector('.vd-header__logo');
@@ -220,7 +220,7 @@ test('the wordmark renders at exactly 24px, centred on the brand row', async () 
         declared: { w: img.getAttribute('width'), h: img.getAttribute('height') },
       };
     }));
-    assert.equal(r.height, 24, `${width}px: the wordmark is ${r.height}px tall, not 24px`);
+    assert.equal(r.height, 32, `${width}px: the wordmark is ${r.height}px tall, not 32px`);
     assert.ok(r.offCentre <= 0.5,
       `${width}px: the wordmark sits ${r.offCentre}px off the brand row's centre line`);
     // Intrinsic size declared, so the header cannot reflow when the image loads.
@@ -235,10 +235,10 @@ test('the wordmark asset has a real intrinsic size and enough resolution', async
   assert.equal(png.slice(1, 4).toString('ascii'), 'PNG', 'the wordmark is not a PNG');
   const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
   assert.ok(w > 0 && h > 0, 'the wordmark has no intrinsic size');
-  // Rendered at 24px tall, this is the pixel density available. Below 2x it
+  // Rendered at 32px tall, this is the pixel density available. Below 2x it
   // would look soft on a retina display and should be replaced with an SVG.
-  assert.ok(h / 24 >= 2,
-    `the wordmark is ${w}x${h}: only ${(h / 24).toFixed(1)}x at a 24px slot — replace it with an SVG`);
+  assert.ok(h / 32 >= 2,
+    `the wordmark is ${w}x${h}: only ${(h / 32).toFixed(1)}x at a 32px slot — replace it with an SVG`);
 });
 
 // ── the popup keeps its own width ─────────────────────────────────────────
@@ -356,8 +356,8 @@ test('the header is two lines and the domain stays on one of them', async () => 
         domainEllipsis: getComputedStyle(domain).textOverflow,
       };
     }));
-    assert.equal(r.height, 60, `${width}px: the header is ${r.height}px, not 60`);
-    assert.equal(r.logoH, 24, `${width}px: the wordmark is ${r.logoH}px, not 24`);
+    assert.equal(r.height, 68, `${width}px: the header is ${r.height}px, not 68`);
+    assert.equal(r.logoH, 32, `${width}px: the wordmark is ${r.logoH}px, not 32`);
     assert.ok(r.statusBelowTop, `${width}px: the header is not two lines`);
     assert.ok(r.acctOnTopRow, `${width}px: the account control is not on the brand row`);
     assert.equal(r.statusLines, 1, `${width}px: the page line wrapped`);

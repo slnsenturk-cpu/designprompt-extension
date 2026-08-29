@@ -1402,7 +1402,7 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
   --vd-h-primary: 40px;
   --vd-h-chip:    28px;
   --vd-h-row:     32px;
-  --vd-h-header:  60px;   /* §3: two lines — brand + account, then page */
+  --vd-h-header:  68px;   /* §3: two lines — 32px brand row + the page line */
   --vd-h-tabbar:  56px;
 
   /* §5 — type scale. Base 13px, ratio ≈1.2. */
@@ -1437,10 +1437,11 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
    The intrinsic size is 317x108, so width:auto gives 58.7px and the aspect is
    never guessed. align-self:center puts its optical centre on the row's. */
 .vd-header__logo {
-  /* 24px, matching the avatar that shares this row when signed in — the two
-     things that appear in that slot are then the same height. The brand row is
-     28px, so this keeps a little air around it. */
-  height: 24px; width: auto; flex: 0 0 auto;
+  /* 32px. This is taller than the account control beside it, so the wordmark
+     — not the control — now sets the brand row's height, and the header grew
+     to 68px to keep the page line at its natural leading. At 60px the domain
+     line was being squeezed from 19.5px to 15px to make room. */
+  height: 32px; width: auto; flex: 0 0 auto;
   display: block; align-self: center;
 }
 /* One line, and it ellipses rather than pushing the panel wider. */
