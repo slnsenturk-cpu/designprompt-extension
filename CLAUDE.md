@@ -23,6 +23,19 @@ A claim without output is not a result.
 - "Tests pass" means the run in this message. If the tree changed after the
   last run, run it again.
 
+**One edit, one assertion.** Do not batch several string replacements into a
+single script with one trailing `assert s != orig`. That assert passes when
+*any* replacement matched, so a replacement whose target has drifted fails
+silently and the file is left half-patched — which has produced wrong output in
+this repo more than once.
+
+- Make one targeted edit per replacement, each with its own check, or use the
+  editor's targeted edit tool, which fails loudly on a missed match.
+- Re-read the file after editing before making a further edit that depends on
+  the surrounding lines.
+- When a patch reports success but the behaviour does not change, suspect a
+  silently-missed replacement before suspecting the logic.
+
 The relevant commands for this repo:
 
 ```bash

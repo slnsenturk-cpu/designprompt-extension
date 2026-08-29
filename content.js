@@ -6475,8 +6475,23 @@
     return icons;
   }
 
+  // ─── Capture harness hook ───────────────────────────────────────────────────
+  // scripts/capture.mjs injects this file into a plain Playwright page, where
+  // there is no chrome.runtime to message. Exposing the entry point lets test
+  // fixtures come from the REAL extractor instead of being written by hand —
+  // hand-written fixtures have made a broken feature look green in this repo.
+  // Guarded so it is a no-op in the extension, where `chrome` exists.
+  try {
+    if (typeof chrome === 'undefined' || !chrome.runtime) {
+      window.__vibeDesignExtract = extractPageTokens;
+    }
+  } catch (e) {
+    window.__vibeDesignExtract = extractPageTokens;
+  }
+
   // ─── Message listener — page extraction only ────────────────────────────────
   // Picker commands (ACTIVATE_PICKER etc.) handled by lib/picker.js
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'EXTRACT_PAGE') {
       extractPageTokens().then(data => {
@@ -6487,4 +6502,5 @@
     }
     return true;
   });
+  }
 })();

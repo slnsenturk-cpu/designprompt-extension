@@ -25,7 +25,41 @@ add a fixture, plant the sentinel in its copy fields too — otherwise the leak
 test passes vacuously for it, and the suite explicitly checks that the sentinel
 is present in the fixture for exactly this reason.
 
-## Capturing a fixture from a real site
+## Capturing with the harness (preferred)
+
+`scripts/capture.mjs` drives the **real extractor** in headless Chromium. Use it
+for any publicly reachable page — fixtures written by hand to match a reader
+have made a broken feature look green in this repo more than once.
+
+```bash
+npm install && npx playwright install chromium   # once
+node scripts/capture.mjs --all                   # rig.ai + posthog.com
+node scripts/capture.mjs https://example.com --slug example
+```
+
+It writes `<slug>.raw.json` — a **proposal**, not an accepted fixture. Review it,
+then promote it:
+
+```bash
+mv tests/fixtures/example.raw.json tests/fixtures/example.json
+UPDATE_SNAPSHOTS=1 node --test tests/*.test.js
+git diff tests/snapshots      # READ THIS before committing
+```
+
+The harness applies the same privacy scrub described below and prints what it
+found: sentinel count, any surviving email, and any third-party host still
+referenced. Check that output.
+
+**The viewport is pinned at 1440×900.** Type scales, container widths and grid
+templates are all viewport-dependent, so a capture at another size produces a
+legitimately different fixture. Do not mix capture widths across fixtures
+without saying so — a snapshot diff full of size changes is otherwise
+indistinguishable from a regression.
+
+**What it cannot capture:** anything behind a login. The VibeDesign dashboard
+fixture is a manual capture, taken with the button described below.
+
+## Capturing a fixture by hand (login-gated pages)
 
 You need an **unpacked** build — the dev buttons are hidden in Web Store builds
 (they key off `chrome.runtime.getManifest().update_url` being undefined).
