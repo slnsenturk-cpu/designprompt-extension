@@ -274,6 +274,14 @@ the archive. Check that `SKILL.md` opens with `---`, `theme.css` has no
 
 ## Standard release steps
 
+Most of this file is now executable. `./scripts/verify.sh` runs the tree, hook,
+suite, manifest, permission, dev-gate, credential and font-catalogue checks and
+prints what it found; `./scripts/package.sh` refuses to build unless it passes,
+then re-runs the credential and dev-gate checks against the staged tree and the
+finished zip. Run those two first and only work through what they cannot see.
+
+- [ ] `./scripts/verify.sh` → PASS
+- [ ] `./scripts/package.sh` → `dist/vibedesign-<version>.zip`
 - [ ] Bump `version` in `manifest.json`.
 - [ ] Full test suite green: `node --test tests/*.test.js`
 - [ ] Font catalogue current: `node scripts/update-google-fonts.mjs --check`
@@ -288,3 +296,35 @@ the archive. Check that `SKILL.md` opens with `---`, `theme.css` has no
 - [ ] Pack the zip, then re-run the zip scan in step 1 against it.
 - [ ] Tag the release commit so the published build is identifiable later
       (`git tag v<version>`) — the store zip alone is easy to lose track of.
+
+## What only a human can check
+
+These need a real Chrome, a real account, or the store's own forms. Everything
+above is automated; these are not, and saying so is the point.
+
+- [ ] **The install warning.** Load `dist/vibedesign-<version>.zip` as an
+      unpacked extension in a clean profile and read the permission dialog. It
+      must NOT say "Read and change all your data on all websites". It will
+      name the four API hosts, which is expected.
+      `node scripts/verify-extension.mjs` proves `<all_urls>` is not granted at
+      install, but the dialog's wording is Chrome's and only a person sees it.
+- [ ] **The per-site prompt.** On a fresh profile, press Analyze on any site
+      and confirm Chrome asks about that one origin, that allowing it runs the
+      analysis, and that denying it shows the notice with a working Allow.
+      This dialog is native; automation cannot click it.
+- [ ] **Allow on all sites.** Toggle it in Settings, confirm the prompt appears
+      once and that Analyze then runs on a new site without asking again.
+      Toggle it off and confirm the per-site prompt returns.
+- [ ] **Sign in and out** against the real Supabase project, and confirm
+      Settings shows "Signed in as …" with a session line, then returns to the
+      Sign in button.
+- [ ] **The cap.** With no account, run five analyses and confirm the caption
+      counts down and the fifth leaves "Sign in for unlimited" in place of
+      Analyze — with the previous result still on screen.
+- [ ] **Screenshots.** Capture the five in `docs/STORE-LISTING.md` at
+      1280×800.
+- [ ] **PRIVACY.md is hosted.** The repo copy and
+      https://vibedesign.tech/privacy must match; 3.0 changed the site-access
+      and payment sections, so the hosted page needs republishing.
+- [ ] **Support email.** `docs/STORE-LISTING.md` uses selen@ourway.design;
+      confirm that is the address you want on a public listing.
