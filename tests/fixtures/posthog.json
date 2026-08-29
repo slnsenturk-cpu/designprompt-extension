@@ -1,6 +1,10 @@
 {
   "url": "https://posthog.com/",
   "title": "SENTINEL Our platform helps teams ship faster than ever before.",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
   "colors": [
     "#f7a501",
     "#f54e00",

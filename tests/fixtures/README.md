@@ -50,7 +50,14 @@ The harness applies the same privacy scrub described below and prints what it
 found: sentinel count, any surviving email, and any third-party host still
 referenced. Check that output.
 
-**The viewport is pinned at 1440×900.** Type scales, container widths and grid
+**Captures are not perfectly reproducible.** posthog.com randomises its
+`rough-notation` dash timings per load, and its hero CTA measures 262–268px
+depending on when fonts settle. Re-running the harness on it produces a
+slightly different fixture every time. That churn is real capture noise, not a
+regression — read the diff and decide whether it is worth committing.
+
+**The viewport is pinned at 1440×900** and recorded in every capture as
+`tokens.viewport`, which DESIGN.md prints in its frontmatter. Type scales, container widths and grid
 templates are all viewport-dependent, so a capture at another size produces a
 legitimately different fixture. Do not mix capture widths across fixtures
 without saying so — a snapshot diff full of size changes is otherwise

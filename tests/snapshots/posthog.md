@@ -2,6 +2,7 @@
 name: "Posthog Design System"
 source: "https://posthog.com/"   # observed on 2026-08-29
 generated_by: "VibeDesign 3.0.0"
+viewport: "1440×900"   # px values in the type scale and layout are as observed at this width
 style: "light crisp compact rounded vivid animated interface"
 colors:
   background: "#eeefe9"

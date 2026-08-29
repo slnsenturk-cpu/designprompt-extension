@@ -1054,3 +1054,28 @@ test('a keyframe whose frames are custom properties says nothing rather than var
   assert.ok(kf.includes('`enter`'), 'the keyframe is still listed');
   assert.ok(kf.includes('not fully captured'), 'and honestly marked');
 });
+
+test('the capture viewport is declared, and omitted when unknown', () => {
+  // Type scales, container widths and grid templates are all responsive. An
+  // agent reading a 112px h1 has no way to know that without being told the
+  // width it was observed at.
+  ['rig-ai', 'posthog'].forEach(name => {
+    const md = build.buildDesignMd(fixture(name), opts());
+    assert.match(md, /^viewport: "1440×900"\s+# px values in the type scale and layout are as observed at this width$/m,
+      `${name} must declare its capture viewport`);
+    // It sits in the frontmatter, above the body.
+    assert.ok(md.indexOf('viewport:') < md.indexOf('\n---\n'));
+  });
+
+  // The dashboard is a manual capture that predates the field. A wrong
+  // viewport is worse than none, so it is omitted rather than guessed.
+  const manual = fixture('vibedesign-dashboard');
+  assert.equal(manual.viewport, undefined, 'this fixture has no recorded viewport');
+  assert.ok(!build.buildDesignMd(manual, opts()).includes('viewport:'),
+    'an unknown viewport must not be invented');
+
+  // A malformed value is treated as absent rather than printed.
+  const bad = fixture('rig-ai');
+  bad.viewport = { width: 'wide', height: null };
+  assert.ok(!build.buildDesignMd(bad, opts()).includes('viewport:'));
+});

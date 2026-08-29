@@ -2,6 +2,7 @@
 name: "Rig Design System"
 source: "https://rig.ai/"   # observed on 2026-08-29
 generated_by: "VibeDesign 3.0.0"
+viewport: "1440×900"   # px values in the type scale and layout are as observed at this width
 style: "dark high-contrast compact chamfered vivid animated interface"
 colors:
   background: "#0a0a0a"

@@ -252,6 +252,12 @@
     const tokens = {
       url: window.location.href,
       title: document.title,
+      // The width every measurement below was taken at. Type scales, container
+      // widths and grid templates are all viewport-dependent, so a document
+      // built from these tokens is only accurate at this size — and a capture
+      // taken at a different width produces a legitimately different fixture,
+      // which is otherwise indistinguishable from a regression.
+      viewport: { width: window.innerWidth, height: window.innerHeight },
       colors: [],
       accentColors: [],
       fonts: [],
