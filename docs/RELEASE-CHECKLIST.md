@@ -234,28 +234,49 @@ deterministic output, pro sections absent on the free tier, and — most
 importantly — that no page copy escapes into the document. Every fixture plants
 a sentinel sentence in each copy-bearing field; the suite fails if it appears.
 
-### Dev buttons must not ship visible
+### Dev affordances must not ship visible
 
-The result panel carries a dashed **dev** strip (Copy DESIGN.md free/pro, Copy
-raw tokens JSON) that is gated on `isUnpackedBuild()` — a packaged Web Store
-build has `update_url` in its manifest, an unpacked one does not.
+The dashed dev strip is gone as of v3. What remains is **Settings → Developer**
+(Copy RAW capture), gated on `isUnpackedBuild()` — a packaged Web Store build
+has `update_url` in its manifest, an unpacked one does not.
 
-After loading the packed zip as an unpacked extension you WILL see the row
+After loading the packed zip as an unpacked extension you WILL see the section
 (that build has no `update_url` either). To verify properly, install from the
 Web Store draft, or confirm by inspection:
 
 ```bash
-grep -n 'devToolsRow' lib/ui-helpers.js
+grep -n 'settingsDev' lib/ui-helpers.js
 ```
 
 The template occurrence must carry `style="display:none"`, and the only reveal
 must sit inside the `isUnpackedBuild()` block. `tests/design-md-builder.test.js`
 asserts both.
 
+### The three result actions are for everyone
+
+Copy prompt, Download DESIGN.md and Download Skill (zip) are NOT dev-gated.
+`tests/design-md-builder.test.js` pins the button set and that both download
+handlers are wired outside the `isUnpackedBuild()` block; a fourth button
+appearing, or one of these slipping behind the gate, fails the suite.
+
+Smoke-test the bundle on a real page — it is the only artefact assembled from
+five renderers at once:
+
+```bash
+node --test tests/skill-bundle.test.js
+```
+
+Then, in the browser: analyze a page, click **Download Skill (zip)**, and open
+the archive. Check that `SKILL.md` opens with `---`, `theme.css` has no
+`var(--…)` pointing at nothing, and the directory inside matches the zip name.
+
 ## Standard release steps
 
 - [ ] Bump `version` in `manifest.json`.
 - [ ] Full test suite green: `node --test tests/*.test.js`
+- [ ] Download Skill (zip) produces an archive that `unzip -t` accepts and
+      whose `SKILL.md` frontmatter is intact (the suite checks both, but the
+      real browser download path is not covered by it).
 - [ ] Load unpacked in Chrome and smoke-test: analyze a page, generate a prompt,
       switch provider tabs, sign in / sign out.
 - [ ] Confirm `store/description.txt` and `PRIVACY.md` still match what ships.

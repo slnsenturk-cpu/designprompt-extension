@@ -35,9 +35,13 @@ either a `VD_*` global or bare top-level function declarations. Load order in
 | `prompt-builder.js` | 4,599 | Turns tokens into the platform prompt (the main product output); dual-writes history to cloud | top-level fns | `ui-helpers.js` |
 | `ai-caller.js` | 474 | Optional AI "direction" pass — the only module that sends a user's provider key anywhere | top-level fns | `prompt-builder.js` |
 | `model-discovery.js` | 199 | Live model lists per provider, 24 h cache, stale-model fallback, "newer model" nudge + dismissals | `VD_MODELS`, `module.exports` | `ui-helpers.js`, tests |
-| `token-exporter.js` | 277 | W3C design-token JSON export + download | top-level fns | `ui-helpers.js` (JSON button) |
-| `design-md-builder.js` | 1,122 | **New in v3.** Tokens → Stitch-compatible DESIGN.md, free/pro, offline and deterministic | `VD_DESIGN_MD`, `module.exports` | `ui-helpers.js` (dev buttons), `scripts/build-design-md.js`, tests |
-| `ui-helpers.js` | 1,753 | The shared UI layer: app template, provider/model settings, history, auth pill, usage counter, session status, script injection, dev tools | top-level fns + `state` | `popup.js`, `sidepanel.js` |
+| `design-model.js` | 1079 | **New in v3.** THE single normalised design model — colour roles, type scale, spacing, radius, shape, shadows, breakpoints, fonts. Every other artefact reads it, so one colour cannot come out two ways | `VD_MODEL`, `module.exports` | `design-md-builder.js`, `token-exporter.js`, `skill-builder.js`, tests |
+| `token-exporter.js` | 326 | DTCG / W3C token export. Rewritten in v3 as a model reader; the previous version re-derived roles itself and could emit `text-primary` equal to `background` | `VD_TOKENS` + bare `exportW3CTokens`/`downloadTokensJSON`, `module.exports` | `skill-builder.js`, tests (no UI control of its own) |
+| `design-md-builder.js` | 1356 | **New in v3.** Model → Stitch-compatible DESIGN.md. A renderer only: it derives nothing | `VD_DESIGN_MD`, `module.exports` | `ui-helpers.js`, `skill-builder.js`, `scripts/build-design-md.js`, tests |
+| `skill-builder.js` | 665 | **New in v3.** Model → the `design-<slug>/` skill bundle: SKILL.md, README.md, DESIGN.md, tokens.json, variables.css, theme.css, tailwind.config.js | `VD_SKILL`, `module.exports` | `ui-helpers.js` (Download Skill), tests |
+| `zip-lite.js` | 147 | **New in v3.** Store-only ZIP writer with CRC-32. No deflate, no dependency; output is byte-stable across builds | `VD_ZIP`, `module.exports` | `skill-builder.js`, tests |
+| `download.js` | 133 | **New in v3.** Object-URL downloads for text and bytes; bundle/document filenames. Needs no `downloads` permission | `VD_DOWNLOAD`, `module.exports` | `ui-helpers.js`, tests |
+| `ui-helpers.js` | 1799 | The shared UI layer: app template, provider/model settings, history, auth pill, usage counter, session status, script injection, dev tools | top-level fns + `state` | `popup.js`, `sidepanel.js` |
 | `supabase.min.js` | 23 | Vendor UMD, `@supabase/auth-js` 2.104.0 | `window.supabase` | `sidepanel.html` only |
 | `supabase-client.js` | 110 | Lazy Supabase client singleton with a `chrome.storage.local` adapter; `autoRefreshToken:false` | `VD_SUPABASE` | `auth.js`, `cloud-sync.js`, `sidepanel.js` |
 | `auth.js` | 414 | OAuth via `chrome.identity`, session peek, **sole token refresher** (single-flight), `ensureFreshToken`, refresh status record | `VD_AUTH` | `background.js`, `ui-helpers.js`, `cloud-sync.js`, `usage-meter.js`, `sidepanel.js` |
@@ -130,6 +134,42 @@ through tabs. It is *not* hover/focus/active/disabled CSS diffs. Those are in
 `hoverStates` and `transitions`. `design-md-builder.js` never reads it, and
 neither should anything else that produces user-facing output. Worth renaming
 to `tabPanelContent` in a future pass.
+
+### The skill bundle
+
+`Download Skill (zip)` produces `design-<slug>.zip`, containing one directory:
+
+```
+design-rig-ai/
+  SKILL.md            Agent Skills entry point (name ≤ 64 chars, description ≤ 1024)
+  README.md           provenance and the caveats that come with it
+  DESIGN.md           byte-identical to what Download DESIGN.md produces
+  tokens.json         DTCG, values as CSS strings
+  variables.css       :root custom properties
+  theme.css           variables + base elements + .vd-btn / .vd-card / .vd-field
+  tailwind.config.js  the same scale under theme.extend
+```
+
+Every file is rendered from `lib/design-model.js`. That is the point of the
+model: a colour appears in five formats or in none, and `tests/skill-bundle.test.js`
+asserts the values agree character for character.
+
+Three rules the bundle enforces, each with a test that has been shown to fail
+when broken:
+
+- **No page copy.** The scrub sentinel must not appear in any file.
+- **No source selectors.** Class names harvested from the capture must not
+  appear. Generated component classes carry a `vd-` prefix so they cannot even
+  *coincide* with a page's own — rig.ai really does have a `.btn-ghost`, and an
+  unprefixed one here would be indistinguishable from having copied it.
+- **Nothing unresolved.** A declaration whose `var()` cannot be resolved to a
+  literal is dropped rather than emitted broken; no `var(--x)` used anywhere in
+  the bundle is left undeclared.
+
+The zip is store-only (method 0) with a fixed 1980-01-01 timestamp, so the same
+capture produces byte-identical bytes on every run and two exports can be
+diffed. `unzip`, Archive Utility, Explorer and Python's `zipfile` all read it;
+the suite checks the system `unzip` specifically, and round-trips every file.
 
 ### Extractor gaps
 

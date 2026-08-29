@@ -887,6 +887,7 @@ body {
 /* The popup is narrower than the side panel — shorten the labels there. */
 body[data-context="popup"] .result-actions { gap: 4px; }
 body[data-context="popup"] #copyBtn .btn-label,
+body[data-context="popup"] #downloadSkillBtn .btn-label,
 body[data-context="popup"] #downloadDesignBtn .btn-label { font-size: 0; }
 body[data-context="popup"] #copyBtn .btn-label::after {
   content: "Prompt";
@@ -894,6 +895,10 @@ body[data-context="popup"] #copyBtn .btn-label::after {
 }
 body[data-context="popup"] #downloadDesignBtn .btn-label::after {
   content: "DESIGN.md";
+  font-size: 11px;
+}
+body[data-context="popup"] #downloadSkillBtn .btn-label::after {
+  content: "Skill";
   font-size: 11px;
 }
 

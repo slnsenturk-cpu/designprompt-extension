@@ -474,7 +474,7 @@ test('the Developer section is gated on an unpacked build', () => {
   });
 });
 
-test('the result area exposes exactly two actions, for every user', () => {
+test('the result area exposes exactly three actions, for every user', () => {
   const ui = fs.readFileSync(path.join(__dirname, '..', 'lib', 'ui-helpers.js'), 'utf8');
   const block = ui.slice(ui.indexOf('<div class="result-actions">'),
                          ui.indexOf('</div>', ui.indexOf('<div class="result-actions">')));
@@ -482,21 +482,33 @@ test('the result area exposes exactly two actions, for every user', () => {
   // Button ids only — `copyIcon` is a span inside the copy button.
   const ids = (block.match(/<button[^>]*\bid="([a-zA-Z]+)"/g) || [])
     .map(m => m.match(/id="([a-zA-Z]+)"/)[1]);
-  assert.deepEqual(ids, ['copyBtn', 'downloadDesignBtn', 'resetBtn'],
-    'the result actions are Copy prompt, Download DESIGN.md, and the reset control');
+  assert.deepEqual(ids, ['copyBtn', 'downloadDesignBtn', 'downloadSkillBtn', 'resetBtn'],
+    'the result actions are Copy prompt, Download DESIGN.md, Download Skill (zip), and reset');
   assert.ok(block.includes('Copy prompt'));
   assert.ok(block.includes('Download DESIGN.md'));
+  assert.ok(block.includes('Download Skill (zip)'));
 
-  // Neither action is behind the dev guard — they are for all users.
+  // None of the three is behind the dev guard — they are for all users.
   const gate = ui.indexOf('if (isUnpackedBuild())');
   assert.ok(ui.indexOf("$('downloadDesignBtn')") < gate,
     'Download DESIGN.md must be wired up outside the unpacked guard');
+  assert.ok(ui.indexOf("$('downloadSkillBtn')") < gate,
+    'Download Skill must be wired up outside the unpacked guard');
 
-  // The W3C export is retained in the codebase but nothing in the UI calls it.
+  // The narrow popup shortens every label it shows; a new action that forgets
+  // its ::after rule renders as an unlabelled icon there.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'popup.css'), 'utf8');
+  ['copyBtn', 'downloadDesignBtn', 'downloadSkillBtn'].forEach(id => {
+    assert.match(css, new RegExp(`popup"\\] #${id} \\.btn-label::after`),
+      `${id} has no shortened popup label`);
+  });
+  assert.match(css, /#downloadSkillBtn \.btn-label::after \{\s*content: "Skill";/,
+    'the popup label for the skill bundle is "Skill"');
+
+  // The token export has no control of its own — tokens.json ships inside the
+  // bundle, so a second button would be a second door onto the same file.
   assert.ok(!ui.includes('exportTokensBtn'), 'the JSON export button must be gone');
-  assert.ok(!ui.includes('downloadTokensJSON'), 'nothing in the UI may call the exporter');
-  assert.ok(fs.existsSync(path.join(__dirname, '..', 'lib', 'token-exporter.js')),
-    'lib/token-exporter.js is kept for Prompt 2');
+  assert.ok(!ui.includes('downloadTokensJSON'), 'nothing in the UI may call the exporter directly');
 });
 
 test('the download filename is domain-only', () => {
