@@ -18,9 +18,13 @@ model, so a colour reads the same in all of them.
 
 | Output | What it is | Where it goes |
 | --- | --- | --- |
-| **Prompt** | A written brief for a chat tool, tuned to the target you pick | Paste into Lovable, v0, Bolt, Stitch, Figma Make |
-| **DESIGN.md** | A style guide your project keeps: roles, scale, components, motion, accessibility | `CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, `GEMINI.md`, `replit.md` |
-| **Skill** | A zip an agent can be pointed at — DESIGN.md, DTCG `tokens.json`, `variables.css`, `theme.css`, Tailwind v3 config and v4 `@theme` | `.claude/skills/`, or the repo root |
+| **Prompt** | A written brief, tuned to the tool you pick | Paste into the chat |
+| **DESIGN.md** | A style guide your project keeps: roles, scale, components, motion, accessibility | Your assistant's instructions file, or the repo root |
+| **Skill** | A zip an agent can be pointed at — DESIGN.md, DTCG `tokens.json`, `variables.css`, `theme.css`, Tailwind v3 config and v4 `@theme` | Your assistant's skills directory, or the repo root |
+
+The panel names the exact path for each supported tool when you pick an output;
+that list lives in the product rather than in this file, so it stays correct as
+tools come and go.
 
 ## How it works
 

@@ -15,9 +15,9 @@ VibeDesign — DESIGN.md & Design Tokens for AI Coding Agents
 ## Short description  (limit 132)
 
 ```
-Extract any website's design system into DESIGN.md, Skills & design tokens for Claude Code, Cursor, Codex, Stitch, Lovable, v0, Bolt
+Extract any website's design system into DESIGN.md, agent Skills and design tokens for AI coding tools.
 ```
-[132 characters — this is also `description` in manifest.json, and the two must stay identical]
+[103 characters — this is also `description` in manifest.json, and the two must stay identical]
 
 ## Category
 
@@ -44,17 +44,12 @@ model, so a colour reads identically in all of them.
   tokens.json, variables.css, theme.css, a Tailwind v3 config and a Tailwind
   v4 @theme file.
 
-WHERE TO PUT THE FILES
+WHERE THE FILES GO
 
-• Claude Code — CLAUDE.md, or .claude/skills/ for the Skill bundle
-• Cursor — .cursor/rules/
-• Codex — AGENTS.md
-• Gemini CLI — GEMINI.md
-• Kiro — .kiro/steering/
-• Replit — replit.md
-• Antigravity — the repo root
-• Lovable — Knowledge, in project settings
-• v0, Bolt, Stitch, Figma Make, Claude Design — paste into the chat or brief
+Each output tells you where it belongs. The Skill bundle names the right
+location for whichever assistant or editor you use — a rules directory, a
+project instructions file, or the repo root — and the panel shows the same
+list before you download.
 
 NOTHING IS INVENTED
 
@@ -112,9 +107,15 @@ anything you have typed. Full policy: https://vibedesign.tech/privacy
 
 ## Keywords
 
-design tokens, DESIGN.md, design system, Claude Code, Cursor, Codex, AI coding
-agent, Tailwind theme, DTCG, style guide, design to code, agent skills,
-Lovable, v0, Bolt, Stitch, colour palette extractor, typography scale
+Describe what the extension does, not which products it sits next to. A list of
+third-party tool names is what got 3.0.0 rejected for keyword stuffing, and it
+reads as stuffing wherever it appears — including here.
+
+```
+design tokens, design system, style guide, design to code, agent skills,
+DTCG tokens, Tailwind theme, colour palette extractor, typography scale,
+CSS custom properties, AI coding assistant
+```
 
 ## Support
 
@@ -135,7 +136,7 @@ coding agent can follow.
 
 NEW — Skill bundles. One zip holding DESIGN.md, DTCG tokens.json,
 variables.css, theme.css, a Tailwind v3 config and a Tailwind v4 @theme file.
-Point Claude Code, Cursor or Codex at it.
+Point your coding assistant at it.
 
 NEW — a rebuilt side panel. A tab for each part of the design instead of one
 long scroll, with the summary, palette and export where you land, and settings

@@ -1117,3 +1117,35 @@ test('the store listing and the manifest say the same thing', () => {
   assert.ok(listing.includes(`[${short.length} characters`),
     `the listing claims a description length that is not ${short.length}`);
 });
+
+test('the store-facing copy names no third-party tools', () => {
+  // 3.0.0 was rejected for keyword stuffing: the description and the listing
+  // carried lists of tool names. The information is real and it stays in the
+  // PRODUCT — the Export card names the exact path per tool — but a brand-name
+  // list in store copy reads as stuffing however true it is.
+  const BRANDS = ['Claude Code', 'Cursor', 'Codex', 'Stitch', 'Lovable', 'Bolt',
+    'Kiro', 'Replit', 'Antigravity', 'Figma Make', 'Gemini CLI', 'Claude Design'];
+
+  const surfaces = {
+    'manifest.json description':
+      JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8')).description,
+    'docs/STORE-LISTING.md':
+      fs.readFileSync(path.join(__dirname, '..', 'docs', 'STORE-LISTING.md'), 'utf8'),
+    'README.md':
+      fs.readFileSync(path.join(__dirname, '..', 'README.md'), 'utf8'),
+  };
+
+  Object.entries(surfaces).forEach(([where, text]) => {
+    const found = BRANDS.filter(b => text.includes(b));
+    // The listing may explain WHY the names are gone, so one mention inside
+    // that explanation is tolerable; a list is not.
+    assert.ok(found.length <= 1,
+      `${where} names ${found.length} third-party tools (${found.join(', ')}) — `
+      + 'that is the pattern the store rejected');
+  });
+
+  // The product keeps the real list; removing it there would break the feature.
+  const ui = require(path.join(__dirname, '..', 'lib', 'ui-components.js'));
+  assert.ok(ui.TARGETS.length >= 10,
+    'the in-product target list was stripped along with the store copy');
+});
