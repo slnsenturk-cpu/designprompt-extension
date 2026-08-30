@@ -22,6 +22,11 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 
+// The version the worker reports comes from the real manifest. Hard-coding it
+// here meant a version bump left the test asserting a number nothing else
+// used, so it kept passing while saying something untrue.
+const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8')).version;
+
 // Replies are built inside the vm, so their prototypes come from that realm
 // and deepStrictEqual rejects them as "not reference-equal" however identical
 // the values are. Round-tripping through JSON compares what was actually sent.
@@ -61,7 +66,7 @@ function loadWorker({ session, verify, logout } = {}) {
 
   sandbox.chrome = {
     runtime: {
-      getManifest: () => ({ version: '3.0.1' }),
+      getManifest: () => ({ version: VERSION }),
       onMessageExternal: { addListener: fn => { externalListener = fn; } },
       onMessage: { addListener() {} },
       onInstalled: { addListener() {} },
@@ -267,19 +272,19 @@ test('logging out when nobody is signed in is not an error', async () => {
 test('VD_EXT_STATUS reports the version and who is signed in', async () => {
   const out = loadWorker();
   assert.deepEqual(plain(await out.send({ type: 'VD_EXT_STATUS' })),
-    { installed: true, version: '3.0.1', signedInAs: null });
+    { installed: true, version: VERSION, signedInAs: null });
 
   const inn = loadWorker({ session: { access_token: 'a', refresh_token: 'r',
                                       expires_at: 9e9, user: { email: 'user@example.com' } } });
   assert.deepEqual(plain(await inn.send({ type: 'VD_EXT_STATUS' })),
-    { installed: true, version: '3.0.1', signedInAs: 'user@example.com' });
+    { installed: true, version: VERSION, signedInAs: 'user@example.com' });
 });
 
 test('the original ping still answers', async () => {
-  // The site has been using this to detect the extension; 3.0.1 must not
-  // break that while adding the new messages.
+  // The site has been using this to detect the extension; the new messages
+  // must not break it.
   const w = loadWorker();
-  assert.deepEqual(plain(await w.send({ ping: true })), { pong: true, version: '3.0.1' });
+  assert.deepEqual(plain(await w.send({ ping: true })), { pong: true, version: VERSION });
 });
 
 test('an unknown message type is refused, not ignored', async () => {
