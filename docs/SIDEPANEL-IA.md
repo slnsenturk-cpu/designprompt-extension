@@ -200,7 +200,7 @@ Kurallar:
 Settings
 ─────────────────────────────────────────────
 Account
-  slnsenturk@gmail.com                 Sign out
+  user@example.com                     Sign out
   Session: refreshed 3 min ago               P4
 
 AI enhancement                          [toggle]

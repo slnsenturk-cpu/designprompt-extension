@@ -234,6 +234,9 @@ test('Overview leads with the numbers, the palette and Export', async t => {
 
   // §11 squint test after analysis: one primary button, and it is Export.
   assert.equal(p.$$('.vd-btn--primary').length, 1);
+  // The panel opens on DESIGN.md (§4.3); Prompt is one click away.
+  assert.equal(p.$('#vdExportBtn').textContent.trim(), 'Download DESIGN.md');
+  p.click('[data-output="prompt"]');
   assert.equal(p.$('#vdExportBtn').textContent.trim(), 'Copy prompt');
 });
 
@@ -320,6 +323,7 @@ test('the target select belongs to Prompt, and "Where to put it" to the others',
   const p = await boot(t);
   p.analyze('rig-ai');
 
+  p.click('[data-output="prompt"]');
   assert.ok(p.$('#vdTargetSelect'), 'Prompt has no target select');
   assert.equal(p.$('#vdWhere'), null, 'Prompt must not offer "Where to put it"');
 
@@ -338,6 +342,7 @@ test('Focus is collapsed under Refine and moves the meta line', async t => {
   const p = await boot(t);
   p.analyze('rig-ai');
 
+  p.click('[data-output="prompt"]');
   const refine = p.$('#vdRefine');
   assert.ok(refine, 'no Refine disclosure');
   assert.equal(refine.tagName, 'DETAILS');
@@ -653,6 +658,7 @@ test('the Export meta counts every heading in the prompt', async t => {
   await p.run('buildPromptFromData(__cap, "page")');
   await new Promise(r => setImmediate(r));
 
+  p.click('[data-output="prompt"]');
   const meta = p.$('.vd-card__meta').textContent;
   assert.match(meta, /^\d+ sections · [\d.]+k chars$/);
   const sections = Number(meta.split(' ')[0]);
@@ -842,6 +848,7 @@ test('at the cap, the last result and every tab keep working', async t => {
 
   assert.equal(p.$$('.vd-stat').length, 4, 'the existing result stopped rendering');
   assert.ok(p.$('#vdExportBtn'), 'export was taken away at the limit');
+  p.click('[data-output="prompt"]');
   p.click('#vdExportBtn');
   assert.equal(p.captured.clipboard.length, 1, 'copying the existing result was blocked');
 
@@ -941,4 +948,35 @@ test('every invitation to sign in is pressable, never plain text', async t => {
       });
     }
   }
+});
+
+// ── first run ─────────────────────────────────────────────────────────────
+
+test('a brand new profile lands on the documented defaults', async t => {
+  // Nothing in storage, nothing granted, nobody signed in. These are the
+  // first things a new user sees, and they are easy to change by accident
+  // from the far end of a storage key.
+  const p = await boot(t);
+
+  assert.equal(p.run('state.allSites'), false, 'site access was granted by default');
+  assert.equal(p.run('state.aiEnabled'), false, 'AI enhancement was on by default');
+  assert.equal(p.run('state.output'), 'design-md', '§4.3 defaults Output to DESIGN.md');
+  assert.equal(p.run('state.target'), 'Claude Code');
+  assert.equal(p.run('!!(state.account && state.account.authed)'), false);
+
+  const usage = JSON.parse(p.run('JSON.stringify(state.usage)'));
+  assert.equal(usage.used, 0);
+  assert.equal(usage.limit, 5);
+  assert.match(p.text(), /0 of 5 free analyses this month/);
+
+  // With AI off, none of its controls exist — not merely disabled.
+  p.click('[data-tab="settings"]');
+  assert.equal(p.$('#vdProviderSelect'), null);
+  assert.equal(p.$('#vdModelSelect'), null);
+  assert.equal(p.$('#apiKeyInput'), null);
+  assert.equal(p.$('#vdAllSites').checked, false, 'the all-sites toggle starts on');
+
+  // And the Export card opens on DESIGN.md.
+  p.analyze('rig-ai');
+  assert.equal(p.$('#vdExportBtn').textContent.trim(), 'Download DESIGN.md');
 });
