@@ -1,4 +1,4 @@
-# Chrome Web Store listing — VibeDesign 3.0.0
+# Chrome Web Store listing — VibeDesign 3.0.1
 
 Everything the store form asks for. Character limits are Chrome's; the counts
 in brackets are what the text below actually uses.
@@ -153,4 +153,12 @@ there reads "licence unknown" rather than "proprietary".
 FIXED — a spent session token could be retried indefinitely, leaving the panel
 reporting a refresh failure it could never recover from. A rejected session is
 now cleared once, with a Sign in button.
+```
+
+### 3.0.1
+
+```
+Signing in on vibedesign.tech now signs the extension in too, and signing out
+of either ends both. The two keep separate sessions and are linked by a
+one-time handoff, so neither can knock the other offline.
 ```
