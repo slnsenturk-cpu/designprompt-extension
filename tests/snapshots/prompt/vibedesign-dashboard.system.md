@@ -54,12 +54,12 @@ When you encounter a component that doesn't exist in this system, derive it from
 
 ## Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`. Logo left, CTA right.
-**Primary button:** `6px` radius, `#3a1df5` bg, text `#6b6b76`, height `32px`, padding `6px 12px`, font `12px/500` "Inter"
+**Primary button:** `6px` radius, `#3a1df5` bg, text `#6b6b76` (measured on `#111113`, where the two are not adjacent), height `32px`, padding `6px 12px`, font `12px/500` "Inter"
   Spec: `background-color: #3a1df5` · `color: #6b6b76` · `padding: 6px 12px` · `border-radius: 6px` · `font-size: 12px` · `font-weight: 500` · `font-family: "Inter"` · `border: 1px solid rgba(255, 255, 255, 0.08)` · `height: 32px` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
   Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
 **Ghost button:** `6px` radius, transparent bg, border `1px solid rgba(255, 255, 255, 0.08)`, padding `6px 12px`. Hover: bg rgba(255,255,255,0.06).
   Spec: `background-color: transparent` · `border: 1px solid rgba(255, 255, 255, 0.08)` · `color: #6b6b76` · `padding: 6px 12px` · `border-radius: 6px` · `font-size: 12px` · `font-weight: 500` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
-**Cards:** Dark surface, rgba(255,255,255,0.06) border. Layered shadow from tokens. 6px radius. Padding 24–32px. Hover: `transform: translateY(-2px)`, `border-color: hsl(210 100% 50% / .2)`.
+**Cards:** Dark surface, rgba(255,255,255,0.06) border. Layered shadow from tokens. 8px radius. Padding 24–32px. Hover: `transform: translateY(-2px)`, `border-color: hsl(210 100% 50% / .2)`.
 **Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Each logo item: `padding: 0 48px` or `gap: 64px` — logos must be visually separated, never concatenated. Logos at 50–60% opacity.
 **Global interactive rules:** links → `color: #c5c1b9`, no underline; EXCEPTION: Navigation links (nav a, header a) use `color: rgba(255,255,255,0.7)` default, `rgba(255,255,255,1)` on hover. The `#c5c1b9` link rule applies to in-content links and CTAs only — NOT nav bar links; `0\.35\)\]:hover` → border-color: rgba(255, 255, 255, 0.35).
 

@@ -101,7 +101,7 @@ Exceptions: 1px, 2px, 6px, 66px — use as-is where detected.
 - transition: `color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)` — text color hover (snappy, confident UI)
 - transition: `0.3s cubic-bezier(0.4, 0, 0.2, 1)` (standard responsive)
 - transition: `opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1)` — fade entrance / hover (dramatic, scroll-driven)
-- Keyframe `slideRight`: from `0% { transform: translateX(var(--radix-toast-swipe-end-x)); }` → to `100% { transform: translateX(100%); }`
+- Keyframe `slideRight`: from `0% { transform: translateX(); }` → to `100% { transform: translateX(100%); }`
 - Keyframe `rcSliderTooltipZoomDownIn`: from `0% { opacity: 0; transform: scale(0); transform-origin: 50% 100%; }` → to `100% { transform: scale(1); transform-origin: 50% 100%; }`
 - Keyframe `rcSliderTooltipZoomDownOut`: from `0% { transform: scale(1); transform-origin: 50% 100%; }` → to `100% { opacity: 0; transform: scale(0); transform-origin: 50% 100%; }`
 - Keyframe `wobble`: from `0%, 100% { transform: rotate(-2deg) translateX(-5px); }` → to `50% { transform: rotate(2deg) translateX(5px); }`
@@ -126,16 +126,16 @@ Inline SVG icons: 7 detected
 - Icon accent colors: `#23251d`, `#111111`
 ### Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`. Logo left, CTA right.
-**Primary button:** `6px` radius, `#cd8407` bg, text `#23251d`, height `31.5px`, padding `0px`, font `16px/400` "RoundHog". Hover: `background-color: rgb(var(--bg))`, `opacity: 1`.
+**Primary button:** `6px` radius, `#cd8407` bg, text `#23251d`, height `31.5px`, padding `0px`, font `16px/400` "RoundHog". Hover: `opacity: 1`.
  Spec: `background-color: #cd8407` · `color: #23251d` · `padding: 0px` · `border-radius: 6px` · `font-size: 16px` · `font-weight: 400` · `font-family: "RoundHog"` · `border: 1px solid rgb(177, 120, 22)` · `height: 31.5px` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
- Hover: `background-color: rgb(var(--bg))` · `opacity: 1` → hover:opacity-100
+ Hover:· `opacity: 1` → hover:opacity-100
  Transition: `color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
  Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
 **Ghost button:** `4px` radius, transparent bg, border `1px solid rgba(0,0,0,0.15)`, padding `2px 8px`. Hover: bg rgba(0,0,0,0.04).
  Spec: `background-color: transparent` · `border: 1px solid rgba(0,0,0,0.15)` · `color: #23251d` · `padding: 2px 8px` · `border-radius: 4px` · `font-size: 13px` · `font-weight: 500`
-**Secondary button:** `4px` radius, `#000000` bg, text `#23251d`, padding `2px 8px`, font `13px/500`
+**Secondary button:** `4px` radius, `#000000` bg, text `#23251d` (measured on `#e5e7e0`, where the two are not adjacent), padding `2px 8px`, font `13px/500`
  Spec: `background-color: #000000` · `color: #23251d` · `padding: 2px 8px` · `border-radius: 4px` · `font-size: 13px` · `font-weight: 500`
-**Cards:** `#eeefe9` bg, layered shadow from tokens. 4px radius. Padding 24–32px.
+**Cards:** `#eeefe9` bg, layered shadow from tokens. 6px radius. Padding 24–32px.
 **Hero:** Light background (`#eeefe9`). Dark text on light. No overlay, no full-bleed photo. Headline: clamp(48px,6vw,80px)/800 in display font. Primary CTA with `#cd8407` + ghost, side by side. Generous padding (80–120px vertical).
 **Decorative background:** Subtle, non-intrusive SVG elements used as section atmosphere. Keep them minimal — `position:absolute, z-index:-1, pointer-events:none`, opacity 0.05–0.12. Do NOT add grid lines, crop marks, dot patterns, or any strong geometric overlays. The decoration should be barely noticeable — if it draws attention, it's too much.
 **Custom cursor:** CSS `cursor: url(...)` — custom cursor image on interactive elements. Applied to: `.cursor-play`.
@@ -218,18 +218,18 @@ Source: posthog.com Implementation notes:
 NOTE: "RoundHog" is a custom font not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "IBM Plex Sans Variable": https://posthog.com/SENTIN.woff2
-- "Fairytale": https://posthog.com/SENTIN.woff2
-- "Computer Modern": https://posthog.com/SENTIN.woff
-- "Squeak": https://posthog.com/SENTIN.woff2
-- "RoundHog": https://posthog.com/SENTIN.woff2
-- "Charter": https://res.cloudinary.com/SENTIN.woff Load ALL custom fonts via @font-face in global CSS:
+- "IBM Plex Sans Variable": https://posthog.com/SENTIN.woff2 — openly licensed (Google Fonts); this copy is self-hosted, so use either the URL or the Google Fonts release
+- "Fairytale": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "Computer Modern": https://posthog.com/SENTIN.woff — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "Squeak": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "RoundHog": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Inter Tight or Space Grotesk is a close substitute (suggested, not observed)
+- "Charter": https://res.cloudinary.com/SENTIN.woff — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed) Load ALL custom fonts via @font-face in global CSS:
 @font-face { font-family: 'IBM Plex Sans Variable'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Fairytale'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Computer Modern'; src: url('https://posthog.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Squeak'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'RoundHog'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Charter'; src: url('https://res.cloudinary.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
-These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
-:root { --background: #eeefe9; --foreground: #65675e; --card: #e9eae4; --card-foreground: #65675e; --popover: #e9eae4; --popover-foreground: #65675e; --primary: #cd8407; --primary-foreground: #000000; --secondary: #dfe0da; --secondary-foreground: #65675e; --muted: #e4e5df; --muted-foreground: #6b7280; --accent: #dadbd5; --accent-foreground: #000000; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(0,0,0,0.08); --input: rgba(0,0,0,0.08); --ring: #cd8407; --radius: 4px;
+These URLs work as-is. "IBM Plex Sans Variable" is also on Google Fonts, so either source is fine for it. For the rest, use the URL above rather than guessing a lookalike. Add to globals.css (override shadcn defaults with site tokens):
+:root { --background: #eeefe9; --foreground: #65675e; --card: #e9eae4; --card-foreground: #65675e; --popover: #e9eae4; --popover-foreground: #65675e; --primary: #cd8407; --primary-foreground: #000000; --secondary: #dfe0da; --secondary-foreground: #65675e; --muted: #e4e5df; --muted-foreground: #6b7280; --accent: #dadbd5; --accent-foreground: #000000; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(0,0,0,0.08); --input: rgba(0,0,0,0.08); --ring: #cd8407; --radius: 6px;
 }

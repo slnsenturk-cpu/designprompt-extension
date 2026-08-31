@@ -41,8 +41,8 @@ Add to global CSS:
 NOTE: "CameraPlainVariable" is a custom font not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "CameraPlainVariable": https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+- "CameraPlainVariable": https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed) Load ALL custom fonts via @font-face in global CSS:
 @font-face { font-family: 'CameraPlainVariable'; src: url('https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
-:root { --background: #111113; --foreground: #ffffff; --card: #19191b; --card-foreground: #ffffff; --popover: #19191b; --popover-foreground: #ffffff; --primary: #3a1df5; --primary-foreground: #ffffff; --secondary: #252527; --secondary-foreground: #ffffff; --muted: #202022; --muted-foreground: #767676; --accent: #2a2a2c; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #3a1df5; --radius: 6px;
+These URLs work as-is. Use them rather than guessing a lookalike; where a family is marked "licence unknown" above, the labelled substitute is the safe alternative. Add to globals.css (override shadcn defaults with site tokens):
+:root { --background: #111113; --foreground: #ffffff; --card: #19191b; --card-foreground: #ffffff; --popover: #19191b; --popover-foreground: #ffffff; --primary: #3a1df5; --primary-foreground: #ffffff; --secondary: #252527; --secondary-foreground: #ffffff; --muted: #202022; --muted-foreground: #767676; --accent: #2a2a2c; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #3a1df5; --radius: 8px;
 }

@@ -48,18 +48,18 @@ Source: posthog.com Implementation notes:
 NOTE: "RoundHog" is a custom font not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "IBM Plex Sans Variable": https://posthog.com/SENTIN.woff2
-- "Fairytale": https://posthog.com/SENTIN.woff2
-- "Computer Modern": https://posthog.com/SENTIN.woff
-- "Squeak": https://posthog.com/SENTIN.woff2
-- "RoundHog": https://posthog.com/SENTIN.woff2
-- "Charter": https://res.cloudinary.com/SENTIN.woff Load ALL custom fonts via @font-face in global CSS:
+- "IBM Plex Sans Variable": https://posthog.com/SENTIN.woff2 — openly licensed (Google Fonts); this copy is self-hosted, so use either the URL or the Google Fonts release
+- "Fairytale": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "Computer Modern": https://posthog.com/SENTIN.woff — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "Squeak": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed)
+- "RoundHog": https://posthog.com/SENTIN.woff2 — licence unknown; if you cannot use it, Inter Tight or Space Grotesk is a close substitute (suggested, not observed)
+- "Charter": https://res.cloudinary.com/SENTIN.woff — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed) Load ALL custom fonts via @font-face in global CSS:
 @font-face { font-family: 'IBM Plex Sans Variable'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Fairytale'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Computer Modern'; src: url('https://posthog.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Squeak'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'RoundHog'; src: url('https://posthog.com/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Charter'; src: url('https://res.cloudinary.com/SENTIN.woff') format('woff'); font-weight: 400 700; font-display: swap; }
-These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
-:root { --background: #eeefe9; --foreground: #65675e; --card: #e9eae4; --card-foreground: #65675e; --popover: #e9eae4; --popover-foreground: #65675e; --primary: #cd8407; --primary-foreground: #000000; --secondary: #dfe0da; --secondary-foreground: #65675e; --muted: #e4e5df; --muted-foreground: #6b7280; --accent: #dadbd5; --accent-foreground: #000000; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(0,0,0,0.08); --input: rgba(0,0,0,0.08); --ring: #cd8407; --radius: 4px;
+These URLs work as-is. "IBM Plex Sans Variable" is also on Google Fonts, so either source is fine for it. For the rest, use the URL above rather than guessing a lookalike. Add to globals.css (override shadcn defaults with site tokens):
+:root { --background: #eeefe9; --foreground: #65675e; --card: #e9eae4; --card-foreground: #65675e; --popover: #e9eae4; --popover-foreground: #65675e; --primary: #cd8407; --primary-foreground: #000000; --secondary: #dfe0da; --secondary-foreground: #65675e; --muted: #e4e5df; --muted-foreground: #6b7280; --accent: #dadbd5; --accent-foreground: #000000; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(0,0,0,0.08); --input: rgba(0,0,0,0.08); --ring: #cd8407; --radius: 6px;
 }

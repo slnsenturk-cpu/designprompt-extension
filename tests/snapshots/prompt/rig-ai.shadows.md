@@ -17,14 +17,14 @@ If any later detail conflicts, this section wins.
 - Motion base duration: `300ms`
 ### Design Direction
 **Overall character (context)** Dark-first SaaS with saturated cool accents. **Section rhythm & color hierarchy (context)** Consistently dark (`#0a0a0a` base). **Image usage & visual treatment (context)** Full-bleed cinematic photography as section atmosphere — wide, moody, environmental. **Typography (context)** Two-font system: "Chalet" for headings (112px/700); "Instrument Sans" for body and UI (13.6px/400, line-height 21.76px). **Color usage (context)** Dark surfaces (`#0a0a0a`). **Shape & elevation**
-Moderate rounding (6px) — contemporary and neutral. Layered shadows — don't simplify to a single layer.
-Brutalist elevation: hard drop-shadows with zero blur (e.g. `4px 4px 0 color`). Hover states use offset shadow as a design motif: `.btn-red:hover:hover` → `box-shadow: 4px 4px 0 var(--blue)`. `.btn-cta:hover:hover` → `box-shadow: 4px 4px 0 var(--blue)`. This is a defining interaction pattern — reproduce exactly.
-Glassmorphism panels: background rgba(255,255,255,0.03–0.08), backdrop-filter:blur(12–20px), border 1px solid rgba(255,255,255,0.08–0.12). These panels float above the base surface — use them for cards, modals, nav on scroll. The frosted effect is subtle, not milky. **Animation & motion (context)** Motion personality: **smooth** — 300–400ms transitions. **Ambient / always-on animations (context)** (loop infinite): - **custom** (2×, duration: 4s, 4s): Recreate with `animation-iteration-count: infinite`. **Color architecture — dual personality: (context)** Hero section: full-viewport `#ed462d` (DARK). **Page flow (context)** 1. **Spacing & rhythm (context)** Section padding: 128px vertical. **Component language (context)** Buttons: Primary = rounded, `#0a0a0a` fill, 13.6px, 700 weight. **Type scale (context)** H1: 112px/700, tracking: -4.48px.
+Angular geometry — interactive elements are chamfered by 14px with a `clip-path` polygon, NOT a border-radius. Containers use 10px radius. Do not substitute rounded corners; the cut corner is the motif. Layered shadows — don't simplify to a single layer.
+Brutalist elevation: hard drop-shadows with zero blur (e.g. `4px 4px 0 color`). Hover states use offset shadow as a design motif: `.btn-red:hover:hover` → `box-shadow: 4px 4px 0 #2b4fff`. `.btn-cta:hover:hover` → `box-shadow: 4px 4px 0 #2b4fff`. This is a defining interaction pattern — reproduce exactly.
+Glassmorphism panels: background rgba(255,255,255,0.03–0.08), backdrop-filter:blur(12–20px), border 1px solid rgba(255,255,255,0.08–0.12). These panels float above the base surface — use them for cards, modals, nav on scroll. The frosted effect is subtle, not milky. **Animation & motion (context)** Motion personality: **smooth** — 300–400ms transitions. **Ambient / always-on animations (context)** (loop infinite): - **custom** (2×, duration: 4s, 4s): Recreate with `animation-iteration-count: infinite`. **Color architecture — dual personality: (context)** Hero section: full-viewport `#ed462d` (DARK). **Page flow (context)** 1. **Spacing & rhythm (context)** Section padding: 128px vertical. **Component language (context)** Buttons: Primary = chamfered 14px, `#0a0a0a` fill, 13.6px, 700 weight. **Type scale (context)** H1: 112px/700, tracking: -4.48px.
 ### Shadow Tokens
-- shadow-sm — colored glow elevation: `oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 40px 0px`
+- shadow-sm — colored glow elevation: `#652218 0px 0px 40px 0px`
 - shadow-md — layered elevation: `rgba(0, 0, 0, 0.5) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px 20px 60px 0px`
 - shadow-lg — inset (surface depth / border effect, not elevation): `rgba(0, 0, 0, 0.5) 0px 2px 8px 0px inset`
-- shadow-xl — colored glow elevation: `oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 8px 0px`
+- shadow-xl — colored glow elevation: `#652218 0px 0px 8px 0px`
 ### Shape Tokens
 - `1px`
 - `6px` (input / small)
@@ -44,14 +44,14 @@ Add to global CSS:
 NOTE: "Chivo Mono", "Chalet", "Geist Pixel Square" are custom fonts not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "Chalet": https://rig.ai/SENTIN.woff2
-- "Geist Pixel Square": https://rig.ai/SENTIN.woff2
-- "Instrument Sans": https://rig.ai/SENTIN.woff2
-- "Chivo Mono": https://rig.ai/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+- "Chalet": https://rig.ai/SENTIN.woff2 — licence unknown; if you cannot use it, Inter Tight or Space Grotesk is a close substitute (suggested, not observed)
+- "Geist Pixel Square": https://rig.ai/SENTIN.woff2 — licence unknown; if you cannot use it, Silkscreen or Press Start 2P is a close substitute (suggested, not observed)
+- "Instrument Sans": https://rig.ai/SENTIN.woff2 — openly licensed (Google Fonts); this copy is self-hosted, so use either the URL or the Google Fonts release
+- "Chivo Mono": https://rig.ai/SENTIN.woff2 — openly licensed (Google Fonts); this copy is self-hosted, so use either the URL or the Google Fonts release Load ALL custom fonts via @font-face in global CSS:
 @font-face { font-family: 'Chalet'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Geist Pixel Square'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Instrument Sans'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 @font-face { font-family: 'Chivo Mono'; src: url('https://rig.ai/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
-:root { --background: #0a0a0a; --foreground: #f0eee6; --card: #121212; --card-foreground: #f0eee6; --popover: #121212; --popover-foreground: #f0eee6; --primary: #0a0a0a; --primary-foreground: #ffffff; --secondary: #1e1e1e; --secondary-foreground: #f0eee6; --muted: #191919; --muted-foreground: #767676; --accent: #232323; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #0a0a0a; --radius: 6px;
+These URLs work as-is. "Instrument Sans", "Chivo Mono" are also on Google Fonts, so either source is fine for them. For the rest, use the URL above rather than guessing a lookalike. Add to globals.css (override shadcn defaults with site tokens):
+:root { --background: #0a0a0a; --foreground: #f0eee6; --card: #121212; --card-foreground: #f0eee6; --popover: #121212; --popover-foreground: #f0eee6; --primary: #0a0a0a; --primary-foreground: #ffffff; --secondary: #1e1e1e; --secondary-foreground: #f0eee6; --muted: #191919; --muted-foreground: #767676; --accent: #232323; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #0a0a0a; --radius: 10px;
 }

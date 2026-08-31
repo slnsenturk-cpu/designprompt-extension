@@ -98,8 +98,8 @@ Use multiples of 4px for ALL spacing — padding, gap, margin.
 - Keyframe `ping`: from `75%, 100% { transform: scale(2); opacity: 0; }`
 - Keyframe `pulse`: from `50% { opacity: 0.5; }`
 - Keyframe `spin`: from `100% { transform: rotate(360deg); }`
-- Keyframe `enter`: from `0% { opacity: var(--tw-enter-opacity, 1); transform: translate3d(var(--tw-enter-translate-x, 0),var(--tw-enter-translate-y, 0),0)`
-- Keyframe `exit`: from `100% { opacity: var(--tw-exit-opacity, 1); transform: translate3d(var(--tw-exit-translate-x, 0),var(--tw-exit-translate-y, 0),0)`
+- Keyframe `enter`: from `0% { opacity:; transform: translate3d(0)`
+- Keyframe `exit`: from `100% { opacity:; transform: translate3d(0)`
 ### Interaction Paradigm
 - ⚠️ **ANIMATION ARCHITECTURE — TWO TIERS:** **TIER 1 — HERO (Section 1):** Load-time animations ONLY, no scroll dependency. All hero elements animate on page mount using CSS `@keyframes` with staggered `animation-delay`. Initial `opacity:0` IS PERMITTED in hero because animation fires automatically within 0.4s of load — never waiting for scroll. FAILSAFE: If CSS animation fails to fire, fallback to `opacity:1` via `setTimeout(() => els.forEach(el => el.style.opacity = "1"), 500)`. **TIER 2 — CONTENT SECTIONS:** Scroll-triggered WITH mandatory failsafe. Section headings/eyebrow labels reveal on scroll entry: Initial: `opacity:0; translateY(20px)`. Revealed: `opacity:1; translateY(0)`. Transition: `0.4s ease-out`. MANDATORY DUAL FAILSAFE (both required): 1. `IntersectionObserver {threshold:0.1}`: adds `.is-visible` class on intersection. 2. Timeout: `setTimeout(() => document.querySelectorAll(".reveal-text").forEach(el => el.classList.add("is-visible")), 2000);` This guarantees animation on scroll AND visibility after 2s even if Observer never fires.
 - **Hover feedback:** Explicit — components respond visually (shadow/transform) to signal interactivity.
@@ -114,12 +114,12 @@ Inline SVG icons: 24 detected
 Icon library: Lucide
 ### Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`. Logo left, CTA right.
-**Primary button:** `6px` radius, `#3a1df5` bg, text `#6b6b76`, height `32px`, padding `6px 12px`, font `12px/500` "Inter"
+**Primary button:** `6px` radius, `#3a1df5` bg, text `#6b6b76` (measured on `#111113`, where the two are not adjacent), height `32px`, padding `6px 12px`, font `12px/500` "Inter"
  Spec: `background-color: #3a1df5` · `color: #6b6b76` · `padding: 6px 12px` · `border-radius: 6px` · `font-size: 12px` · `font-weight: 500` · `font-family: "Inter"` · `border: 1px solid rgba(255, 255, 255, 0.08)` · `height: 32px` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
  Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
 **Ghost button:** `6px` radius, transparent bg, border `1px solid rgba(255, 255, 255, 0.08)`, padding `6px 12px`. Hover: bg rgba(255,255,255,0.06).
  Spec: `background-color: transparent` · `border: 1px solid rgba(255, 255, 255, 0.08)` · `color: #6b6b76` · `padding: 6px 12px` · `border-radius: 6px` · `font-size: 12px` · `font-weight: 500` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
-**Cards:** Dark surface, rgba(255,255,255,0.06) border. Layered shadow from tokens. 6px radius. Padding 24–32px. Hover: `transform: translateY(-2px)`, `border-color: hsl(210 100% 50% / .2)`.
+**Cards:** Dark surface, rgba(255,255,255,0.06) border. Layered shadow from tokens. 8px radius. Padding 24–32px. Hover: `transform: translateY(-2px)`, `border-color: hsl(210 100% 50% / .2)`.
 **Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Each logo item: `padding: 0 48px` or `gap: 64px` — logos must be visually separated, never concatenated. Logos at 50–60% opacity.
 **Global interactive rules:** links → `color: #c5c1b9`, no underline; EXCEPTION: Navigation links (nav a, header a) use `color: rgba(255,255,255,0.7)` default, `rgba(255,255,255,1)` on hover. The `#c5c1b9` link rule applies to in-content links and CTAs only — NOT nav bar links; `0\.35\)\]:hover` → border-color: rgba(255, 255, 255, 0.35).
 ### Layout & Page Structure
@@ -176,8 +176,8 @@ Add to global CSS:
 NOTE: "CameraPlainVariable" is a custom font not available on Google Fonts. Use the closest Google Fonts alternative (e.g. Inter, DM Sans, Space Grotesk for sans-serif; JetBrains Mono, Fira Code for monospace; Playfair Display for serif display) and match the weight/tracking values.
 ### Custom Font Files
 These font files are served directly from the site — load via @font-face:
-- "CameraPlainVariable": https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2 Load ALL custom fonts via @font-face in global CSS:
+- "CameraPlainVariable": https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2 — licence unknown; if you cannot use it, Instrument Sans or DM Sans is a close substitute (suggested, not observed) Load ALL custom fonts via @font-face in global CSS:
 @font-face { font-family: 'CameraPlainVariable'; src: url('https://cdn.gpteng.co/mcp-widgets/v1/fonts/SENTIN.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
-These fonts WILL load from the URLs above. Do not substitute with Google Fonts alternatives. Add to globals.css (override shadcn defaults with site tokens):
-:root { --background: #111113; --foreground: #ffffff; --card: #19191b; --card-foreground: #ffffff; --popover: #19191b; --popover-foreground: #ffffff; --primary: #3a1df5; --primary-foreground: #ffffff; --secondary: #252527; --secondary-foreground: #ffffff; --muted: #202022; --muted-foreground: #767676; --accent: #2a2a2c; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #3a1df5; --radius: 6px;
+These URLs work as-is. Use them rather than guessing a lookalike; where a family is marked "licence unknown" above, the labelled substitute is the safe alternative. Add to globals.css (override shadcn defaults with site tokens):
+:root { --background: #111113; --foreground: #ffffff; --card: #19191b; --card-foreground: #ffffff; --popover: #19191b; --popover-foreground: #ffffff; --primary: #3a1df5; --primary-foreground: #ffffff; --secondary: #252527; --secondary-foreground: #ffffff; --muted: #202022; --muted-foreground: #767676; --accent: #2a2a2c; --accent-foreground: #ffffff; --destructive: #ef4444; --destructive-foreground: #ffffff; --border: rgba(255,255,255,0.08); --input: rgba(255,255,255,0.08); --ring: #3a1df5; --radius: 8px;
 }

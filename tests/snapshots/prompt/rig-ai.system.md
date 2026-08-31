@@ -34,10 +34,10 @@ When you encounter a component that doesn't exist in this system, derive it from
 - Weights: 400, 600, 700
 
 ## Shadow Tokens
-- shadow-sm: `oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 40px 0px`
+- shadow-sm: `#652218 0px 0px 40px 0px`
 - shadow-md: `rgba(240, 237, 230, 0.04) 0px 2px 0px 0px, rgba(0, 0, 0, 0.5) 0px -1px 0px 0px, rgba(0, 0, 0, 0.4) 0px 20px 60px 0px`
 - shadow-lg: `rgba(0, 0, 0, 0.5) 0px 2px 8px 0px inset`
-- shadow-xl: `oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 8px 0px`
+- shadow-xl: `#652218 0px 0px 8px 0px`
 
 ## Shape Tokens
 - `1px`
@@ -51,36 +51,36 @@ When you encounter a component that doesn't exist in this system, derive it from
 
 ## Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(24,22,24,0.85)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(255,255,255,0.08)`. Logo left, CTA right. Nav link hover: `opacity: 1`.
-**Primary button:** chamfered corners via `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px `, no border-radius, `#0a0a0a` bg, text `#f0ede6`, height `52px`, padding `16px 32px`, font `13.6px/700` "Chivo Mono". Hover: `box-shadow: 4px 4px 0 var(--blue)`.
+**Primary button:** chamfered corners via `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px `, no border-radius, `#0a0a0a` bg, text `#f0ede6`, height `52px`, padding `16px 32px`, font `13.6px/700` "Chivo Mono". Hover: `box-shadow: 4px 4px 0 #2b4fff`.
   Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 16px 32px` · `clip-path: polygon(14px 0px, 100% 0px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0px 100%, 0px 14px)` · `font-size: 13.6px` · `font-weight: 700` · `font-family: "Chivo Mono"` · `height: 52px` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
   NOTE: The `52px` height combined with `16px 32px` vertical padding requires the button to NOT have border-radius. The clip-path provides the chamfered corner shape. `border-radius` must be 0.
-  Hover before: bg: oklch(0.6329 0.2075 31.49), color: oklch(0.1448 0 0), shadow: oklch(0.6329 0.2075 31.49 / 0.4) 0px 0px 40px 0px
-  Hover after:  `box-shadow: 4px 4px 0 var(--blue)`
+  Hover before: bg: #ed462d, color: #0a0a0a, shadow: #652218 0px 0px 40px 0px
+  Hover after:  `box-shadow: 4px 4px 0 #2b4fff`
   Transition: `0.2s cubic-bezier(0.25, 1, 0.5, 1)`
   Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
 **Nav CTA:** `12px` font, height `38.375px`, padding `19.2px`, `#0a0a0a` bg, "Chivo Mono". Compact — visually smaller than hero CTAs.
   Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 19.2px` · `font-size: 12px` · `font-weight: 700` · `height: 38.375px` · `transition: opacity 0.2s`
-**Ghost button:** chamfered via clip-path, transparent bg, border `2px solid rgba(10, 10, 10, 0.3)`, padding `16px 32px`. Hover: `background: rgba(240, 237, 230, 0.05)`, `background-color: rgba(240, 237, 230, 0.05)`, `background-image: initial`, `border-color: var(--paper)`.
-  Spec: `background-color: transparent` · `border: 2px solid rgba(10, 10, 10, 0.3)` · `color: #0a0a0a` · `padding: 16px 32px` · `border-radius: 6px` · `font-size: 13.6px` · `font-weight: 700` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
-  Hover: `background: rgba(240, 237, 230, 0.05)` · `background-color: rgba(240, 237, 230, 0.05)` · `background-image: initial` · `border-color: var(--paper)`
+**Ghost button:** chamfered via clip-path, transparent bg, border `2px solid rgba(10, 10, 10, 0.3)`, padding `16px 32px`. Hover: `background: rgba(240, 237, 230, 0.05)`, `background-color: rgba(240, 237, 230, 0.05)`, `background-image: initial`, `border-color: #f0ede6`.
+  Spec: `background-color: transparent` · `border: 2px solid rgba(10, 10, 10, 0.3)` · `color: #0a0a0a` · `padding: 16px 32px` · `border-radius: 0px` · `font-size: 13.6px` · `font-weight: 700` · `transition: 0.2s cubic-bezier(0.25, 1, 0.5, 1)`
+  Hover: `background: rgba(240, 237, 230, 0.05)` · `background-color: rgba(240, 237, 230, 0.05)` · `background-image: initial` · `border-color: #f0ede6`
   IMPORTANT: This ghost button appears on the `#ed462d` hero background. Ensure border color is visible against that background — use a darker/contrasting border, not white.
   clip-path: same chamfered polygon as primary button.
 **Secondary button:** chamfered via clip-path, `#0a0a0a` bg, text `#f0ede6`, padding `19.2px`, font `12px/700`
   Spec: `background-color: #0a0a0a` · `color: #f0ede6` · `padding: 19.2px` · `font-size: 12px` · `font-weight: 700`
-**Cards:** backdrop-filter:blur(16px), semi-transparent bg, 6px radius. Padding 24–32px. Hover: `opacity: 0.28`, `transition: opacity`.
+**Cards:** backdrop-filter:blur(16px), semi-transparent bg, 10px radius. Padding 24–32px. Hover: `opacity: 0.28`, `transition: opacity`.
 **Hero:** min-height 100dvh, background-size:cover, `rgba(0,0,0,0.4)` overlay. White text. Headline: clamp(48px,7vw,88px) in display font. One primary CTA + one ghost, side by side.
-**Inputs:** `inherit` bg, `1px solid rgba(240, 237, 230, 0.15)`, `6px` radius. Focus: outline 2px solid #0a0a0a offset 2px.
+**Inputs:** `inherit` bg, `1px solid rgba(240, 237, 230, 0.15)`, `1px` radius. Focus: outline 2px solid #0a0a0a offset 2px.
 **Badges:** radius `0px`, padding `8px 16px`, font `12px/400`, bg `#0a0a0a`, text `#ed462d`.
 **Logo marquee:** `overflow:hidden`, inner div 200% width. CSS: `@keyframes marquee { to { transform:translateX(-50%) } }` applied as `animation: marquee 30s linear infinite`. Each logo item: `padding: 0 48px` or `gap: 64px` — logos must be visually separated, never concatenated. Logos at 50–60% opacity.
 **Pricing grid:** repeat(2,1fr), gap 24px, align-items:stretch.
 **Accordion:** 16–18px semibold question, muted answer. max-height transition. Chevron rotates 180° on open. border-bottom between items.
 **Decorative background:** Subtle, non-intrusive SVG elements used as section atmosphere. Keep them minimal — `position:absolute, z-index:-1, pointer-events:none`, opacity 0.05–0.12. Do NOT add grid lines, crop marks, dot patterns, or any strong geometric overlays. The decoration should be barely noticeable — if it draws attention, it's too much.
 **Masonry grid:** 3-column masonry layout (css-grid), 5 items. Heights vary from 210px to 420px. Use CSS `column-count: 3` or JS masonry library. Each card: `background: #000000; border: 1px solid rgba(255,255,255,0.06); transition: background-color 150ms`. Hover: `background-color: #232529`. No shadow, no transform — ONLY background color changes.
-**Animated system diagram — primary communication device** (1000×500px): 4 paths, 0 circles, 10 SMIL animations. Colors: rgba(240,237,230,0.08), var(--ink), rgba(240,237,230,0.3), rgba(10,10,10,0.95), rgba(240,237,230,0.15), rgba(240,237,230,0.4). Labels: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.".
+**Animated system diagram — primary communication device** (1000×500px): 4 paths, 0 circles, 10 SMIL animations. Colors: rgba(240,237,230,0.08), rgba(240,237,230,0.3), rgba(10,10,10,0.95), rgba(240,237,230,0.15), rgba(240,237,230,0.4). Labels: "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.", "SENTINEL Our platform helps teams ship faster than ever before.".
   This diagram replaces body copy — the user reads the system by watching it operate. It is the highest-trust visual on the page.
   Animated dots (8–12px circles) follow `<animateMotion>` paths tracing rails and connections. Colors match their category accent. Connection lines: 1px, extending to imply continuity.
   Do NOT simplify to a static diagram — the motion is the message.
-**SVG diagram** (900×900px): 12 paths, 10 circles. Colors: rgba(240,237,230,0.1), rgba(240,237,230,0.025), rgba(240,237,230,0.06), rgba(240,237,230,0.07), rgba(240,237,230,0.08), var(--red).  Recreate as inline SVG.
+**SVG diagram** (900×900px): 12 paths, 10 circles. Colors: rgba(240,237,230,0.1), rgba(240,237,230,0.025), rgba(240,237,230,0.06), rgba(240,237,230,0.07), rgba(240,237,230,0.08), #ed462d.  Recreate as inline SVG.
 **Section background decorations — structural atmosphere:**
   Each decorated section carries a background SVG below the content layer. These are NOT optional — they prevent solid-color sections from feeling sterile. Their function is spatial character without photography.
   - **Radial rays** (on #ed462d): 5 lines from convergence point toward edges — implies centrality, focus, authority. `position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden`. Colors: currentColor. opacity: 0.08. Implement as SVG `<line>` elements from center, or CSS `conic-gradient` at very low opacity.

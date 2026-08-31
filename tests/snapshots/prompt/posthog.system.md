@@ -49,16 +49,16 @@ When you encounter a component that doesn't exist in this system, derive it from
 
 ## Component Patterns
 **Navigation:** Sticky. Starts transparent, transitions on scroll past 80px to `rgba(255,255,255,0.92)` + `backdrop-filter:blur(12px)` + `border-bottom:1px solid rgba(0,0,0,0.06)`. Logo left, CTA right.
-**Primary button:** `6px` radius, `#cd8407` bg, text `#23251d`, height `31.5px`, padding `0px`, font `16px/400` "RoundHog". Hover: `background-color: rgb(var(--bg))`, `opacity: 1`.
+**Primary button:** `6px` radius, `#cd8407` bg, text `#23251d`, height `31.5px`, padding `0px`, font `16px/400` "RoundHog". Hover: `opacity: 1`.
   Spec: `background-color: #cd8407` · `color: #23251d` · `padding: 0px` · `border-radius: 6px` · `font-size: 16px` · `font-weight: 400` · `font-family: "RoundHog"` · `border: 1px solid rgb(177, 120, 22)` · `height: 31.5px` · `transition: color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
-  Hover: `background-color: rgb(var(--bg))` · `opacity: 1` → hover:opacity-100
+ Hover:· `opacity: 1` → hover:opacity-100
   Transition: `color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1)`
   Active: `transform: scale(0.98); transition: transform 150ms cubic-bezier(0.4,0,0.2,1)`. `button:active { transform: scale(0.98); }`
 **Ghost button:** `4px` radius, transparent bg, border `1px solid rgba(0,0,0,0.15)`, padding `2px 8px`. Hover: bg rgba(0,0,0,0.04).
   Spec: `background-color: transparent` · `border: 1px solid rgba(0,0,0,0.15)` · `color: #23251d` · `padding: 2px 8px` · `border-radius: 4px` · `font-size: 13px` · `font-weight: 500`
-**Secondary button:** `4px` radius, `#000000` bg, text `#23251d`, padding `2px 8px`, font `13px/500`
+**Secondary button:** `4px` radius, `#000000` bg, text `#23251d` (measured on `#e5e7e0`, where the two are not adjacent), padding `2px 8px`, font `13px/500`
   Spec: `background-color: #000000` · `color: #23251d` · `padding: 2px 8px` · `border-radius: 4px` · `font-size: 13px` · `font-weight: 500`
-**Cards:** `#eeefe9` bg, layered shadow from tokens. 4px radius. Padding 24–32px.
+**Cards:** `#eeefe9` bg, layered shadow from tokens. 6px radius. Padding 24–32px.
 **Hero:** Light background (`#eeefe9`). Dark text on light. No overlay, no full-bleed photo. Headline: clamp(48px,6vw,80px)/800 in display font. Primary CTA with `#cd8407` + ghost, side by side. Generous padding (80–120px vertical).
 **Decorative background:** Subtle, non-intrusive SVG elements used as section atmosphere. Keep them minimal — `position:absolute, z-index:-1, pointer-events:none`, opacity 0.05–0.12. Do NOT add grid lines, crop marks, dot patterns, or any strong geometric overlays. The decoration should be barely noticeable — if it draws attention, it's too much.
 **Custom cursor:** CSS `cursor: url(...)` — custom cursor image on interactive elements. Applied to: `.cursor-play`.
