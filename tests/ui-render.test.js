@@ -32,11 +32,14 @@ const sparse = model.buildDesignModel(fixture('sparse'));
 // One entry per screen/state pair the spec describes (§4).
 // An icon-sheet style image (§4.6). A 1×1 PNG stands in for the bytes: the
 // snapshot pins the markup, not the picture.
-const IMAGE = { name: 'icon-set.png', type: 'image/png', size: 1234,
+const IMAGE = { name: 'icon-set.png', type: 'image/png', size: 1234, label: 'Icon set · 2 Sep 2026',
   dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' };
-const imageModel = model.buildModelFromStyleProfile(
-  JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'image-profile-icons.json'), 'utf8')),
-  { name: IMAGE.name });
+const imageProfile = name => model.parseStyleProfile(
+  fs.readFileSync(path.join(__dirname, 'fixtures', name + '.json'), 'utf8'));
+const imageModel = model.buildModelFromStyleProfile(imageProfile('image-profile-icons'), { name: IMAGE.label });
+// The glass card: dark gradient, translucent card, blue glow, one chevron.
+const GLASS = Object.assign({}, IMAGE, { name: 'glass-card.png', label: 'Glass card' });
+const glassModel = model.buildModelFromStyleProfile(imageProfile('image-profile-glass-card'), { name: GLASS.label });
 
 const STATES = {
   'home-page':        () => V.homeView({ mode: 'page', recent: [], context: 'none',
@@ -76,6 +79,9 @@ const STATES = {
   'image-type':       () => V.imageTypeView(imageModel),
   'image-components': () => V.imageComponentsView(imageModel),
   'image-motion':     () => V.imageMotionView(imageModel),
+  'image-overview-glass':   () => V.imageOverviewView(glassModel, { output: 'design-md', image: GLASS,
+                             aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5.1', meta: '10 sections · 2.6k chars' }),
+  'image-components-glass': () => V.imageComponentsView(glassModel),
 };
 
 // Pretty-print so a snapshot diff is readable line by line rather than one

@@ -154,6 +154,117 @@ test('every image screen marks its values as estimates; Motion explains itself',
   assert.ok(!/class="vd-kv"/.test(motion), 'Motion must show no values for an image');
 });
 
+// ── 3b. PROMPT 11b: what defines the image ────────────────────────────────
+
+const GLASS_RAW = fs.readFileSync(path.join(__dirname, 'fixtures', 'image-profile-glass-card.json'), 'utf8');
+const glassProfile = () => M.parseStyleProfile(GLASS_RAW);
+const glassModel = () => M.buildModelFromStyleProfile(glassProfile(), { name: 'Glass card' });
+
+test('parser: effects, container, hierarchy and evidence come through; icons with one chevron are insufficient', () => {
+  const p = glassProfile();
+  assert.deepEqual(p.effects.map(e => e.type), ['glass', 'glow', 'gradient']);
+  assert.equal(p.effects[1].colour, '#3b82f6');
+  assert.equal(p.effects[1].strength, 'strong');
+  assert.deepEqual(p.container, { shape: 'rounded rectangle', radiusEstimate: 'large ≈ 24px, relative to the card',
+                                  surface: 'translucent', border: 'hairline' });
+  assert.equal(p.hierarchy.length, 3);
+  assert.equal(p.hierarchy[0], 'oversized numeral');
+  assert.equal(p.evidence.effects, 'strong');
+  // The fixture rates iconography "weak", but there is one icon. ≥3 or nothing.
+  assert.equal(p.iconography.count, 1);
+  assert.equal(p.evidence.iconography, 'insufficient');
+});
+
+test('parser: description fields get 240 chars cut at a sentence, never mid-word; other strings keep 80', () => {
+  const p = glassProfile();
+  const raw = JSON.parse(GLASS_RAW).illustration;
+  assert.ok(raw.length > 240, 'fixture description must exceed the limit to test the cut');
+  assert.ok(p.illustration.length <= 240);
+  assert.match(p.illustration, /[.!?…]$/, 'cut must end at a sentence or an ellipsis');
+  // Every word in the cut is a whole word of the original.
+  const words = new Set(raw.split(/\s+/));
+  p.illustration.replace(/…$/, '').split(/\s+/).forEach(w => assert.ok(words.has(w), `truncated word: ${w}`));
+  // No-sentence text falls back to a word boundary plus an ellipsis.
+  const run = 'word '.repeat(80).trim();
+  const cut = M.descriptionCut(run);
+  assert.ok(cut.length <= 241 && /word…$/.test(cut));
+  // The 80-char guard is unchanged for a non-description field.
+  const long = M.parseStyleProfile(JSON.stringify(Object.assign(JSON.parse(GLASS_RAW), { shape: 'x'.repeat(200) })));
+  assert.equal(long.shape.length, 80);
+});
+
+test('colour roles: only the fixed seven, extras dropped, never numbered', () => {
+  const m = glassModel();
+  const allowed = new Set(M.IMAGE_ROLES);
+  m.colorRoles.forEach(r => assert.ok(allowed.has(r), `unexpected role ${r}`));
+  assert.ok(!m.colorRoles.some(r => /\d/.test(r)), 'a numbered role slipped through');
+  // The fixture's "accent-2" entry (#1d4ed8) had no free role and is gone;
+  // its "highlight" (#5b6280) fitted the free text-muted slot instead.
+  assert.ok(m.colorRoles.length <= 7);
+  assert.ok(!Object.values(m.colors).includes('#1d4ed8'), 'a second accent was kept');
+  assert.equal(m.colors['text-muted'], '#5b6280');
+  assert.deepEqual(M.IMAGE_ROLES, ['background', 'surface', 'text-primary', 'text-secondary', 'text-muted', 'accent', 'border']);
+});
+
+test('model: insufficient evidence yields no guessed value', () => {
+  const m = glassModel();
+  assert.equal(m.evidence.iconography, 'insufficient');
+  assert.equal(m.iconography.style, null);
+  assert.equal(m.iconography.weight, null);
+  // A profile without the new fields (pre-11b history) is insufficient for them, not empty-but-fine.
+  const old = M.buildModelFromStyleProfile(M.parseStyleProfile(JSON.stringify(PROFILE)), { name: 'old' });
+  assert.equal(old.evidence.effects, 'insufficient');
+  assert.equal(old.evidence.container, 'insufficient');
+  assert.equal(old.evidence.hierarchy, 'insufficient');
+  assert.equal(old.evidence.iconography, 'insufficient', 'no icon count → insufficient, retroactively');
+});
+
+test('rendering: Snapshot has Effects; Comps shows Container, Effects, Hierarchy before icons; icons say not enough evidence', () => {
+  const m = glassModel();
+  const snap = V.imageSnapshotRows(m);
+  const labels = snap.map(r => r.label);
+  assert.ok(labels.includes('Effects'), 'no Effects row');
+  assert.match(snap.find(r => r.label === 'Effects').value, /glass · the card surface \(medium\), glow · card bottom edge \(strong\)/);
+  assert.equal(snap.find(r => r.label === 'Iconography').value, U.COPY.insufficient);
+  assert.equal(U.COPY.insufficient, 'not enough evidence in this image');
+
+  const comps = V.imageComponentsView(m);
+  const order = ['>Container<', '>Effects<', '>Hierarchy<', '>Iconography<'].map(t => comps.indexOf(t));
+  assert.ok(order.every(i => i >= 0), 'a section is missing: ' + order);
+  assert.deepEqual(order, [...order].sort((a, b) => a - b), 'sections out of order');
+  assert.match(comps, /Radius<\/span><span[^>]*>large ≈ 24px, relative to the card/);
+  assert.match(comps, /Surface<\/span><span[^>]*>translucent/);
+  assert.match(comps, /glow · card bottom edge/);
+  assert.match(comps, /vd-kv__label">1<\/span><span[^>]*>oversized numeral/);
+  assert.match(comps, new RegExp('Icons</span><span[^>]*>' + U.COPY.insufficient));
+  assert.ok(!/Icon weight/.test(comps), 'a guessed icon value rendered under insufficient evidence');
+  // No word was cut: every rendered description ends cleanly.
+  assert.ok(!/\w-<\/span>/.test(comps));
+});
+
+test('DESIGN.md: title from the label, ## Effects, hierarchy in Visual direction, icons not enough evidence', () => {
+  const md = D.buildDesignMd({}, { model: glassModel(), version: '3.0.2' });
+  assert.match(md, /^# Glass card Style Direction$/m);
+  assert.match(md, /^name: "Glass card Style Direction"$/m);
+  assert.match(md, /^## Effects$/m);
+  assert.match(md, /\| glow \| card bottom edge \| `#3b82f6` \| strong \|/);
+  const vd = md.slice(md.indexOf('## Visual direction'), md.indexOf('## Effects'));
+  assert.match(vd, /1\. oversized numeral\n2\. single accent glow under the card\n3\. one line chart/);
+  assert.match(md, /\| Icons \| not enough evidence in this image \|/);
+  assert.match(md, /\| Container radius \| large ≈ 24px, relative to the card \|/);
+  assert.ok(!/\| Icon weight/.test(md));
+  // Effects also carries the estimated note like every section.
+  const fx = md.slice(md.indexOf('## Effects'), md.indexOf('## Color usage'));
+  assert.match(fx, /Estimated from image/);
+});
+
+test('filename: DESIGN-<slug>.md from the label, never from a URL', () => {
+  const DL = require(path.join(ROOT, 'lib', 'download.js'));
+  assert.equal(DL.imageDesignMdFilename('Image style · 2 Sep 2026'), 'DESIGN-image-style-2-sep-2026.md');
+  assert.equal(DL.imageDesignMdFilename('Glass card'), 'DESIGN-glass-card.md');
+  assert.equal(DL.imageDesignMdFilename(''), 'DESIGN-image.md');
+});
+
 // ── 4. the panel: failure path, history, settings help ────────────────────
 
 const LIBS = [
@@ -203,6 +314,13 @@ async function boot(t, o) {
   win.console = { warn: (...a) => logged.push(['warn', a.join(' ')]), log: (...a) => logged.push(['log', a.join(' ')]),
                   error: (...a) => logged.push(['error', a.join(' ')]), debug: (...a) => logged.push(['debug', a.join(' ')]) };
   win.URL.createObjectURL = () => 'blob:stub'; win.URL.revokeObjectURL = () => {};
+  win.__names = [];
+  const realCreate = win.document.createElement.bind(win.document);
+  win.document.createElement = tag => {
+    const el = realCreate(tag);
+    if (String(tag).toLowerCase() === 'a') el.click = () => win.__names.push(el.download);
+    return el;
+  };
   win.navigator.clipboard = { writeText: () => Promise.resolve() };
   const fetches = [];
   win.fetch = (url) => { fetches.push(String(url)); return Promise.reject(new Error('offline in tests')); };
@@ -287,6 +405,32 @@ test('good reply: estimated model, image history entry stays local with its byte
   // Export: a Skill choice cannot be set in Image mode.
   p.run('setTab("overview"); setOutput("skill")');
   assert.notEqual(p.run('state.output'), 'skill');
+});
+
+test('label: asked after choosing, defaults to "Image style · <date>", becomes title and filename', async t => {
+  const p = await boot(t, { storage: WITH_KEY });
+  p.ctx.__img = Object.assign({}, IMAGE, { label: 'Image style · 2 Sep 2026' });
+  p.ctx.__reply = GLASS_RAW;
+  p.run('state.image = __img; renderPanel();');
+  const input = p.$('#vdImageLabel');
+  assert.ok(input, 'no label input after choosing an image');
+  assert.equal(input.value, 'Image style · 2 Sep 2026');
+  assert.match(p.run('defaultImageLabel(0)'), /^Image style · 1 Jan 1970$/);
+  // The user renames it before analysing.
+  input.value = 'Glass card';
+  p.run('self.analyzeImageWithAI = async () => __reply; self.pickVisionModel = () => "claude-fable-5-1";');
+  await p.run('analyzeImage()');
+  assert.equal(p.run('state.image.label'), 'Glass card');
+  assert.equal(p.run('state.model.source.name'), 'Glass card');
+  assert.match(p.run('buildDesignMdDoc()'), /^# Glass card Style Direction$/m);
+  // Download names the file by the label — the active tab is rig.ai in this
+  // harness and must not appear.
+  p.run('state.output = "design-md"; downloadDesignMd()');
+  const names = p.run('__names') || [];
+  assert.deepEqual(names, ['DESIGN-glass-card.md']);
+  const entry = Object.values(p.win.chrome._data.promptHistory)[0];
+  assert.equal(entry.domain, 'Glass card');
+  assert.ok(p.text().includes('Glass card'));
 });
 
 test('switching back to Website restores Page/Element and the three outputs', async t => {

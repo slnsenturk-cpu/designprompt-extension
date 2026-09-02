@@ -1,0 +1,38 @@
+{
+  "palette": [
+    { "hex": "#0B1020", "role": "background" },
+    { "hex": "#161C33", "role": "surface" },
+    { "hex": "#F5F7FF", "role": "text-primary" },
+    { "hex": "#A9B1CC", "role": "text-secondary" },
+    { "hex": "#3B82F6", "role": "accent" },
+    { "hex": "#2A3352", "role": "border" },
+    { "hex": "#1D4ED8", "role": "accent-2" },
+    { "hex": "#5B6280", "role": "highlight" }
+  ],
+  "typography": {
+    "classification": "geometric sans",
+    "weightCharacter": "bold numerals, light labels",
+    "families": []
+  },
+  "shape": "soft",
+  "iconography": { "count": 1, "style": "stroke", "weight": "1.5px", "corners": "rounded", "grid": "24px" },
+  "illustration": "A single line chart is the only illustration on the card. It sits under the numeral and is drawn in the accent blue with a soft fill fading to transparent, so it reads as part of the glow rather than as a separate graphic, and nothing else on the surface competes with it for attention at all.",
+  "density": "airy",
+  "mood": ["premium", "calm", "focused"],
+  "dominantBackground": "#0B1020",
+  "effects": [
+    { "type": "glass", "where": "the card surface", "colour": "#161C33", "strength": "medium",
+      "description": "The card is translucent over the background gradient, with a faint inner highlight along its top edge." },
+    { "type": "glow", "where": "card bottom edge", "colour": "#3B82F6", "strength": "strong",
+      "description": "A blue glow bleeds out from under the bottom of the card and is the brightest thing in the image." },
+    { "type": "gradient", "where": "page background", "colour": "#0B1020", "strength": "subtle",
+      "description": "Dark navy to near-black, top to bottom." }
+  ],
+  "container": { "shape": "rounded rectangle", "radius_estimate": "large ≈ 24px, relative to the card", "surface": "translucent", "border": "hairline" },
+  "hierarchy": ["oversized numeral", "single accent glow under the card", "one line chart as the only illustration"],
+  "evidence": {
+    "palette": "strong", "typography": "weak", "shape": "strong", "iconography": "weak",
+    "illustration": "strong", "density": "strong", "mood": "weak",
+    "effects": "strong", "container": "strong", "hierarchy": "strong"
+  }
+}

@@ -317,7 +317,11 @@ test('unnamed palette entries get roles, and duplicates never collide', () => {
   assert.equal(m.colors.background, '#ffffff');
   const roles = m.colorRoles;
   assert.equal(new Set(roles).size, roles.length, 'a role was assigned twice');
-  assert.equal(roles.length, 8, 'every palette entry must get a role');
+  // PROMPT 11b: roles come from the fixed seven and are never numbered. Eight
+  // entries cannot all fit; the extras are dropped rather than named accent-2.
+  roles.forEach(r => assert.ok(model.IMAGE_ROLES.includes(r), `unexpected role ${r}`));
+  assert.ok(!roles.some(r => /\d/.test(r)), 'a numbered role was assigned');
+  assert.ok(roles.length <= 7 && roles.length >= 5, `unexpected role count ${roles.length}`);
 });
 
 test('a family is named only when the image was legible; suggestions are marked', () => {

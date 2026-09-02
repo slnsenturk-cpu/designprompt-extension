@@ -1677,6 +1677,10 @@ body[data-context="popup"] #downloadSkillBtn .btn-label::after {
 
 .vd-field { display: flex; align-items: center; gap: var(--vd-space-2); min-height: var(--vd-h-control); }
 .vd-field__label { font: var(--vd-body); color: var(--vd-text-secondary); flex: 0 0 72px; }
+/* A stacked field: label above, input full width, help below (§4.6 image label). */
+.vd-field--stacked { flex-direction: column; align-items: stretch; gap: var(--vd-space-1); margin-top: var(--vd-space-3); }
+.vd-field--stacked .vd-field__label { flex: none; }
+.vd-field__help { font: var(--vd-caption); color: var(--vd-text-secondary); }
 .vd-field__value { font: var(--vd-value); color: var(--vd-text-primary); flex: 1; }
 .vd-input {
   flex: 1; min-width: 0; height: var(--vd-h-control); padding: 0 var(--vd-space-2);
