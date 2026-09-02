@@ -265,6 +265,80 @@ test('filename: DESIGN-<slug>.md from the label, never from a URL', () => {
   assert.equal(DL.imageDesignMdFilename(''), 'DESIGN-image.md');
 });
 
+// ── 3c. PROMPT 11c: image kind and evidence-gated roles ───────────────────
+
+const GRID_RAW = fs.readFileSync(path.join(__dirname, 'fixtures', 'image-profile-grid-pattern.json'), 'utf8');
+const gridModel = () => M.buildModelFromStyleProfile(M.parseStyleProfile(GRID_RAW), { name: 'Grid pattern' });
+
+test('pattern kind: no text roles, no type direction, no font suggestions, no container', () => {
+  const m = gridModel();
+  assert.equal(m.imageKind, 'pattern');
+  assert.equal(m.hasInterface, false);
+  assert.equal(m.hasText, false);
+  m.colorRoles.forEach(r => assert.ok(!/^text-/.test(r), `text role ${r} in an image with no text`));
+  // The fixture even names a "text-muted" entry; without visible text it is refused.
+  assert.ok(!m.colors['text-muted']);
+  assert.equal(m.typography.direction, null);
+  assert.deepEqual(m.fonts, [], 'font suggestions need a type direction');
+  assert.equal(m.container, null);
+  assert.deepEqual(m.effects.map(e => e.type), ['pattern', 'other']);
+  assert.equal(m.evidence.text, 'insufficient');
+  assert.equal(m.evidence.typography, 'insufficient');
+});
+
+test('kinds and effect types are the spec enums; an unknown kind reads as mixed', () => {
+  assert.deepEqual(M.IMAGE_KINDS, ['ui-screenshot', 'illustration', 'pattern', 'photo', 'typography', 'mixed']);
+  assert.deepEqual(M.NO_INTERFACE_KINDS, ['pattern', 'illustration', 'photo']);
+  assert.ok(M.EFFECT_TYPES.includes('pattern') && M.EFFECT_TYPES.includes('other'));
+  const p = M.parseStyleProfile(JSON.stringify(Object.assign(JSON.parse(GRID_RAW), { image_kind: 'hologram' })));
+  assert.equal(p.imageKind, 'mixed');
+  // The prompt asks for the kind, the text evidence, and prefers pattern/other.
+  assert.match(AI.IMAGE_PROFILE_PROMPT, /"image_kind": "ui-screenshot \| illustration \| pattern \| photo \| typography \| mixed"/);
+  assert.match(AI.IMAGE_PROFILE_PROMPT, /"text": "strong \| weak \| insufficient/);
+  assert.match(AI.IMAGE_PROFILE_PROMPT, /Prefer these over forcing "gradient" or "grain"/);
+});
+
+test('ui-screenshot / typography / mixed keep typography, fonts and container', () => {
+  const glass = M.buildModelFromStyleProfile(M.parseStyleProfile(GLASS_RAW), { name: 'Glass card' });
+  assert.equal(glass.imageKind, 'mixed', 'no kind in a pre-11c profile reads as mixed');
+  assert.equal(glass.hasInterface, true);
+  assert.ok(glass.colorRoles.includes('text-primary'));
+  assert.ok(glass.typography.direction && glass.typography.direction.classification);
+  assert.ok(glass.fonts.length > 0);
+  assert.ok(glass.container);
+  const md = D.buildDesignMd({}, { model: glass, version: '3.0.2' });
+  assert.match(md, /^## Typography$/m); assert.match(md, /^## Fonts$/m); assert.match(md, /\| Container radius \|/);
+  assert.ok(!md.includes('This image contains no interface'));
+});
+
+test('pattern kind renders: Type tab says no interface, Components has no Container, DESIGN.md omits the blocks', () => {
+  const m = gridModel();
+  const type = V.imageTypeView(m);
+  assert.ok(type.includes(U.esc(U.COPY.noInterface)));
+  assert.equal(U.COPY.noInterface, 'This image contains no interface; the direction covers palette, motif and texture only.');
+  assert.ok(!/class="vd-kv"/.test(type), 'no type rows for a pattern');
+  const comps = V.imageComponentsView(m);
+  assert.ok(!/>Container</.test(comps), 'Container block rendered for a pattern');
+  assert.match(comps, /pattern · whole image/);
+  assert.match(comps, /other · background/);
+  const snap = V.imageSnapshotRows(m);
+  assert.ok(!snap.some(r => r.label === 'Type direction'));
+  assert.equal(snap.find(r => r.label === 'Kind').value, 'pattern');
+
+  const md = D.buildDesignMd({}, { model: m, version: '3.0.2' });
+  const headings = md.match(/^## .*$/gm) || [];
+  ['## Typography', '## Fonts'].forEach(h => assert.ok(!headings.includes(h), `${h} present for a pattern`));
+  assert.ok(!/\| Container/.test(md), 'a container row in a pattern document');
+  assert.match(md, /^image-kind: pattern$/m);
+  const vd = md.slice(md.indexOf('## Visual direction'), md.indexOf('## Effects'));
+  assert.match(vd, /Estimated from image[^]*This image contains no interface; the direction covers palette, motif and texture only\./);
+  assert.match(md, /\| pattern \| whole image \| `#f2f2f2` \| strong \|/);
+  // Accessibility: no text pairs to grade — only what exists is graded.
+  const a11y = md.slice(md.indexOf('## Accessibility'));
+  assert.ok(!/text-primary/.test(a11y));
+  assert.ok(!/text-/.test(md.slice(md.indexOf('## Color usage'), md.indexOf('## Components'))), 'a text role in Color usage');
+});
+
 // ── 4. the panel: failure path, history, settings help ────────────────────
 
 const LIBS = [

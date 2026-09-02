@@ -1,0 +1,30 @@
+{
+  "image_kind": "pattern",
+  "palette": [
+    { "hex": "#0B0B0D", "role": "background" },
+    { "hex": "#F2F2F2", "role": "accent" },
+    { "hex": "#1E1E22", "role": "border" },
+    { "hex": "#141416", "role": "surface" },
+    { "hex": "#8A8A8E", "role": "text-muted" }
+  ],
+  "typography": { "classification": null, "weightCharacter": null, "families": [] },
+  "shape": "soft",
+  "iconography": { "count": 0 },
+  "illustration": "A monochrome pixel-like motif: rounded black squares stepping diagonally across a faint grid, with one inverted block where white circles sit on a white field. No figure, no text — the grid and the stepped silhouette are the whole image.",
+  "density": "airy",
+  "mood": ["stark", "systematic", "quiet", "graphic"],
+  "dominantBackground": "#0B0B0D",
+  "effects": [
+    { "type": "pattern", "where": "whole image", "colour": "#F2F2F2", "strength": "strong",
+      "description": "Rounded squares on a regular grid, arranged as a diagonal cluster; one block inverts to white circles on white." },
+    { "type": "other", "where": "background", "colour": "#1E1E22", "strength": "subtle",
+      "description": "A hairline grid over the whole canvas, one cell per module, barely lighter than the ground." }
+  ],
+  "container": null,
+  "hierarchy": ["diagonal cluster of rounded squares", "one inverted white block of circles", "faint background grid"],
+  "evidence": {
+    "text": "insufficient", "palette": "strong", "typography": "insufficient", "shape": "strong",
+    "iconography": "insufficient", "illustration": "strong", "density": "strong", "mood": "weak",
+    "effects": "strong", "container": "insufficient", "hierarchy": "strong"
+  }
+}
