@@ -231,3 +231,107 @@ test('the derivation core is exposed for the renderer to consume', () => {
   ['deriveVariant', 'keyframeEffect', 'componentForSelector'].forEach(k =>
     assert.equal(typeof model.states[k], 'function', `states.${k} missing`));
 });
+
+// ── image source (§4.6) ───────────────────────────────────────────────────
+//
+// A website model is measured; an image model is a vision model's guess.
+// The renderers tell them apart by ONE field, so that field has to be right
+// on every model, and every value an image model carries has to say what it
+// is.
+
+const GOOD_PROFILE = JSON.stringify({
+  palette: [
+    { hex: '#F4EFE6', role: 'background' }, { hex: '#1C1B1A' },
+    { hex: '#E8553B', role: 'accent' }, { hex: '#8A8578' }, { hex: '#2B7A78' },
+  ],
+  typography: { classification: 'geometric sans', weightCharacter: 'medium, tight' },
+  shape: 'soft',
+  iconography: { style: 'stroke', weight: '1.5px', corners: 'rounded', grid: '24px' },
+  illustration: 'flat, minimal',
+  density: 'airy',
+  mood: ['calm', 'warm', 'crafted'],
+  dominantBackground: '#F4EFE6',
+});
+
+test('the website model says it is measured; the image model says it is estimated', () => {
+  const site = model.buildDesignModel(fixture('rig-ai'));
+  assert.equal(site.sourceType, 'website');
+  assert.equal(site.confidence, 'measured');
+
+  const img = model.buildModelFromStyleProfile(model.parseStyleProfile(GOOD_PROFILE));
+  assert.equal(img.sourceType, 'image');
+  assert.equal(img.confidence, 'estimated');
+});
+
+test('every value on an image model is flagged estimated', () => {
+  const img = model.buildModelFromStyleProfile(model.parseStyleProfile(GOOD_PROFILE));
+  // Every derived container carries the flag — not just the root.
+  assert.equal(img.theme.confidence, 'estimated');
+  assert.equal(img.colors._meta.confidence, 'estimated');
+  assert.equal(img.typography.confidence, 'estimated');
+  assert.equal(img.typography.direction.confidence, 'estimated');
+  assert.equal(img.shape.confidence, 'estimated');
+  assert.equal(img.iconography.confidence, 'estimated');
+  assert.equal(img.illustration.confidence, 'estimated');
+  assert.equal(img.density.confidence, 'estimated');
+  assert.equal(img.mood.confidence, 'estimated');
+  img.fonts.forEach(f => assert.equal(f.confidence, 'estimated', `${f.family} is unflagged`));
+
+  // And nothing that cannot come from a static image is present as a value.
+  assert.equal(img.spacing, null, 'spacing cannot be estimated from an image');
+  assert.equal(img.shadows, null);
+  assert.equal(img.breakpoints, null);
+  assert.equal(img.heroSurface, null);
+  assert.deepEqual(img.tokens, {}, 'an image model has no raw capture');
+  ['animations', 'ambientAnimations', 'hoverStates', 'transitions', 'buttonStyles']
+    .forEach(k => assert.ok(!(k in img.tokens), `${k} leaked into an image model`));
+});
+
+test('the parser is defensive: fences, prose, garbage, and too few colours', () => {
+  const wrapped = 'Sure! Here is the JSON:\n```json\n' + GOOD_PROFILE + '\n```\nLet me know.';
+  const p = model.parseStyleProfile(wrapped);
+  assert.ok(p, 'a fenced, prose-wrapped payload must still parse');
+  assert.equal(p.palette.length, 5);
+  assert.equal(p.palette[0].role, 'background');
+
+  assert.equal(model.parseStyleProfile('not json'), null);
+  assert.equal(model.parseStyleProfile(''), null);
+  assert.equal(model.parseStyleProfile(null), null);
+  assert.equal(model.parseStyleProfile('[1,2,3]'), null, 'an array is not a profile');
+  assert.equal(model.parseStyleProfile(JSON.stringify({ palette: ['#000', '#fff'] })), null,
+    'fewer than three colours is not a palette');
+  assert.equal(model.parseStyleProfile(JSON.stringify({ palette: ['red', 'blue', 'green'] })), null,
+    'non-hex entries are dropped, and then there are too few');
+  // A malformed role is dropped, never rendered.
+  const bad = model.parseStyleProfile(JSON.stringify({
+    palette: [{ hex: '#111111', role: '<script>' }, '#222222', '#333333'] }));
+  assert.equal(bad.palette[0].role, null);
+});
+
+test('unnamed palette entries get roles, and duplicates never collide', () => {
+  const p = model.parseStyleProfile(JSON.stringify({
+    palette: ['#ffffff', '#111111', '#222222', '#ff0000', '#00ff00', '#0000ff', '#dddddd', '#cccccc'],
+    dominantBackground: '#ffffff',
+  }));
+  const m = model.buildModelFromStyleProfile(p);
+  assert.equal(m.colors.background, '#ffffff');
+  const roles = m.colorRoles;
+  assert.equal(new Set(roles).size, roles.length, 'a role was assigned twice');
+  assert.equal(roles.length, 8, 'every palette entry must get a role');
+});
+
+test('a family is named only when the image was legible; suggestions are marked', () => {
+  const noText = model.buildModelFromStyleProfile(model.parseStyleProfile(GOOD_PROFILE));
+  assert.deepEqual(noText.typography.stacks, {}, 'no family may be asserted without legible text');
+  assert.ok(noText.fonts.length >= 2, 'suggestions must still be offered');
+  noText.fonts.forEach(f => {
+    assert.equal(f.suggested, true);
+    assert.equal(f.openlyLicensed, true, 'a suggestion must be an open font');
+  });
+
+  const withText = model.buildModelFromStyleProfile(model.parseStyleProfile(JSON.stringify(
+    Object.assign(JSON.parse(GOOD_PROFILE), { typography: { classification: 'mono', families: ['JetBrains Mono'] } }))));
+  assert.equal(withText.typography.stacks.body, 'JetBrains Mono');
+  const read = withText.fonts.find(f => f.family === 'JetBrains Mono' && !f.suggested);
+  assert.ok(read, 'a legibly-read family must appear as read, not as a suggestion');
+});
