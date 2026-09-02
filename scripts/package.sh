@@ -86,10 +86,10 @@ if grep -rqE "sk-ant-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{32,}|AIza[A-Za-z0-9_-]{30
   staged_fail=1
 else echo "  ✓ no key-shaped strings"; fi
 
-# Comments do not belong in the manifest. Chrome tolerates unknown keys but
-# reports them as "Unrecognized manifest key" warnings on the extensions page,
-# and the store reviewer sees the same. Any key beginning with "_" is a
-# comment by convention, so its presence fails the build.
+# Comments do not belong in the manifest. Chrome ignores keys that begin with
+# "_" silently (they are its reserved comment prefix), so nothing warns —
+# which is exactly why a check is needed: a comment key ships unnoticed and
+# the store reviewer reads it. Its presence fails the build.
 underscored=$(node -p "Object.keys(require('./dist/stage/manifest.json')).filter(k => k.startsWith('_')).join(', ')")
 if [ -n "$underscored" ]; then
   echo "  ✗ manifest keys starting with _ (comments) are not allowed: $underscored"; staged_fail=1

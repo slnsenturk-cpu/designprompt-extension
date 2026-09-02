@@ -228,8 +228,11 @@ measurement — none is a bug in the renderers.
 access is asked for per site at the moment of use, from
 `optional_host_permissions` — so installing does not warn about reading data
 on all websites. (This sentence used to live in the manifest as a
-`_comment_host_permissions` key; the manifest carries no comments now, and
-`scripts/package.sh` refuses to build if any key starts with `_`.)
+`_comment_host_permissions` key. Chrome ignores `_`-prefixed keys without
+warning — verified by loading both manifests on 2026-09-02: zero manifest
+errors or install warnings either way — so nothing would ever have flagged it.
+The manifest carries no comments now, and `scripts/package.sh` refuses to
+build if any key starts with `_`.)
 
 ### Manifest permissions
 
