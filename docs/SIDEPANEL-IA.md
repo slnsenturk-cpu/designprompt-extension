@@ -35,8 +35,8 @@ Panelin gösterdiği her şey bu beş nesneden biridir. UI, nesneleri değil, ne
 
 | Nesne | Alanlar (gösterilen) | Kaynak |
 |---|---|---|
-| **Capture** | domain, favicon, url, capturedAt, scope (page/element), status | content.js |
-| **Design model** | theme, styleLine, colors[role], fonts[role+availability], typeScale, spacing, shape, shadows, motion{keyframes, ambient}, states, anatomy, a11y, counts | lib/design-model.js |
+| **Capture** | sourceType (website/image), domain veya görsel küçük resmi, url, capturedAt, scope (page/element; yalnız website), status | content.js / vision çağrısı |
+| **Design model** | theme, styleLine, colors[role], fonts[role+availability], typeScale, spacing, shape, shadows, motion{keyframes, ambient}, states, anatomy, a11y, counts; **confidence: measured / estimated** (kaynak türüne göre) | lib/design-model.js |
 | **Output** | kind (prompt / design-md / skill), size, sections, focus (prompt only), target (prompt only) | prompt-builder / design-md-builder / skill-builder |
 | **Settings** | account, aiEnhancement{provider, model, keyPresent}, defaults{output, target}, developer | chrome.storage |
 | **History item** | Capture + Design model özeti + outputs | storage / cloud |
@@ -49,8 +49,8 @@ Kural: bir alan modelde yoksa UI'da da yoktur. UI için yeni veri uydurulmaz.
 
 ```
 Header (sabit, 60px, iki satır):
-   satır 1:  [logo 18px]                                   [avatar | Sign in]
-   satır 2:  [domain · durum]                          (tek satır, ellipsis)
+   satır 1:  [wordmark 18px]                                   [avatar | Sign in]
+   satır 2:  [domain 13px · durum caption]                      (ellipsis, tek satır)
 
 İçerik (kayar):         seçili sekmenin içeriği
 
@@ -59,9 +59,7 @@ Alt sekme çubuğu (sticky, 56px, ikon + kısa etiket):
 ```
 
 - **Tek gezinme düzeyi: alt çubuk.** Mobil uygulama sekmesi gibi sticky; içerik kendi içinde kayar. Header'da gezinme yok.
-- **Header ölçüleri:** toplam 60px, iki satır. Satır 1: wordmark 18px yüksekliğinde, solda; hesap kontrolü sağda; ikisinin merkez çizgisi aynı. Wordmark asset'i (`icons/wordmark.png`) **kırpılmış** olmalı — saydam kenar boşluğu olan bir asset'te `height` çoğu boş bir kutuyu ölçer ve marka içerik kenarından kayar. Wordmark'ın sol kenarı, altındaki domain ve panel içeriğiyle **aynı x**'te başlar (16px). Satır 2: domain 13px `body` + durum `caption`, **tek satır**, taşarsa ellipsis. Header'ın üstünde/altında başka satır yoktur.
-- **Odak halkası:** her kontrolde (düğme, select, segmented, çip, sekme, swatch, link) yalnız `:focus-visible` ile 2px accent halka, 2px offset. Fare ile kapatılan bir select halka göstermez. `:focus` üzerinde `outline: none` yazılmaz — halka yalnızca eklenir, hiçbir yerde bastırılmaz.
-- **Model dürtmesi yaşa göredir, liste sırasına göre değil.** Seçili model sağlayıcının varsayılanından *daha eski* olduğunda görünür; canlı listedeki oluşturma tarihi varsa o, yoksa küratörlü listenin sırası kullanılır. En yeni model için dürtme asla çıkmaz.
+- **Header ölçüleri:** iki satır, toplam 60px. Satır 1: wordmark 18px yüksekliğinde (asset saydam kenarsız, `icons/wordmark.png`), sağda hesap kontrolü. Satır 2: domain 13px `body` + durum `caption`, tek satır, uzun domain ellipsis. Wordmark ile domain aynı satırda yer için yarışmaz.
 - **Giriş durumu header'ın sağında görünür:** giriş yapılmışsa 24px avatar (yoksa ilk harf); yapılmamışsa 28px ghost düğme **Sign in**. İkisi de Settings → Account'a gider (Sign in düğmesi doğrudan giriş akışını başlatır). Giriş isteyen her mesaj bir düğmedir, metin değil.
 - **Anonim sınır: ayda 5 analiz; ücretsiz kayıt = sınırsız.** Kalan hak, giriş yapılmamışken Analyze düğmesinin altında `caption` olarak görünür: "3 of 5 free analyses this month · Sign in for unlimited". Sınıra gelince Analyze düğmesinin yerini birincil **Sign in for unlimited** düğmesi alır, üstünde tek cümle: "You've used your 5 free analyses this month." "Try again" gibi bir düğme yoktur. Giriş yapılmışsa sayaç hiç görünmez.
 - **Alt çubuk ölçüleri:** 6 sekme, her biri ikon (20px) + **etiket** (`label`, 11px); ikon-yalnız çubuk kabul edilmez. Aktif sekme: accent renk + etiket 600; pasif: `text-muted`; analiz yokken kategori sekmeleri %40 opaklık. Dokunma alanı en az 48px yükseklik.
@@ -222,7 +220,7 @@ Developer   (yalnız unpacked)
   Copy RAW capture
 
 About
-  VibeDesign 3.0.1 · Privacy · Support
+  VibeDesign 3.0.2 · Privacy · Support
 ```
 
 Kurallar: AI enhancement kapalıyken sağlayıcı/model/anahtar satırları gizlidir. "Paid. Get key →" gibi parçalı metinler yok; her bloğun altında tek tam cümle.
@@ -240,8 +238,44 @@ Settings'te son 3; "See all" tam listeyi sheet olarak açar: favicon · domain �
 | İzin gerekiyor | Notice: "VibeDesign needs permission to read rig.ai." + "Allow" (Prompt 6 akışı). |
 | Çevrimdışı / AI hatası | Sonuç yine gelir (kural motoru yereldir); Export meta satırında "AI enhancement skipped — offline". |
 | Aylık sınır (anonim) | Analyze düğmesi yerine birincil "Sign in for unlimited"; üstünde "You've used your 5 free analyses this month." Diğer her şey (son sonuç, sekmeler) çalışmaya devam eder. |
-| Oturum sunucuda reddedildi | Settings → Account: "Session expired — sign in again" + **Sign in** düğmesi. Worker aynı token'ı bir daha denemez; ölü token depodan silinir. "Already Used" ilk kez görülürse oturum korunur (yarış olabilir), aynı token ikinci kez reddedilirse silinir. |
 | Boş model (çok az veri) | Yalnızca model gerçekten seyrekse (ör. < 3 renk rolü ve hiç bileşen yok): Summary strip yerine tek satır "Very little design data on this page. Try a page with more UI." Sayfa henüz yüklenmediyse bu uyarı yerine "Page is still loading — try again" gösterilir; sayfa yüklenmeden analiz başlatılmaz. |
+
+### 4.6 İki kaynak türü: Website · Image
+
+İki kaynak, iki farklı iş: website analizi **ölçümdür** (DOM'dan okunur), imaj analizi **yorumdur** (vision modeli tahmin eder). Mimari bu farkı her katmanda gösterir; imaj çıktısı asla ölçüm gibi sunulmaz.
+
+**Kaynak seçici:** Overview içeriğinin en üstünde segmented control: **Website · Image**. (Alt çubuk gezinme içindir, kaynak seçimi değildir; alt çubuğa dokunulmaz.) Page/Element alt-modu yalnız Website'ta görünür.
+
+**Website modu** bugünkü akıştır; değişiklik yok.
+
+**Image modu, analiz öncesi:**
+
+```
+[ Website | Image ]                       (segmented)
+┌ Drop an image or click to choose ┐      (drop zone; png/jpg/webp, ≤8 MB)
+└──────────────────────────────────┘
+Analyze image                             (birincil; görsel seçilince aktif)
+Reads the visual language from a static
+image: palette, type direction, shape,
+iconography. Estimated, not measured.     (caption)
+```
+
+**Anahtar kapısı mimarinin parçasıdır:** Image modu AI enhancement gerektirir. Kapalıysa drop zone %40 soluk, üstünde Notice: "Image analysis needs AI enhancement. Your image goes only to your chosen AI provider." + **Turn on** düğmesi (Settings'e). Website modu anahtarsız çalışmaya devam eder; iki modun bu farkı caption'larda açıkça yazar.
+
+**Image modu, analiz sonrası — sekme başına içerik:**
+
+| Sekme | Website kaynağı | Image kaynağı |
+|---|---|---|
+| Overview | Sayılar (colors/fonts/comps/**keyframes**) · palet · Snapshot (Theme/Style/Type/Shape/**Motion**/Stack) · Export (Prompt · DESIGN.md · **Skill**) | Küçük resim + **"Estimated from image"** rozeti · sayılar (colors/type direction/**icon style**/mood) · palet · Snapshot (Theme/Style/Type direction/Shape/**Iconography**/Density) · Export (**Prompt · DESIGN.md**; Skill yok) |
+| Colors | Ölçülü roller + kontrast | Tahmini roller; her satırda `est.` işareti; kontrast tahmini değerlerden, "estimated" notuyla |
+| Type | Aileler + lisans + tam ölçek | Sınıflandırma ve ağırlık karakteri; aile iddiası yok (görselde okunur metin yoksa); önerilen açık fontlar "suggested" etiketiyle |
+| Comps | Ölçülü bileşenler + hover farkları | **Shape language + iconography + illustration/texture** profili (stroke/filled, köşe, grid hissi); tümü `est.` |
+| Motion | Keyframe/loop/state listeleri | Boş durum: "Motion can't be read from a static image. Analyze the live site to measure it." (çubuk öğesi sabit kalır; içerik durumu açıklar) |
+| Settings | değişmez | değişmez; AI enhancement açıklamasına "Required for image analysis." cümlesi eklenir |
+
+**DESIGN.md (image):** frontmatter'a `source-type: image` ve `confidence: estimated`; her bölümde "estimated from image" notu; Motion / Interaction states / Anatomy bölümleri **üretilmez**; Agent instructions: "This is a style direction inferred from an image, not a measured system; treat values as starting points."
+
+**History:** kayıtlar kaynak türüyle işaretlenir (favicon vs küçük resim); imaj yalnız yerelde saklanır, buluta gitmez (sağlayıcı API çağrısı hariç hiçbir yere yüklenmez).
 
 ---
 
@@ -351,7 +385,10 @@ Bileşen token'ı sadece gerekince: `--button-primary-bg: var(--accent)`. Ham he
 | Az veri | Very little design data on this page. Try a page with more UI. |
 | History boş | Your analyses will appear here. |
 | Soluk sekmeye dokunma | Analyze this page first. |
-| Oturum süresi doldu | Session expired — sign in again |
+| Image açıklama | Reads the visual language from a static image: palette, type direction, shape, iconography. Estimated, not measured. |
+| Image anahtar kapısı | Image analysis needs AI enhancement. Your image goes only to your chosen AI provider. |
+| Image rozeti | Estimated from image |
+| Motion (image) | Motion can't be read from a static image. Analyze the live site to measure it. |
 
 ---
 
