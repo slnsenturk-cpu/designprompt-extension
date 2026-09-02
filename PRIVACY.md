@@ -27,6 +27,7 @@ not read web pages through them.
 - API keys (Claude, Gemini, or OpenAI) — stored locally in your browser only
 - Design extraction cache (colors, fonts, prompts) — stored locally in your browser only
 - Usage counter (number of prompts generated this month) — stored locally in your browser only
+- Images you choose to analyze (Image mode) — held in your browser only, next to the result they produced; never uploaded to our servers
 
 **Signed-in use (optional free account):**
 
@@ -45,9 +46,16 @@ Your API keys are never part of that payload. They are held in
 `chrome.storage.local` and excluded from every sync path; a test in this
 repository fails if a key-shaped field ever reaches the cloud payload.
 
+Images are never part of it either. An image you analyze goes to exactly one
+place — the AI provider you chose, with your own key — and is otherwise kept
+only in `chrome.storage.local`. Image analyses are not synced to your account
+at all, because they have no web address to sync under; a second test in this
+repository fails if image data ever reaches a cloud payload.
+
 ## What we never collect
 
 - Your API keys (these stay in your browser)
+- Your images (these stay in your browser; they are sent only to the AI provider you chose, when you press Analyze image)
 - Page content of sites you visit (we read DOM structure and CSS styles for token extraction, but not article text, form inputs, or personal data on the page)
 - Your browsing history outside of the sites you explicitly analyze
 - Any data from sites you have not chosen to analyze
@@ -62,7 +70,7 @@ repository fails if a key-shaped field ever reaches the cloud payload.
 ## Third parties
 
 - **Supabase (via Lovable Cloud):** Our authentication and database provider. Your account data and analysis history are stored on Supabase's infrastructure. Supabase acts as a data processor on our behalf.
-- **AI providers (Anthropic, Google, OpenAI):** When you generate prompts, your extracted design tokens are sent to the AI provider you selected, using your own API key. We do not intermediate or log these requests. Data handling by the AI provider is subject to their own policies.
+- **AI providers (Anthropic, Google, OpenAI):** When you generate prompts, your extracted design tokens are sent to the AI provider you selected, using your own API key. In Image mode, the image you chose is sent to that same provider, and nowhere else. We do not intermediate or log these requests. Data handling by the AI provider is subject to their own policies.
 
 ## Payment
 

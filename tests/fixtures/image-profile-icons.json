@@ -1,0 +1,21 @@
+{
+  "palette": [
+    { "hex": "#FFFFFF", "role": "background" },
+    { "hex": "#1C1C1E", "role": "text-primary" },
+    { "hex": "#6B6B70", "role": "text-secondary" },
+    { "hex": "#E60023", "role": "accent" },
+    { "hex": "#F4F4F5", "role": "surface" },
+    { "hex": "#E4E4E7", "role": "border" }
+  ],
+  "typography": {
+    "classification": "geometric sans",
+    "weightCharacter": "medium, even",
+    "families": []
+  },
+  "shape": "soft",
+  "iconography": { "style": "stroke", "weight": "1.5px", "corners": "rounded", "grid": "24px" },
+  "illustration": "none",
+  "density": "airy",
+  "mood": ["clean", "friendly", "minimal", "playful"],
+  "dominantBackground": "#FFFFFF"
+}

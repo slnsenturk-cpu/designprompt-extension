@@ -30,6 +30,14 @@ const rig = model.buildDesignModel(fixture('rig-ai'));
 const sparse = model.buildDesignModel(fixture('sparse'));
 
 // One entry per screen/state pair the spec describes (§4).
+// An icon-sheet style image (§4.6). A 1×1 PNG stands in for the bytes: the
+// snapshot pins the markup, not the picture.
+const IMAGE = { name: 'icon-set.png', type: 'image/png', size: 1234,
+  dataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' };
+const imageModel = model.buildModelFromStyleProfile(
+  JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'image-profile-icons.json'), 'utf8')),
+  { name: IMAGE.name });
+
 const STATES = {
   'home-page':        () => V.homeView({ mode: 'page', recent: [], context: 'none',
                              aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5' }),
@@ -57,6 +65,17 @@ const STATES = {
   'type':             () => V.typeView(rig),
   'components':       () => V.componentsView(rig),
   'motion':           () => V.motionView(rig),
+  // §4.6: the image source. Same tabs, its own content.
+  'image-home-gated': () => V.imageHomeView({ aiEnabled: false, recent: [] }),
+  'image-home':       () => V.imageHomeView({ aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5.1', recent: [] }),
+  'image-home-chosen':() => V.imageHomeView({ aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5.1',
+                             image: IMAGE, recent: [] }),
+  'image-overview':   () => V.imageOverviewView(imageModel, { output: 'design-md', image: IMAGE,
+                             aiEnabled: true, aiProvider: 'Claude', aiModel: 'Fable 5.1', meta: '9 sections · 2.1k chars' }),
+  'image-colors':     () => V.imageColorsView(imageModel),
+  'image-type':       () => V.imageTypeView(imageModel),
+  'image-components': () => V.imageComponentsView(imageModel),
+  'image-motion':     () => V.imageMotionView(imageModel),
 };
 
 // Pretty-print so a snapshot diff is readable line by line rather than one

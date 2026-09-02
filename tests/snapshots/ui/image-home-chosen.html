@@ -1,0 +1,18 @@
+<h1 class="vd-tabtitle">Overview</h1>
+<div class="vd-seg" role="radiogroup" id="vdSourceSeg" aria-label="Source">
+<button class="vd-seg__item" role="radio" aria-checked="false" data-source="website">Website</button>
+<button class="vd-seg__item is-on" role="radio" aria-checked="true" data-source="image">Image</button>
+</div>
+<div class="vd-drop has-image" id="vdDropZone" role="button" tabindex="0" aria-disabled="false" aria-label="Drop an image or click to choose">
+<img class="vd-drop__preview" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="" />
+<span class="vd-drop__name">icon-set.png</span>
+</div>
+<input type="file" id="vdImageInput" accept="image/png,image/jpeg,image/webp" hidden />
+<div class="vd-home__action">
+<button class="vd-btn vd-btn--primary vd-btn--full" id="analyzeImageBtn" aria-label="Analyze image">
+<span class="vd-btn__label">Analyze image</span>
+</button>
+<p class="vd-home__help">Reads the visual language from a static image: palette, type direction, shape, iconography. Estimated, not measured.</p>
+<p class="vd-ai">AI enhancement: Claude · Fable 5.1 · <button class="vd-ai__link" data-action="openSettings">Change</button>
+</p>
+</div>

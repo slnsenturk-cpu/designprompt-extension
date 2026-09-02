@@ -1,0 +1,131 @@
+<h1 class="vd-tabtitle">Overview</h1>
+<div class="vd-seg" role="radiogroup" id="vdSourceSeg" aria-label="Source">
+<button class="vd-seg__item" role="radio" aria-checked="false" data-source="website">Website</button>
+<button class="vd-seg__item is-on" role="radio" aria-checked="true" data-source="image">Image</button>
+</div>
+<div class="vd-imghead">
+<img class="vd-imghead__thumb" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="" />
+<span class="vd-badge vd-badge--est">Estimated from image</span>
+<span class="vd-imghead__name">icon-set.png</span>
+</div>
+<div class="vd-home__action">
+<button class="vd-btn vd-btn--ghost vd-btn--full" id="analyzeImageBtn" aria-label="Re-analyze image">
+<span class="vd-btn__icon" aria-hidden="true">↺</span>
+<span class="vd-btn__label">Re-analyze image</span>
+</button>
+<p class="vd-ai">AI enhancement: Claude · Fable 5.1 · <button class="vd-ai__link" data-action="openSettings">Change</button>
+</p>
+</div>
+<div class="vd-stats">
+<div class="vd-stat">
+<div class="vd-stat__value">6</div>
+<div class="vd-stat__label">Colors</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">1</div>
+<div class="vd-stat__label">Type direction</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">1</div>
+<div class="vd-stat__label">Icon style</div>
+</div>
+<div class="vd-stat">
+<div class="vd-stat__value">4</div>
+<div class="vd-stat__label">Mood</div>
+</div>
+</div>
+<div class="vd-swatches" role="list" aria-label="Colour roles">
+<button class="vd-swatch" style="background:#ffffff" title="background · #ffffff" aria-label="background #ffffff" data-role="background">
+</button>
+<button class="vd-swatch" style="background:#1c1c1e" title="text-primary · #1c1c1e" aria-label="text-primary #1c1c1e" data-role="text-primary">
+</button>
+<button class="vd-swatch" style="background:#6b6b70" title="text-secondary · #6b6b70" aria-label="text-secondary #6b6b70" data-role="text-secondary">
+</button>
+<button class="vd-swatch" style="background:#e60023" title="accent · #e60023" aria-label="accent #e60023" data-role="accent">
+</button>
+<button class="vd-swatch" style="background:#f4f4f5" title="surface · #f4f4f5" aria-label="surface #f4f4f5" data-role="surface">
+</button>
+<button class="vd-swatch" style="background:#e4e4e7" title="border · #e4e4e7" aria-label="border #e4e4e7" data-role="border">
+</button>
+</div>
+<section class="vd-section">
+<div class="vd-section__head">
+<h2 class="vd-section__title">Snapshot</h2>
+</div>
+<div class="vd-section__body">
+<div class="vd-kv">
+<span class="vd-kv__label">Theme</span>
+<span class="vd-kv__value">Light</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+<div class="vd-kv vd-kv--stacked">
+<span class="vd-kv__label">Style</span>
+<span class="vd-kv__value vd-kv__value--wrap">light airy soft clean friendly minimal direction</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+<div class="vd-kv vd-kv--stacked">
+<span class="vd-kv__label">Type direction</span>
+<span class="vd-kv__value vd-kv__value--wrap">geometric sans · medium, even</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Shape</span>
+<span class="vd-kv__value">soft</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+<div class="vd-kv vd-kv--stacked">
+<span class="vd-kv__label">Iconography</span>
+<span class="vd-kv__value vd-kv__value--wrap">stroke · 1.5px · rounded</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+<div class="vd-kv">
+<span class="vd-kv__label">Density</span>
+<span class="vd-kv__value">airy</span>
+<span class="vd-kv__meta">est.</span>
+</div>
+</div>
+</section>
+<div class="vd-card" id="vdExportCard">
+<div class="vd-card__title">Export</div>
+<div class="vd-seg" role="radiogroup" id="vdOutputSeg" aria-label="Output">
+<button class="vd-seg__item" role="radio" aria-checked="false" data-output="prompt">Prompt</button>
+<button class="vd-seg__item is-on" role="radio" aria-checked="true" data-output="design-md">DESIGN.md</button>
+</div>
+<p class="vd-card__help">A style guide your project keeps.</p>
+<details class="vd-disclose" id="vdWhere">
+<summary>Where to put it</summary>
+<div class="vd-where">
+<div class="vd-where__row">Claude Code<span class="vd-where__path">CLAUDE.md, or the repo root</span>
+</div>
+<div class="vd-where__row">Cursor<span class="vd-where__path">.cursor/rules/</span>
+</div>
+<div class="vd-where__row">Codex<span class="vd-where__path">AGENTS.md</span>
+</div>
+<div class="vd-where__row">Stitch<span class="vd-where__path">Paste into the brief</span>
+</div>
+<div class="vd-where__row">Antigravity<span class="vd-where__path">Repo root</span>
+</div>
+<div class="vd-where__row">Gemini CLI<span class="vd-where__path">GEMINI.md</span>
+</div>
+<div class="vd-where__row">Kiro<span class="vd-where__path">.kiro/steering/</span>
+</div>
+<div class="vd-where__row">Lovable<span class="vd-where__path">Knowledge, in project settings</span>
+</div>
+<div class="vd-where__row">v0<span class="vd-where__path">Paste into the chat</span>
+</div>
+<div class="vd-where__row">Bolt<span class="vd-where__path">Paste into the chat</span>
+</div>
+<div class="vd-where__row">Replit<span class="vd-where__path">replit.md</span>
+</div>
+<div class="vd-where__row">Claude Design<span class="vd-where__path">Attach to the conversation</span>
+</div>
+<div class="vd-where__row">Figma Make<span class="vd-where__path">Paste into the brief</span>
+</div>
+</div>
+</details>
+<button class="vd-btn vd-btn--primary vd-btn--full" id="vdExportBtn" aria-label="Download DESIGN.md">
+<span class="vd-btn__label">Download DESIGN.md</span>
+</button>
+<p class="vd-card__meta">9 sections · 2.1k chars</p>
+</div>
+<button class="vd-link" data-action="previewRaw">Preview raw output ▸</button>
