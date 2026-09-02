@@ -4,7 +4,6 @@
   "version": "3.0.2",
   "description": "Extract any website's design system into DESIGN.md, agent Skills and design tokens for AI coding tools.",
   "permissions": ["activeTab", "scripting", "storage", "tabs", "sidePanel", "identity", "alarms"],
-  "_comment_host_permissions": "Only the four hosts the extension itself calls. Page access is asked for per site at the moment of use, from optional_host_permissions below — so installing does not warn about reading data on all websites.",
   "host_permissions": [
     "https://api.anthropic.com/*",
     "https://api.openai.com/*",

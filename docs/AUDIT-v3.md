@@ -224,6 +224,13 @@ measurement — none is a bug in the renderers.
 
 ## 3. Permissions review
 
+`host_permissions` lists only the four hosts the extension itself calls. Page
+access is asked for per site at the moment of use, from
+`optional_host_permissions` — so installing does not warn about reading data
+on all websites. (This sentence used to live in the manifest as a
+`_comment_host_permissions` key; the manifest carries no comments now, and
+`scripts/package.sh` refuses to build if any key starts with `_`.)
+
 ### Manifest permissions
 
 | Permission | Used? | Where |
