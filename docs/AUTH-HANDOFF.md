@@ -40,7 +40,7 @@ Ask what is installed and who is signed in. Safe to call on page load.
 ```js
 chrome.runtime.sendMessage(EXTENSION_ID, { type: 'VD_EXT_STATUS' }, (res) => {
   if (chrome.runtime.lastError || !res) return;   // not installed
-  // res = { installed: true, version: '3.0.3', signedInAs: 'user@example.com' | null }
+  // res = { installed: true, version: '3.0.4', signedInAs: 'user@example.com' | null }
 });
 ```
 

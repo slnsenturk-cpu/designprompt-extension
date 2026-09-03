@@ -1,4 +1,4 @@
-# Chrome Web Store listing — VibeDesign 3.0.3
+# Chrome Web Store listing — VibeDesign 3.0.4
 
 Everything the store form asks for. Character limits are Chrome's; the counts
 in brackets are what the text below actually uses.
