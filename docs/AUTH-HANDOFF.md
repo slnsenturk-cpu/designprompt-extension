@@ -99,21 +99,74 @@ in it), `no-identity` (no user email, even from `/auth/v1/user`), `identity`
 (that lookup threw), `storage` (the session could not be written), `network`,
 `auth-unavailable`, `internal`.
 
-### Dev builds sign in directly
+### Dev builds: the bridge, or direct when the server allows it
 
-An unpacked build (`isUnpackedBuild()`: no `update_url` in the manifest)
-never depends on the production site to sign in. Its Sign in button calls
-`VD_AUTH.openAuthFlow('login', { direct: true })`, which sends
-`chrome.identity.launchWebAuthFlow` to
-`<SUPABASE_URL>/auth/v1/authorize?provider=google&redirect_to=<chrome.identity redirect URL>`
-— no reachability probe, no tab to `vibedesign.tech/login`. The button shows
-a `DEV · direct sign-in` caption. Sign-out in a dev build is `scope: 'local'`
-(its own session only); a packaged build keeps the site handoff and the
-global sign-out described above.
+An unpacked build (`isUnpackedBuild()`: no `update_url` in the manifest) has
+an extension id the site does not know, so the store build's `/login` flow
+cannot reach it. Its Sign in button:
 
-The direct flow needs the extension's `chrome.identity.getRedirectURL()`
-(`https://<extension-id>.chromiumapp.org/`) in the Supabase project's
-allowed redirect URLs, and the Google provider enabled there.
+1. **Preflights the direct flow** — `VD_AUTH.preflightDirectAuth('google')`
+   fetches `<SUPABASE_URL>/auth/v1/authorize?provider=google&redirect_to=<chrome.identity redirect URL>`
+   with `redirect: 'manual'`. A redirect means the URL works; a 4xx body says
+   why not. Both are logged under `[vd-auth]`.
+2. **If it works**, `openAuthFlow('login', { direct: true })` runs
+   `chrome.identity.launchWebAuthFlow` on that URL. The authorize URL, the
+   redirect URL and any `chrome.runtime.lastError` are logged.
+3. **Otherwise** (the default today) it opens a normal tab to the **bridge
+   page** `https://vibedesign.tech/auth/extension-callback?ext=<extension id>&from=extension`.
+
+The caption under the button reads `DEV · bridge sign-in`. Sign-out in a dev
+build is `scope: 'local'`; a packaged build keeps the `/login` flow (now with
+`&ext=<id>` appended) and the global sign-out.
+
+**Why not direct, as of 2026-09-03.** Against our project the authorize URL
+answers `400 {"error_code":"validation_failed","msg":"Unsupported provider: missing OAuth secret"}`
+with or without an `apikey`; `/auth/v1/settings` lists `google: true` but no
+OAuth client secret is configured. In Chromium (Playwright, unpacked
+extension) `launchWebAuthFlow` on that URL fails in ~130 ms with
+`"Authorization page could not be loaded."` and opens no window — the exact
+error seen in the panel; a control URL that loads opens the window and waits.
+The failure is the server's answer, not a lost user gesture. To enable the
+direct flow: add a Google OAuth client id + secret to the Supabase project
+and put `https://<extension-id>.chromiumapp.org/` in its allowed redirect
+URLs; the preflight then sees a redirect and the panel switches over by
+itself.
+
+### The bridge page — what `vibedesign.tech/auth/extension-callback` must do
+
+Route: `/auth/extension-callback?ext=<id>&from=extension`. Same origin as the
+apex, so the extension's existing origin gate admits it.
+
+1. Read `ext` from the query and validate it: exactly 32 characters `a`–`p`
+   (`/^[a-p]{32}$/`). Refuse anything else — this is the id the session will
+   be sent to.
+2. If the user is not signed in, send them through the site's normal sign-in
+   with `next=/auth/extension-callback?ext=<id>&from=extension`, so they come
+   back here afterwards.
+3. Mint a one-time magic-link hash for the signed-in user. This is a
+   server-side call (an edge function using the service-role key):
+   `supabase.auth.admin.generateLink({ type: 'magiclink', email })` and return
+   `properties.hashed_token` to the page. Never expose the service-role key
+   to the browser; the function must derive `email` from the caller's own
+   session, not from a parameter.
+4. Post it to the extension:
+
+   ```js
+   chrome.runtime.sendMessage(ext, { type: 'VD_EXT_LOGIN', tokenHash, email }, (res) => {
+     if (chrome.runtime.lastError) { /* extension not installed / not this id */ }
+     // res = { ok: true, signedInAs, type } | { ok: false, error, code }
+   });
+   ```
+
+   `chrome.runtime.sendMessage` from a web page requires the site's origin in
+   the extension's `externally_connectable.matches` — `https://vibedesign.tech/*`
+   is already there. The extension replies with the exact error message on
+   failure (see above); show `error` verbatim.
+5. Show the result on the page: signed in as `res.signedInAs` — or the error.
+   Optionally close the tab after a moment on success.
+
+The extension side needs no change for this: `VD_EXT_LOGIN` is accepted from
+the apex origin only, as today, and the reply contract is the one above.
 
 ### One read for "who is signed in?"
 

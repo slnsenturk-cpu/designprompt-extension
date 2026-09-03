@@ -41,6 +41,7 @@ function makeChrome(store) {
   return {
     _data: data,
     runtime: {
+      id: 'abcdefghijklmnopabcdefghijklmnop',
       getManifest: () => ({ version: '3.0.0', update_url: 'https://clients2.google.com/x' }),
       onMessage: { addListener() {} },
       sendMessage: () => Promise.resolve({ success: false }),
@@ -127,7 +128,12 @@ async function boot(t, o) {
         ? { authed: true, email: u.email, avatarUrl: (u.user_metadata && u.user_metadata.avatar_url) || null, expiresAt: s.expires_at || null, reason: null }
         : { authed: false, email: null, avatarUrl: null, expiresAt: null, reason: s ? 'no-email' : 'no-session' }); },
     isAuthenticated: () => Promise.resolve(!!self.__vdSession),
-    _calls: { openAuthFlow: [], signOut: [] },
+    _calls: { openAuthFlow: [], signOut: [], preflight: 0 },
+    // The direct-flow preflight. A test sets self.__vdPreflight to what the
+    // auth server would say; the default is our project's real answer.
+    preflightDirectAuth: () => { self.VD_AUTH._calls.preflight++;
+      return Promise.resolve(self.__vdPreflight || { ok: false, status: 400, reason: 'http-400',
+        body: '{"code":400,"error_code":"validation_failed","msg":"Unsupported provider: missing OAuth secret"}' }); },
     openAuthFlow: (mode, opts) => { self.VD_AUTH._calls.openAuthFlow.push({ mode, opts: opts || null });
                           self.__vdSession = { access_token: 't', user: { email: 'user@example.com' } };
                           return Promise.resolve({ ok: true }); },
@@ -999,7 +1005,7 @@ test('packaged build: Sign in opens vibedesign.tech/login in a tab and shows no 
   assert.equal(p.$('.vd-dev-caption'), null, 'dev caption on a packaged build');
   p.click('#vdHeaderSignIn');
   await new Promise(r => setTimeout(r, 30));
-  assert.deepEqual(p.win.chrome._data.__tabsCreated, ['https://vibedesign.tech/login?from=extension']);
+  assert.deepEqual(p.win.chrome._data.__tabsCreated, ['https://vibedesign.tech/login?from=extension&ext=abcdefghijklmnopabcdefghijklmnop']);
   assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [], 'packaged build used the direct flow');
   // Sign out on a packaged build is global (the site session ends too).
   p.run('self.__vdSession = { access_token: "t", user: { email: "user@example.com" } }');
@@ -1008,7 +1014,7 @@ test('packaged build: Sign in opens vibedesign.tech/login in a tab and shows no 
   assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.signOut'))), [null]);
 });
 
-test('unpacked build: Sign in uses launchWebAuthFlow directly, opens no tab, probes nothing, and says so', async t => {
+test('unpacked build, auth server says 400: Sign in opens the bridge addressed to this extension id, never the direct flow', async t => {
   const p = await boot(t);
   p.run('chrome.runtime.getManifest = () => ({ version: "3.0.2" });');   // no update_url → unpacked
   let probed = 0;
@@ -1016,20 +1022,36 @@ test('unpacked build: Sign in uses launchWebAuthFlow directly, opens no tab, pro
   p.run('renderPanel()');
   const caption = p.$('.vd-header__account .vd-dev-caption');
   assert.ok(caption, 'no dev caption under the header Sign in');
-  assert.equal(caption.textContent, 'DEV · direct sign-in');
+  assert.equal(caption.textContent, 'DEV · bridge sign-in');
   p.click('[data-tab="settings"]');
   assert.ok(p.$('#vdAccount .vd-dev-caption'), 'no dev caption under the Settings Sign in');
 
   p.click('#vdSignIn');
   await new Promise(r => setTimeout(r, 30));
-  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [{ mode: 'login', opts: { direct: true } }]);
-  assert.equal(p.win.chrome._data.__tabsCreated, undefined, 'a tab was opened to the site');
-  assert.equal(probed, 0, 'the site was probed');
-  assert.equal(p.run('state.account.authed'), true);
-  assert.equal(p.$('.vd-dev-caption'), null, 'caption still shown once signed in');
+  assert.equal(p.run('VD_AUTH._calls.preflight'), 1, 'the direct flow was not preflighted');
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [], 'direct flow used despite a 400');
+  assert.deepEqual(p.win.chrome._data.__tabsCreated,
+    ['https://vibedesign.tech/auth/extension-callback?ext=abcdefghijklmnopabcdefghijklmnop&from=extension']);
+  assert.equal(probed, 0, 'the site reachability probe ran in a dev build');
+  assert.match(p.captured.warnings.join('\n'), /dev build: direct sign-in unavailable \(http-400: .*missing OAuth secret/);
 
   // Sign out stays local: no global revoke.
+  p.run('self.__vdSession = { access_token: "t", user: { email: "user@example.com" } }');
+  await p.run('refreshAccount()');
   await p.run('signOutAccount()');
   assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.signOut'))), [{ scope: 'local' }]);
   assert.equal(p.run('state.account.authed'), false);
+});
+
+test('unpacked build, auth server redirects: Sign in uses launchWebAuthFlow directly and opens no tab', async t => {
+  const p = await boot(t);
+  p.run('chrome.runtime.getManifest = () => ({ version: "3.0.2" });');
+  p.run('self.__vdPreflight = { ok: true, status: 302 }');
+  p.run('renderPanel()');
+  p.click('#vdHeaderSignIn');
+  await new Promise(r => setTimeout(r, 30));
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [{ mode: 'login', opts: { direct: true } }]);
+  assert.equal(p.win.chrome._data.__tabsCreated, undefined, 'a tab was opened although the direct flow works');
+  assert.equal(p.run('state.account.authed'), true);
+  assert.equal(p.$('.vd-dev-caption'), null, 'caption still shown once signed in');
 });

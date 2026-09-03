@@ -271,3 +271,25 @@ test('openAuthFlow: the site bridge by default, Supabase\'s own OAuth endpoint w
   assert.deepEqual(plain(w.authCalls.setSession), [
     { access_token: 'at-1', refresh_token: 'rt-1' }, { access_token: 'at-1', refresh_token: 'rt-1' }]);
 });
+
+test('preflightDirectAuth: a 4xx reports the server\'s exact body; a redirect means the URL works', async () => {
+  const w = loadWorkerWithIdentity(makeStorage());
+  const seen = [];
+  // Our project's real answer, verbatim (curl, 2026-09-03).
+  w.ctx.fetch = async (url, opts) => { seen.push({ url: String(url), redirect: opts && opts.redirect });
+    return { type: 'basic', status: 400, text: async () => '{"code":400,"error_code":"validation_failed","msg":"Unsupported provider: missing OAuth secret"}' }; };
+  const bad = await w.ctx.VD_AUTH.preflightDirectAuth('google');
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, 'http-400');
+  assert.match(bad.body, /missing OAuth secret/);
+  assert.equal(seen[0].redirect, 'manual', 'the preflight must not follow the redirect');
+  assert.match(seen[0].url, /\/auth\/v1\/authorize\?provider=google&redirect_to=https%3A%2F%2Fabcdefgh\.chromiumapp\.org%2F$/);
+
+  // Once a Google OAuth client is configured, the server redirects.
+  w.ctx.fetch = async () => ({ type: 'opaqueredirect', status: 0, text: async () => '' });
+  const good = await w.ctx.VD_AUTH.preflightDirectAuth('google');
+  assert.equal(good.ok, true);
+  w.ctx.fetch = async () => { throw new Error('offline'); };
+  const off = await w.ctx.VD_AUTH.preflightDirectAuth('google');
+  assert.deepEqual([off.ok, off.reason], [false, 'network']);
+});
