@@ -1904,3 +1904,7 @@ body[data-context="popup"] .app { width: 380px; overflow: hidden; }
 .vd-dev-caption { display: block; font: var(--vd-caption); color: var(--vd-text-secondary); margin-top: var(--vd-space-1); white-space: nowrap; }
 .vd-header__account .vd-dev-caption { position: absolute; right: 0; top: 100%; }
 .vd-header__account { position: relative; }
+/* §4.6: the thumbnail is a "New image" control; two actions sit under it. */
+.vd-imghead__thumbbtn { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 8px; line-height: 0; }
+.vd-imghead__thumbbtn:focus-visible { outline: 2px solid var(--vd-accent); outline-offset: 2px; }
+.vd-home__action--pair .vd-btn + .vd-btn { margin-top: var(--vd-space-2); }

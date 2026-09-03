@@ -548,6 +548,87 @@ test('label: asked after choosing, defaults to "Image style · <date>", becomes 
   assert.ok(p.text().includes('Glass card'));
 });
 
+// ── §4.6 IA: two actions after a result; the header names the image ───────
+
+async function analyzedGlass(t) {
+  const p = await boot(t, { storage: WITH_KEY });
+  p.ctx.__img = Object.assign({}, IMAGE, { label: 'Glass card' });
+  p.ctx.__reply = GLASS_RAW;
+  p.run('state.image = __img; renderPanel();');
+  p.run('self.analyzeImageWithAI = async () => __reply; self.pickVisionModel = () => "claude-fable-5-1";');
+  await p.run('analyzeImage()');
+  return p;
+}
+const headerOf = p => ({
+  domain: (p.$('.vd-header__domain') || { textContent: '' }).textContent.trim(),
+  state: (p.$('.vd-header__state') || { textContent: '' }).textContent.trim(),
+});
+
+test('after an image result: primary Re-analyze image and ghost New image', async t => {
+  const p = await analyzedGlass(t);
+  const re = p.$('#analyzeImageBtn'), nw = p.$('#vdNewImage');
+  assert.ok(re && nw, 'both buttons must be present');
+  assert.equal(re.querySelector('.vd-btn__label').textContent.trim(), 'Re-analyze image');
+  // §1.1: one primary per screen, and on Overview that is Export. Re-analyze
+  // leads the pair by position and icon, not by weight.
+  assert.ok(re.classList.contains('vd-btn--ghost') && re.querySelector('.vd-btn__icon'), 'Re-analyze must be a ghost button with the ↺ icon');
+  assert.ok(re.compareDocumentPosition(nw) & 4, 'Re-analyze must come before New image');
+  assert.equal((p.win.document.querySelectorAll('#vdPanel .vd-btn--primary').length), 1, 'Overview must have exactly one primary: Export');
+  assert.equal(nw.textContent.trim(), 'New image');
+  assert.ok(nw.classList.contains('vd-btn--ghost'));
+  assert.equal(nw.dataset.action, 'newImage');
+  assert.equal(p.$('.vd-imghead__thumbbtn').dataset.action, 'newImage', 'the thumbnail is not a New image control');
+});
+
+test('New image returns to the drop zone and keeps the result in history; the thumbnail does the same', async t => {
+  const p = await analyzedGlass(t);
+  assert.equal(Object.keys(p.win.chrome._data.promptHistory).length, 1);
+  p.$('#vdNewImage').dispatchEvent(new p.win.Event('click', { bubbles: true }));
+  assert.ok(p.$('#vdDropZone'), 'drop zone not shown');
+  assert.ok(!p.$('#vdDropZone.has-image'), 'the old image is still in the zone');
+  assert.equal(p.run('state.image'), null);
+  assert.equal(p.run('state.model'), null);
+  assert.equal(Object.keys(p.win.chrome._data.promptHistory).length, 1, 'the previous result must stay in history');
+  assert.equal(p.run('state.source'), 'image');
+  // Choosing the next file asks for a label again.
+  p.ctx.__img2 = Object.assign({}, IMAGE, { name: 'next.png', label: 'Image style · 2 Sep 2026' });
+  p.run('state.image = __img2; renderPanel();');
+  assert.ok(p.$('#vdImageLabel'), 'label input not asked for the next image');
+
+  // The thumbnail is the same control.
+  const q = await analyzedGlass(t);
+  q.$('.vd-imghead__thumbbtn').dispatchEvent(new q.win.Event('click', { bubbles: true }));
+  assert.ok(q.$('#vdDropZone') && q.run('state.image') === null);
+});
+
+test('Image mode header: "Image · <label>" + analyzed time, never the tab domain, unchanged by tab switches', async t => {
+  const p = await analyzedGlass(t);
+  let h = headerOf(p);
+  assert.equal(h.domain, 'Image · Glass card');
+  assert.match(h.state, /^Analyzed \d{1,2}:\d{2}/);   // locale decides 24h vs AM/PM
+  assert.ok(!/rig\.ai/.test(p.$('.vd-header').textContent), 'the active tab domain leaked into the header');
+  // The user switches tabs: the header must not follow.
+  p.run('state.currentUrl = "https://posthog.com/pricing"; renderPanel();');
+  h = headerOf(p);
+  assert.equal(h.domain, 'Image · Glass card');
+  assert.match(h.state, /^Analyzed/);
+  assert.ok(!/posthog/.test(p.$('.vd-header').textContent));
+  // Before any analysis, still no domain.
+  p.$('#vdNewImage').dispatchEvent(new p.win.Event('click', { bubbles: true }));
+  h = headerOf(p);
+  assert.equal(h.domain, 'Image');
+  assert.equal(h.state, 'Not analyzed');
+});
+
+test('Website mode header is unchanged: the active tab domain and its status', async t => {
+  const p = await boot(t, { storage: Object.assign({}, WITH_KEY, { vd_source: 'website' }) });
+  const h = headerOf(p);
+  assert.equal(h.domain, 'rig.ai');
+  assert.equal(h.state, 'Not analyzed');
+  p.run('state.currentUrl = "https://posthog.com/"; renderPanel();');
+  assert.equal(headerOf(p).domain, 'posthog.com');
+});
+
 test('switching back to Website restores Page/Element and the three outputs', async t => {
   const p = await boot(t, { storage: WITH_KEY });
   p.$('[data-source="website"]').dispatchEvent(new p.win.Event('click', { bubbles: true }));

@@ -262,6 +262,10 @@ iconography. Estimated, not measured.     (caption)
 
 **Anahtar kapısı mimarinin parçasıdır:** Image modu AI enhancement gerektirir. Kapalıysa drop zone %40 soluk, üstünde Notice: "Image analysis needs AI enhancement. Your image goes only to your chosen AI provider." + **Turn on** düğmesi (Settings'e). Website modu anahtarsız çalışmaya devam eder; iki modun bu farkı caption'larda açıkça yazar.
 
+**Image modu, analiz sonrası — eylemler:** Overview'da küçük resim + rozet + etiketin altında iki düğme: **Re-analyze image** (↺ ile önde; aynı görseli yeniden okur) ve **New image** (drop zone'a döner). İkisi de ghost'tur: §1.1 gereği ekranın tek birincil eylemi Export'tur; Re-analyze ağırlıkla değil konum ve simgeyle önde gelir. Küçük resme basmak da **New image** ile aynıdır. Önceki sonuç History'de kalır; yeni dosya seçildiğinde etiket bugünkü gibi sorulur (varsayılan "Image style · <tarih>").
+
+**Image modunda başlık (§3):** ikinci satır **"Image · <etiket>"** ve analiz saatidir ("Analyzed 12:41"; analiz öncesi "Image" + "Not analyzed"). Aktif sekmenin alan adı Image modunda **asla** gösterilmez; sekme değiştirmek başlığı değiştirmez. Website modunda başlık değişmez.
+
 **Image modu, analiz sonrası — sekme başına içerik:**
 
 | Sekme | Website kaynağı | Image kaynağı |

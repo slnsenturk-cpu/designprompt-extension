@@ -4,14 +4,19 @@
 <button class="vd-seg__item is-on" role="radio" aria-checked="true" data-source="image">Image</button>
 </div>
 <div class="vd-imghead">
+<button class="vd-imghead__thumbbtn" data-action="newImage" aria-label="New image" title="New image">
 <img class="vd-imghead__thumb" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" alt="" />
+</button>
 <span class="vd-badge vd-badge--est">Estimated from image</span>
 <span class="vd-imghead__name">Glass card</span>
 </div>
-<div class="vd-home__action">
+<div class="vd-home__action vd-home__action--pair">
 <button class="vd-btn vd-btn--ghost vd-btn--full" id="analyzeImageBtn" aria-label="Re-analyze image">
 <span class="vd-btn__icon" aria-hidden="true">↺</span>
 <span class="vd-btn__label">Re-analyze image</span>
+</button>
+<button class="vd-btn vd-btn--ghost vd-btn--full" id="vdNewImage" aria-label="New image" data-action="newImage">
+<span class="vd-btn__label">New image</span>
 </button>
 <p class="vd-ai">AI enhancement: Claude · Fable 5.1 · <button class="vd-ai__link" data-action="openSettings">Change</button>
 </p>
