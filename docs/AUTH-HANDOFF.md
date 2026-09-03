@@ -99,6 +99,31 @@ in it), `no-identity` (no user email, even from `/auth/v1/user`), `identity`
 (that lookup threw), `storage` (the session could not be written), `network`,
 `auth-unavailable`, `internal`.
 
+### One read for "who is signed in?"
+
+`VD_AUTH.readAccount()` is the only definition of signed-in, and both the
+worker's `VD_EXT_STATUS` reply and the panel header use it: a stored session
+with both tokens, not past `expires_at`, naming a user email. It returns
+`{ authed, email, avatarUrl, expiresAt, reason }` — `reason` is `no-session`,
+`expired`, `no-email` or `read-failed` when `authed` is false. Before this
+the worker and the panel each had their own rule and could disagree about the
+same `chrome.storage.local`.
+
+The open panel also re-reads on `chrome.storage.onChanged` for the session
+key, so a handoff, a refresh or a sign-out shows up without a runtime
+message having to arrive.
+
+The panel's 30-second server check (`sidepanel.js`) logs every reply as
+`[vd-auth] server check: GET /auth/v1/user → <status> <msg>` and, when the
+server says the session is gone, clears the extension's local session only.
+It used to call `signOut()`, which revokes globally — one rejected GET logged
+the user out of vibedesign.tech too.
+
+**Evidence from either console:** `VD_AUTH.dumpAuthStorage()` prints every
+auth-shaped key in `chrome.storage.local` with tokens redacted, how each is
+stored (object or JSON string), and what `readAccount()` makes of it. Run it
+in the service-worker console and in the side panel's console and compare.
+
 ### `VD_EXT_LOGOUT`
 
 Tell the extension the site's session has ended.

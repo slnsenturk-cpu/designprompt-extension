@@ -119,6 +119,11 @@ async function boot(t, o) {
   // sees exactly the surface it uses: peekSession, openAuthFlow, signOut.
   vm.runInContext(`self.VD_AUTH = {
     peekSession: () => Promise.resolve(self.__vdSession || null),
+    // The same rule as lib/auth.js#readAccount, over the test session.
+    readAccount: () => { const s = self.__vdSession; const u = s && s.user;
+      return Promise.resolve(s && s.access_token && u && u.email
+        ? { authed: true, email: u.email, avatarUrl: (u.user_metadata && u.user_metadata.avatar_url) || null, expiresAt: s.expires_at || null, reason: null }
+        : { authed: false, email: null, avatarUrl: null, expiresAt: null, reason: s ? 'no-email' : 'no-session' }); },
     isAuthenticated: () => Promise.resolve(!!self.__vdSession),
     openAuthFlow: () => { self.__vdSession = { access_token: 't', user: { email: 'user@example.com' } };
                           return Promise.resolve({ ok: true }); },

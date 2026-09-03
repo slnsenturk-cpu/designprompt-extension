@@ -137,12 +137,13 @@ function _vdOriginOf(sender) {
   try { return new URL(sender.url).origin; } catch (e) { return null; }
 }
 
+// The same read the panel uses (VD_AUTH.readAccount), so the site and the
+// panel are always told the same thing about the same storage.
 async function _vdSignedInAs() {
   try {
-    if (!self.VD_AUTH || typeof self.VD_AUTH.peekSession !== 'function') return null;
-    var sess = await self.VD_AUTH.peekSession();
-    if (!sess || !sess.access_token) return null;
-    return (sess.user && sess.user.email) || null;
+    if (!self.VD_AUTH || typeof self.VD_AUTH.readAccount !== 'function') return null;
+    var acct = await self.VD_AUTH.readAccount();
+    return acct.authed ? acct.email : null;
   } catch (e) { return null; }
 }
 

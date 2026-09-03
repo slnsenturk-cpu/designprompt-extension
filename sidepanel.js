@@ -115,12 +115,22 @@ async function _vdCheckServerAuth() {
       /invalid[_ ]?jwt/i.test(msg) ||
       /user[_ ]?not[_ ]?found/i.test(msg));
 
+    // Whatever the verdict, the reply is on record — this check is the one
+    // place the panel can sign a stored session out, and it must say why.
+    console.warn('[vd-auth] server check: GET /auth/v1/user → ' + (status || '?') + ' ' + msg
+      + (invalidated ? ' — invalidated' : ' — not a logout signal'));
     if (!invalidated) return; // no explicit signal — stay signed in
 
-    console.log('[vd-auth] server session invalidated; clearing local auth');
+    // Clear the EXTENSION's session, locally. This used to call signOut(),
+    // which revokes globally (POST /auth/v1/logout?scope=global) — i.e. one
+    // rejected GET here logged the user out of vibedesign.tech as well, and
+    // the site then handed a fresh session back, which the next GET rejected
+    // again. The extension's own session is the only thing this check may
+    // touch.
+    console.log('[vd-auth] server session invalidated; clearing the local session');
     try {
-      if (typeof auth.signOut === 'function') await auth.signOut();
-    } catch (_) { /* storage clear happens inside signOut */ }
+      if (typeof auth._clearStoredSession === 'function') await auth._clearStoredSession();
+    } catch (_) { /* noop */ }
     try {
       if (typeof refreshAccount === 'function') refreshAccount();
     } catch (_) { /* noop */ }
