@@ -198,11 +198,32 @@ test('colour roles: only the fixed seven, extras dropped, never numbered', () =>
   const allowed = new Set(M.IMAGE_ROLES);
   m.colorRoles.forEach(r => assert.ok(allowed.has(r), `unexpected role ${r}`));
   assert.ok(!m.colorRoles.some(r => /\d/.test(r)), 'a numbered role slipped through');
-  // The fixture's "accent-2" entry (#1d4ed8) had no free role and is gone;
-  // its "highlight" (#5b6280) fitted the free text-muted slot instead.
+  // The fixture's "accent-2" entry (#1d4ed8) had no free role and is gone.
   assert.ok(m.colorRoles.length <= 7);
   assert.ok(!Object.values(m.colors).includes('#1d4ed8'), 'a second accent was kept');
-  assert.equal(m.colors['text-muted'], '#5b6280');
+});
+
+test('a text role below 3:1 against the background is not text: dropped, with its accessibility row', () => {
+  const m = glassModel();
+  // The fixture names #2a3038 "text-muted"; against #0b1020 it is ~1.5:1.
+  assert.ok(M.color.contrast('#2a3038', m.colors.background) < 3);
+  assert.equal(m.colors['text-muted'], undefined, 'unreadable text-muted kept');
+  assert.ok(!m.colorRoles.includes('text-muted'));
+  assert.ok(!Object.values(m.colors).includes('#2a3038'));
+  // The readable text roles survive.
+  assert.ok(m.colorRoles.includes('text-primary') && m.colorRoles.includes('text-secondary'));
+  const md = D.buildDesignMd({}, { model: m, version: '3.0.2' });
+  assert.ok(!/text-muted/.test(md), 'text-muted appears in DESIGN.md');
+  const a11y = md.slice(md.indexOf('## Accessibility'));
+  assert.match(a11y, /text-primary \/ background/);
+  assert.ok(!/text-muted \/ background/.test(a11y));
+});
+
+test('the style line says each word once', () => {
+  const m = glassModel();   // shape "soft" and a mood "soft"
+  const words = m.theme.style.replace(/ direction$/, '').split(' ');
+  assert.equal(new Set(words).size, words.length, `repeated word in "${m.theme.style}"`);
+  assert.ok(words.includes('soft'));
   assert.deepEqual(M.IMAGE_ROLES, ['background', 'surface', 'text-primary', 'text-secondary', 'text-muted', 'accent', 'border']);
 });
 

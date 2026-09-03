@@ -7,7 +7,7 @@
     { "hex": "#3B82F6", "role": "accent" },
     { "hex": "#2A3352", "role": "border" },
     { "hex": "#1D4ED8", "role": "accent-2" },
-    { "hex": "#5B6280", "role": "highlight" }
+    { "hex": "#2A3038", "role": "text-muted" }
   ],
   "typography": {
     "classification": "geometric sans",
@@ -18,7 +18,7 @@
   "iconography": { "count": 1, "style": "stroke", "weight": "1.5px", "corners": "rounded", "grid": "24px" },
   "illustration": "A single line chart is the only illustration on the card. It sits under the numeral and is drawn in the accent blue with a soft fill fading to transparent, so it reads as part of the glow rather than as a separate graphic, and nothing else on the surface competes with it for attention at all.",
   "density": "airy",
-  "mood": ["premium", "calm", "focused"],
+  "mood": ["premium", "soft", "calm"],
   "dominantBackground": "#0B1020",
   "effects": [
     { "type": "glass", "where": "the card surface", "colour": "#161C33", "strength": "medium",
