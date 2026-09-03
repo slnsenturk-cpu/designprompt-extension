@@ -220,7 +220,7 @@ Developer   (yalnız unpacked)
   Copy RAW capture
 
 About
-  VibeDesign 3.0.2 · Privacy · Support
+  VibeDesign 3.0.3 · Privacy · Support
 ```
 
 Kurallar: AI enhancement kapalıyken sağlayıcı/model/anahtar satırları gizlidir. "Paid. Get key →" gibi parçalı metinler yok; her bloğun altında tek tam cümle.
