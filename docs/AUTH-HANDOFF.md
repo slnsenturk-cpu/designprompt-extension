@@ -64,22 +64,40 @@ chrome.runtime.sendMessage(EXTENSION_ID, {
   tokenHash,                 // string, 16–512 chars
   email: user.email,         // advisory only, see below
 }, (res) => {
-  // res = { ok: true, signedInAs: 'user@example.com' }
-  //   or { ok: false, error: 'verify-401', message: 'Token has expired' }
+  // res = { ok: true, signedInAs: 'user@example.com', type: 'magiclink' }
+  //   or { ok: false, error: 'Email link is invalid or has expired', code: 'verify-403' }
+  // `error` is always the exact message — the auth server's own wording for a
+  // rejected hash, or the extension's sentence for a local failure. `code` is
+  // the short machine tag. A success never carries signedInAs: null.
 });
 ```
 
 The extension calls `POST /auth/v1/verify` with
-`{ token_hash, type: 'magiclink' }`, stores the session it gets back, updates
-the panel, and flashes a `✓` on the toolbar icon for ten seconds.
+`{ token_hash, type: 'magiclink' }`. Our GoTrue (v2.196.0, probed 2026-09-03)
+accepts both `magiclink` and `email` for a magic-link hash and answers an
+unknown type with `400 "Invalid email verification type"` — that one reply,
+and only that one, makes the extension retry with `email`. An expired or
+invalid hash (`403 otp_expired`) is final under either type. If the verify
+reply carries no `user`, the identity is read from `GET /auth/v1/user` with
+the new access token before anything is stored; a session that cannot name
+its user is refused (`code: 'no-identity'`), never stored as "signed in as
+nobody". Then the session is stored, the panel updated, and a `✓` flashed on
+the toolbar icon for ten seconds.
+
+Every failure — missing `tokenHash`, a rejected hash, a storage write that
+throws — is logged once in the service-worker console with a `[vd-handoff]`
+prefix, with the same message the reply carries.
 
 **`email` is advisory.** The reply reports the address the *token* resolved
 to. If the two disagree, the token wins — it is the only half the auth server
 vouched for. Do not rely on the extension echoing what you sent.
 
-Errors: `origin-not-allowed`, `bad-token-hash` (malformed, never sent to the
-server), `verify-<status>` with the server's message, `malformed` (a 200 with
-no tokens in it), `network`, `auth-unavailable`.
+Error codes (`code`; `error` carries the exact message): `origin-not-allowed`,
+`bad-token-hash` (missing or malformed — never sent to the server),
+`verify-<status>` (the server's own `msg`), `malformed` (a 200 with no tokens
+in it), `no-identity` (no user email, even from `/auth/v1/user`), `identity`
+(that lookup threw), `storage` (the session could not be written), `network`,
+`auth-unavailable`, `internal`.
 
 ### `VD_EXT_LOGOUT`
 

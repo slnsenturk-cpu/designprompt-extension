@@ -33,15 +33,17 @@ const VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'ut
 const plain = v => JSON.parse(JSON.stringify(v));
 
 // Boots the real background worker with the real lib/auth.js behind it.
-function loadWorker({ session, verify, logout } = {}) {
+function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
   const store = {};
   if (session) store.auth_session = session;
 
-  const calls = { verify: [], logout: [], badge: [], broadcast: [] };
+  const calls = { verify: [], logout: [], user: [], badge: [], broadcast: [] };
+  const logs = [];   // every console line the worker writes, with its level
   let externalListener = null;
 
   const sandbox = {
-    console: { log() {}, warn() {}, error() {}, debug() {} },
+    console: { log: (...a) => logs.push(['log', a.join(' ')]), warn: (...a) => logs.push(['warn', a.join(' ')]),
+               error: (...a) => logs.push(['error', a.join(' ')]), debug() {} },
     Math, JSON, Date, URL, RegExp, Object, Array, String, Number, Boolean,
     Promise, Error, TextEncoder, Uint8Array, Buffer,
     parseInt, parseFloat, isNaN, isFinite, encodeURIComponent,
@@ -56,6 +58,10 @@ function loadWorker({ session, verify, logout } = {}) {
     if (String(url).includes('/auth/v1/verify')) {
       calls.verify.push({ url: String(url), body, headers: (opts || {}).headers });
       return verify ? verify(body) : { ok: false, status: 401, json: async () => ({}) };
+    }
+    if (String(url).includes('/auth/v1/user')) {
+      calls.user.push({ url: String(url), headers: (opts || {}).headers });
+      return user ? user() : { ok: false, status: 401, json: async () => ({}) };
     }
     if (String(url).includes('/auth/v1/logout')) {
       calls.logout.push({ url: String(url), headers: (opts || {}).headers });
@@ -83,7 +89,10 @@ function loadWorker({ session, verify, logout } = {}) {
           list.forEach(k => { if (k in store) out[k] = store[k]; });
           return Promise.resolve(out);
         },
-        set: obj => { Object.assign(store, obj); return Promise.resolve(); },
+        set: obj => {
+          if (storageSetThrows) return Promise.reject(new Error(storageSetThrows));
+          Object.assign(store, obj); return Promise.resolve();
+        },
         remove: keys => {
           (Array.isArray(keys) ? keys : [keys]).forEach(k => { delete store[k]; });
           return Promise.resolve();
@@ -120,8 +129,15 @@ function loadWorker({ session, verify, logout } = {}) {
     externalListener(message, sender, resolve);
   });
 
-  return { send, store, calls, ctx };
+  return { send, store, calls, ctx, logs };
 }
+
+// A GoTrue that only accepts one of the two verify types, answering the
+// other exactly the way v2.196 answers an unknown type.
+const pickyVerify = (accepted, email = 'user@example.com') => body => body.type === accepted
+  ? okVerify(email)()
+  : { ok: false, status: 400,
+      json: async () => ({ code: 400, error_code: 'validation_failed', msg: 'Invalid email verification type' }) };
 
 const okVerify = (email = 'user@example.com') => () => ({
   ok: true,
@@ -184,7 +200,7 @@ test('VD_EXT_LOGIN exchanges the hash for the extension\'s own session', async (
   const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(48),
                                email: 'user@example.com' });
 
-  assert.deepEqual(plain(reply), { ok: true, signedInAs: 'user@example.com' });
+  assert.deepEqual(plain(reply), { ok: true, signedInAs: 'user@example.com', type: 'magiclink' });
 
   // One exchange, at the verify endpoint, carrying the hash and the type.
   assert.equal(w.calls.verify.length, 1);
@@ -220,7 +236,8 @@ test('a rejected hash creates no session and says why', async () => {
   });
   const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
   assert.equal(reply.ok, false);
-  assert.equal(reply.error, 'verify-401');
+  assert.equal(reply.code, 'verify-401');
+  assert.equal(reply.error, 'Token has expired', 'error must be the server\'s exact message');
   assert.equal(reply.message, 'Token has expired');
   assert.equal(w.store.auth_session, undefined, 'a rejected hash still created a session');
 });
@@ -243,6 +260,91 @@ test('a successful handoff flashes the badge and wakes any open panel', async ()
 });
 
 // ── VD_EXT_LOGOUT ─────────────────────────────────────────────────────────
+
+// ── failures are exact, and logged under [vd-handoff] ─────────────────────
+
+const handoffLogs = w => w.logs.filter(l => l[1].startsWith('[vd-handoff]'));
+
+test('a missing tokenHash fails with the exact message and a [vd-handoff] log line', async () => {
+  for (const message of [{ type: 'VD_EXT_LOGIN' }, { type: 'VD_EXT_LOGIN', tokenHash: '' }, { type: 'VD_EXT_LOGIN', tokenHash: null }]) {
+    const w = loadWorker({ verify: okVerify() });
+    const reply = await w.send(message);
+    assert.deepEqual(plain(reply), { ok: false, error: 'tokenHash missing', code: 'bad-token-hash' });
+    assert.equal(w.calls.verify.length, 0);
+    assert.ok(handoffLogs(w).some(l => l[1].includes('tokenHash missing')), 'not logged under [vd-handoff]');
+  }
+});
+
+test('a verify error comes back as its exact server message, once, logged', async () => {
+  const w = loadWorker({ verify: () => ({ ok: false, status: 403,
+    json: async () => ({ code: 403, error_code: 'otp_expired', msg: 'Email link is invalid or has expired' }) }) });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, false);
+  assert.equal(reply.error, 'Email link is invalid or has expired');
+  assert.equal(reply.code, 'verify-403');
+  assert.equal(w.calls.verify.length, 1, 'an expired hash must not be retried with another type');
+  assert.equal(w.store.auth_session, undefined);
+  assert.ok(handoffLogs(w).some(l => l[1].includes('Email link is invalid or has expired')));
+});
+
+test('a storage write failure fails the handoff with its exact message and stores nothing', async () => {
+  const w = loadWorker({ verify: okVerify(), storageSetThrows: 'QUOTA_BYTES quota exceeded' });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, false);
+  assert.equal(reply.code, 'storage');
+  assert.equal(reply.error, 'could not store the session: QUOTA_BYTES quota exceeded');
+  assert.equal(w.calls.badge.length, 0, 'no ✓ for a session that was not stored');
+  assert.deepEqual(w.calls.broadcast, []);
+  assert.ok(handoffLogs(w).some(l => l[1].includes('QUOTA_BYTES quota exceeded')));
+});
+
+test('success never reports signedInAs: null — a userless verify reply is completed from /auth/v1/user', async () => {
+  const noUser = () => ({ ok: true, json: async () => ({ access_token: 'jwt', refresh_token: 'rt', expires_in: 3600 }) });
+  const w = loadWorker({ verify: noUser, user: () => ({ ok: true, json: async () => ({ id: 'u1', email: 'looked-up@example.com' }) }) });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, true);
+  assert.equal(reply.signedInAs, 'looked-up@example.com');
+  assert.equal(w.calls.user.length, 1);
+  assert.match(w.calls.user[0].headers.Authorization, /^Bearer jwt$/);
+  assert.equal(w.store.auth_session.user.email, 'looked-up@example.com');
+
+  // And when even that yields no email, it is a failure — not ok with null.
+  const w2 = loadWorker({ verify: noUser, user: () => ({ ok: true, json: async () => ({ id: 'u1' }) }) });
+  const r2 = await w2.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(r2.ok, false);
+  assert.equal(r2.code, 'no-identity');
+  assert.equal(r2.error, 'session has no identity: the auth server returned no user email');
+  assert.equal(w2.store.auth_session, undefined, 'an identity-less session must not be stored');
+});
+
+// ── verify type: magiclink vs email ───────────────────────────────────────
+
+test('the server accepting magiclink: one call, type magiclink', async () => {
+  const w = loadWorker({ verify: pickyVerify('magiclink') });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, true);
+  assert.equal(reply.type, 'magiclink');
+  assert.deepEqual(w.calls.verify.map(c => c.body.type), ['magiclink']);
+});
+
+test('the server accepting only email: magiclink is refused with "Invalid email verification type", email is tried next', async () => {
+  const w = loadWorker({ verify: pickyVerify('email') });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, true, JSON.stringify(reply));
+  assert.equal(reply.type, 'email');
+  assert.equal(reply.signedInAs, 'user@example.com');
+  assert.deepEqual(w.calls.verify.map(c => c.body.type), ['magiclink', 'email']);
+  assert.ok(handoffLogs(w).some(l => /type magiclink not accepted/.test(l[1])));
+});
+
+test('a server accepting neither type fails with the exact message after both were tried', async () => {
+  const w = loadWorker({ verify: pickyVerify('signup') });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, false);
+  assert.equal(reply.error, 'Invalid email verification type');
+  assert.equal(reply.code, 'verify-400');
+  assert.deepEqual(w.calls.verify.map(c => c.body.type), ['magiclink', 'email']);
+});
 
 test('VD_EXT_LOGOUT clears the local session', async () => {
   const w = loadWorker({ session: { access_token: 'a', refresh_token: 'r',

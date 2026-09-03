@@ -181,16 +181,32 @@ async function _vdHandleExternal(message, sender) {
       return { installed: true, version: version, signedInAs: await _vdSignedInAs() };
 
     case 'VD_EXT_LOGIN': {
+      // Every failure: { ok: false, error: <exact message>, code }, logged
+      // once under [vd-handoff]. Success never carries a null identity.
+      var fail = function (code, msg) {
+        console.warn('[vd-handoff] VD_EXT_LOGIN failed — ' + code + ': ' + msg);
+        return { ok: false, error: msg, code: code };
+      };
       if (!self.VD_AUTH || typeof self.VD_AUTH.exchangeTokenHash !== 'function') {
-        return { ok: false, error: 'auth-unavailable' };
+        return fail('auth-unavailable', 'auth module is not loaded in the service worker');
       }
-      var res = await self.VD_AUTH.exchangeTokenHash(message.tokenHash, 'magiclink');
-      if (!res.ok) return { ok: false, error: res.error, message: res.message || null };
+      if (message.tokenHash === undefined || message.tokenHash === null || message.tokenHash === '') {
+        return fail('bad-token-hash', 'tokenHash missing');
+      }
+      var res;
+      try { res = await self.VD_AUTH.exchangeTokenHash(message.tokenHash, 'magiclink'); }
+      catch (e) { return fail('internal', (e && e.message) || 'exchange threw'); }
+      if (!res || !res.ok) {
+        // exchangeTokenHash already logged; the reply repeats its exact message.
+        return { ok: false, error: (res && res.error) || 'exchange failed', code: (res && res.code) || 'unknown',
+                 message: (res && res.message) || null };
+      }
+      if (!res.signedInAs) return fail('no-identity', 'session has no identity: the auth server returned no user email');
       // `email` in the message is advisory; the session is the authority on
       // who was signed in, so that is what gets reported back.
       _vdFlashBadge('✓', 10000);
       _vdBroadcast({ type: 'VD_AUTH_CHANGED', signedInAs: res.signedInAs });
-      return { ok: true, signedInAs: res.signedInAs };
+      return { ok: true, signedInAs: res.signedInAs, type: res.type || null };
     }
 
     case 'VD_EXT_LOGOUT': {
@@ -221,8 +237,8 @@ function _vdBroadcast(msg) {
 if (chrome.runtime && chrome.runtime.onMessageExternal) {
   chrome.runtime.onMessageExternal.addListener(function (message, sender, sendResponse) {
     _vdHandleExternal(message, sender).then(sendResponse, function (e) {
-      console.warn('[vd-bg] onMessageExternal threw', e && e.message);
-      sendResponse({ ok: false, error: 'internal' });
+      console.warn('[vd-handoff] onMessageExternal threw: ' + (e && e.message));
+      sendResponse({ ok: false, error: (e && e.message) || 'internal error', code: 'internal' });
     });
     return true;   // the reply is async; keep the channel open
   });
