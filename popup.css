@@ -1900,3 +1900,7 @@ body[data-context="popup"] .app { width: 380px; overflow: hidden; }
 .vd-kv__meta { font-size: 10px; color: var(--vd-text-3, var(--vd-text-2)); margin-left: 6px; white-space: nowrap; }
 /* A history row for an image shows the image, not a source glyph (§4.6). */
 .history-item-thumb { width: 18px; height: 18px; border-radius: 4px; object-fit: cover; border: 1px solid var(--vd-border); }
+/* Unpacked builds only: the sign-in button says it does not use the site. */
+.vd-dev-caption { display: block; font: var(--vd-caption); color: var(--vd-text-secondary); margin-top: var(--vd-space-1); white-space: nowrap; }
+.vd-header__account .vd-dev-caption { position: absolute; right: 0; top: 100%; }
+.vd-header__account { position: relative; }

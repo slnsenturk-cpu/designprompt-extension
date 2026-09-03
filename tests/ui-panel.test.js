@@ -60,9 +60,11 @@ function makeChrome(store) {
       },
       onChanged: { addListener: fn => listeners.push(fn) },
     },
+    _tabsCreated: [],
     tabs: {
       query: () => Promise.resolve([{ id: 1, url: 'https://rig.ai/' }]),
       get: () => Promise.resolve({ id: 1, url: 'https://rig.ai/' }),
+      create: function (o) { data.__tabsCreated = (data.__tabsCreated || []).concat([o && o.url]); return Promise.resolve({ id: 2 }); },
       sendMessage: () => Promise.resolve({ success: false }),
       onActivated: { addListener() {} },
       onUpdated: { addListener() {} },
@@ -125,9 +127,11 @@ async function boot(t, o) {
         ? { authed: true, email: u.email, avatarUrl: (u.user_metadata && u.user_metadata.avatar_url) || null, expiresAt: s.expires_at || null, reason: null }
         : { authed: false, email: null, avatarUrl: null, expiresAt: null, reason: s ? 'no-email' : 'no-session' }); },
     isAuthenticated: () => Promise.resolve(!!self.__vdSession),
-    openAuthFlow: () => { self.__vdSession = { access_token: 't', user: { email: 'user@example.com' } };
+    _calls: { openAuthFlow: [], signOut: [] },
+    openAuthFlow: (mode, opts) => { self.VD_AUTH._calls.openAuthFlow.push({ mode, opts: opts || null });
+                          self.__vdSession = { access_token: 't', user: { email: 'user@example.com' } };
                           return Promise.resolve({ ok: true }); },
-    signOut: () => { self.__vdSession = null; return Promise.resolve(); },
+    signOut: (opts) => { self.VD_AUTH._calls.signOut.push(opts || null); self.__vdSession = null; return Promise.resolve(); },
     getRefreshStatus: () => Promise.resolve(null),
     onAuthStateChange: () => {},
   };`, ctx);
@@ -984,4 +988,48 @@ test('a brand new profile lands on the documented defaults', async t => {
   // And the Export card opens on DESIGN.md.
   p.analyze('rig-ai');
   assert.equal(p.$('#vdExportBtn').textContent.trim(), 'Download DESIGN.md');
+});
+
+// ── dev builds sign in directly (never through vibedesign.tech) ───────────
+
+test('packaged build: Sign in opens vibedesign.tech/login in a tab and shows no dev caption', async t => {
+  const p = await boot(t);
+  // The site is reachable: the HEAD probe succeeds.
+  p.win.fetch = () => Promise.resolve({ ok: true });
+  assert.equal(p.$('.vd-dev-caption'), null, 'dev caption on a packaged build');
+  p.click('#vdHeaderSignIn');
+  await new Promise(r => setTimeout(r, 30));
+  assert.deepEqual(p.win.chrome._data.__tabsCreated, ['https://vibedesign.tech/login?from=extension']);
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [], 'packaged build used the direct flow');
+  // Sign out on a packaged build is global (the site session ends too).
+  p.run('self.__vdSession = { access_token: "t", user: { email: "user@example.com" } }');
+  await p.run('refreshAccount()');
+  await p.run('signOutAccount()');
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.signOut'))), [null]);
+});
+
+test('unpacked build: Sign in uses launchWebAuthFlow directly, opens no tab, probes nothing, and says so', async t => {
+  const p = await boot(t);
+  p.run('chrome.runtime.getManifest = () => ({ version: "3.0.2" });');   // no update_url → unpacked
+  let probed = 0;
+  p.win.fetch = () => { probed++; return Promise.resolve({ ok: true }); };
+  p.run('renderPanel()');
+  const caption = p.$('.vd-header__account .vd-dev-caption');
+  assert.ok(caption, 'no dev caption under the header Sign in');
+  assert.equal(caption.textContent, 'DEV · direct sign-in');
+  p.click('[data-tab="settings"]');
+  assert.ok(p.$('#vdAccount .vd-dev-caption'), 'no dev caption under the Settings Sign in');
+
+  p.click('#vdSignIn');
+  await new Promise(r => setTimeout(r, 30));
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.openAuthFlow'))), [{ mode: 'login', opts: { direct: true } }]);
+  assert.equal(p.win.chrome._data.__tabsCreated, undefined, 'a tab was opened to the site');
+  assert.equal(probed, 0, 'the site was probed');
+  assert.equal(p.run('state.account.authed'), true);
+  assert.equal(p.$('.vd-dev-caption'), null, 'caption still shown once signed in');
+
+  // Sign out stays local: no global revoke.
+  await p.run('signOutAccount()');
+  assert.deepEqual(JSON.parse(JSON.stringify(p.run('VD_AUTH._calls.signOut'))), [{ scope: 'local' }]);
+  assert.equal(p.run('state.account.authed'), false);
 });

@@ -99,6 +99,22 @@ in it), `no-identity` (no user email, even from `/auth/v1/user`), `identity`
 (that lookup threw), `storage` (the session could not be written), `network`,
 `auth-unavailable`, `internal`.
 
+### Dev builds sign in directly
+
+An unpacked build (`isUnpackedBuild()`: no `update_url` in the manifest)
+never depends on the production site to sign in. Its Sign in button calls
+`VD_AUTH.openAuthFlow('login', { direct: true })`, which sends
+`chrome.identity.launchWebAuthFlow` to
+`<SUPABASE_URL>/auth/v1/authorize?provider=google&redirect_to=<chrome.identity redirect URL>`
+— no reachability probe, no tab to `vibedesign.tech/login`. The button shows
+a `DEV · direct sign-in` caption. Sign-out in a dev build is `scope: 'local'`
+(its own session only); a packaged build keeps the site handoff and the
+global sign-out described above.
+
+The direct flow needs the extension's `chrome.identity.getRedirectURL()`
+(`https://<extension-id>.chromiumapp.org/`) in the Supabase project's
+allowed redirect URLs, and the Google provider enabled there.
+
 ### One read for "who is signed in?"
 
 `VD_AUTH.readAccount()` is the only definition of signed-in, and both the

@@ -64,7 +64,7 @@ function loadWorker(storage) {
   let external = null;
   const sb = {
     console: { log() {}, warn() {}, error() {}, debug() {} },
-    Math, JSON, Date, URL, RegExp, Object, Array, String, Number, Boolean, Promise, Error, TextEncoder, Uint8Array,
+    Math, JSON, Date, URL, URLSearchParams, RegExp, Object, Array, String, Number, Boolean, Promise, Error, TextEncoder, Uint8Array,
     parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
   };
   sb.self = sb; sb.globalThis = sb;
@@ -232,4 +232,42 @@ test('dumpAuthStorage: every auth key, tokens redacted, with the account verdict
   assert.equal(dump.account.authed, true);
   assert.equal(dump.storageKey, 'auth_session');
   assert.ok(!JSON.stringify(dump).includes('rt-from-handoff'), 'a raw token leaked into the dump');
+});
+
+// ── dev builds sign in directly ───────────────────────────────────────────
+
+// A worker context with chrome.identity and a recording SDK, so openAuthFlow
+// can be driven end to end: which URL it opens, and that the callback's
+// tokens reach setSession.
+function loadWorkerWithIdentity(storage) {
+  const w = loadWorker(storage);
+  const calls = { authUrls: [], setSession: [] };
+  w.ctx.chrome.identity = {
+    getRedirectURL: () => 'https://abcdefgh.chromiumapp.org/',
+    launchWebAuthFlow: (o, cb) => { calls.authUrls.push(o.url);
+      cb('https://abcdefgh.chromiumapp.org/#access_token=at-1&refresh_token=rt-1&expires_in=3600'); },
+  };
+  w.ctx.VD_SUPABASE = { initSupabase: () => ({ auth: { setSession: async s => { calls.setSession.push(s); return { data: {}, error: null }; } } }) };
+  return Object.assign(w, { authCalls: calls });
+}
+
+test('openAuthFlow: the site bridge by default, Supabase\'s own OAuth endpoint when direct', async () => {
+  const w = loadWorkerWithIdentity(makeStorage());
+  const bridged = await w.ctx.VD_AUTH.openAuthFlow('login');
+  assert.equal(bridged.ok, true, JSON.stringify(bridged));
+  assert.equal(bridged.via, 'site-bridge');
+  assert.match(w.authCalls.authUrls[0], /^https:\/\/vibedesign\.tech\/auth\/login\?src=extension&redirect_uri=https%3A%2F%2Fabcdefgh\.chromiumapp\.org%2F$/);
+
+  const direct = await w.ctx.VD_AUTH.openAuthFlow('login', { direct: true });
+  assert.equal(direct.ok, true);
+  assert.equal(direct.via, 'supabase-direct');
+  const url = new URL(w.authCalls.authUrls[1]);
+  assert.equal(url.origin, w.ctx.VD_CONFIG.SUPABASE_URL);
+  assert.equal(url.pathname, '/auth/v1/authorize');
+  assert.equal(url.searchParams.get('provider'), 'google');
+  assert.equal(url.searchParams.get('redirect_to'), 'https://abcdefgh.chromiumapp.org/');
+  assert.ok(!w.authCalls.authUrls[1].includes('vibedesign.tech'), 'the direct flow must not touch the site');
+  // Both flows hand the callback tokens to the SDK.
+  assert.deepEqual(plain(w.authCalls.setSession), [
+    { access_token: 'at-1', refresh_token: 'rt-1' }, { access_token: 'at-1', refresh_token: 'rt-1' }]);
 });
