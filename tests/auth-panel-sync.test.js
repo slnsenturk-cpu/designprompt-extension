@@ -64,12 +64,17 @@ function loadWorker(storage) {
   let external = null;
   const sb = {
     console: { log() {}, warn() {}, error() {}, debug() {} },
-    Math, JSON, Date, URL, URLSearchParams, RegExp, Object, Array, String, Number, Boolean, Promise, Error, TextEncoder, Uint8Array,
+    AbortController, Math, JSON, Date, URL, URLSearchParams, RegExp, Object, Array, String, Number, Boolean, Promise, Error, TextEncoder, Uint8Array,
     parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
   };
   sb.self = sb; sb.globalThis = sb;
   sb.fetch = async (url, opts) => {
     if (String(url).includes('/auth/v1/verify')) { calls.verify.push(JSON.parse(opts.body)); return VERIFY_OK(); }
+    // The identity is always read from the server after verify.
+    if (String(url).includes('/auth/v1/user')) {
+      return { ok: true, status: 200, json: async () => ({ id: 'u1', email: 'user@example.com',
+        user_metadata: { avatar_url: 'https://example.com/a.png' } }) };
+    }
     throw new Error('unexpected fetch ' + url);
   };
   sb.chrome = {

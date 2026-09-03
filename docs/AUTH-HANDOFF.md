@@ -86,7 +86,24 @@ the toolbar icon for ten seconds.
 
 Every failure — missing `tokenHash`, a rejected hash, a storage write that
 throws — is logged once in the service-worker console with a `[vd-handoff]`
-prefix, with the same message the reply carries.
+prefix, with the same message the reply carries; every step (received,
+exchanging, `POST /auth/v1/verify` and its status, `GET /auth/v1/user` and
+its status, writing the session, ok) is logged the same way.
+
+**The reply always arrives.** The handler runs under a 15-second deadline;
+if the exchange has not finished by then the site gets
+`{ ok: false, error: 'timeout', code: 'timeout' }`, nothing is stored, and
+the channel is answered exactly once. Each request inside the exchange
+carries its own 10-second abort.
+
+**No SDK in the worker.** Verification is a raw `POST /auth/v1/verify` with
+the `apikey` header, then a raw `GET /auth/v1/user` with the returned access
+token (the server, not the verify reply, names the user), then a write
+through the single auth store. `background.js` imports only `lib/config.js`
+and `lib/auth.js`. The Supabase SDK serialises its auth calls through
+`navigator.locks`; a worker waiting on a lock the panel's SDK instance holds
+would never answer — the same deadlock class the refresh path avoids, and
+the reason the earlier bridge attempt spun forever.
 
 **`email` is advisory.** The reply reports the address the *token* resolved
 to. If the two disagree, the token wins — it is the only half the auth server

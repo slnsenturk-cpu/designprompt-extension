@@ -41,9 +41,17 @@ function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
   const logs = [];   // every console line the worker writes, with its level
   let externalListener = null;
 
+  // A Supabase SDK the worker must never touch. Any property access on
+  // VD_SUPABASE or the `supabase` global is recorded, and `sdkCalls` is
+  // asserted empty after every handoff.
+  const sdkCalls = [];
+  const sdkTrap = name => new Proxy({}, { get: (_, prop) => { sdkCalls.push(name + '.' + String(prop)); return () => { throw new Error('SDK used from the worker: ' + name + '.' + String(prop)); }; } });
+
   const sandbox = {
     console: { log: (...a) => logs.push(['log', a.join(' ')]), warn: (...a) => logs.push(['warn', a.join(' ')]),
                error: (...a) => logs.push(['error', a.join(' ')]), debug() {} },
+    VD_SUPABASE: sdkTrap('VD_SUPABASE'), supabase: sdkTrap('supabase'), sdkCalls,
+    AbortController, navigator: { locks: sdkTrap('navigator.locks') },
     Math, JSON, Date, URL, RegExp, Object, Array, String, Number, Boolean,
     Promise, Error, TextEncoder, Uint8Array, Buffer,
     parseInt, parseFloat, isNaN, isFinite, encodeURIComponent,
@@ -60,8 +68,8 @@ function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
       return verify ? verify(body) : { ok: false, status: 401, json: async () => ({}) };
     }
     if (String(url).includes('/auth/v1/user')) {
-      calls.user.push({ url: String(url), headers: (opts || {}).headers });
-      return user ? user() : { ok: false, status: 401, json: async () => ({}) };
+      calls.user.push({ url: String(url), headers: (opts || {}).headers, signal: (opts || {}).signal });
+      return user ? user() : { ok: true, status: 200, json: async () => ({ id: 'user-1', email: 'user@example.com' }) };
     }
     if (String(url).includes('/auth/v1/logout')) {
       calls.logout.push({ url: String(url), headers: (opts || {}).headers });
@@ -73,7 +81,7 @@ function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
   sandbox.chrome = {
     runtime: {
       getManifest: () => ({ version: VERSION }),
-      onMessageExternal: { addListener: fn => { externalListener = fn; } },
+      onMessageExternal: { addListener: fn => { externalListener = fn; sandbox.chrome.runtime.onMessageExternal._listener = fn; } },
       onMessage: { addListener() {} },
       onInstalled: { addListener() {} },
       onStartup: { addListener() {} },
@@ -129,7 +137,7 @@ function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
     externalListener(message, sender, resolve);
   });
 
-  return { send, store, calls, ctx, logs };
+  return { send, store, calls, ctx, logs, sdkCalls };
 }
 
 // A GoTrue that only accepts one of the two verify types, answering the
@@ -140,7 +148,7 @@ const pickyVerify = (accepted, email = 'user@example.com') => body => body.type 
       json: async () => ({ code: 400, error_code: 'validation_failed', msg: 'Invalid email verification type' }) };
 
 const okVerify = (email = 'user@example.com') => () => ({
-  ok: true,
+  ok: true, status: 200,
   json: async () => ({
     access_token: 'jwt-from-handoff',
     refresh_token: 'rt-from-handoff',
@@ -222,7 +230,8 @@ test('the reply reports the session\'s identity, not the message\'s claim', asyn
   // `email` in the message is advisory. If the site says one address and the
   // token resolves to another, the token wins — it is the only part the auth
   // server vouched for.
-  const w = loadWorker({ verify: okVerify('real@example.com') });
+  const w = loadWorker({ verify: okVerify('real@example.com'),
+    user: () => ({ ok: true, status: 200, json: async () => ({ id: 'u1', email: 'real@example.com' }) }) });
   const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40),
                                email: 'claimed@example.com' });
   assert.equal(reply.signedInAs, 'real@example.com');
@@ -298,7 +307,7 @@ test('a storage write failure fails the handoff with its exact message and store
   assert.ok(handoffLogs(w).some(l => l[1].includes('QUOTA_BYTES quota exceeded')));
 });
 
-test('success never reports signedInAs: null — a userless verify reply is completed from /auth/v1/user', async () => {
+test('success never reports signedInAs: null — the identity always comes from GET /auth/v1/user', async () => {
   const noUser = () => ({ ok: true, json: async () => ({ access_token: 'jwt', refresh_token: 'rt', expires_in: 3600 }) });
   const w = loadWorker({ verify: noUser, user: () => ({ ok: true, json: async () => ({ id: 'u1', email: 'looked-up@example.com' }) }) });
   const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
@@ -306,7 +315,13 @@ test('success never reports signedInAs: null — a userless verify reply is comp
   assert.equal(reply.signedInAs, 'looked-up@example.com');
   assert.equal(w.calls.user.length, 1);
   assert.match(w.calls.user[0].headers.Authorization, /^Bearer jwt$/);
+  assert.equal(w.calls.user[0].headers.apikey, w.ctx.VD_CONFIG.SUPABASE_ANON_KEY);
   assert.equal(w.store.auth_session.user.email, 'looked-up@example.com');
+  // Even when verify carries a user, the server is asked — and wins.
+  const w3 = loadWorker({ verify: okVerify('claimed@example.com'), user: () => ({ ok: true, json: async () => ({ id: 'u1', email: 'server@example.com' }) }) });
+  const r3 = await w3.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(r3.signedInAs, 'server@example.com');
+  assert.equal(w3.calls.user.length, 1);
 
   // And when even that yields no email, it is a failure — not ok with null.
   const w2 = loadWorker({ verify: noUser, user: () => ({ ok: true, json: async () => ({ id: 'u1' }) }) });
@@ -429,4 +444,54 @@ test('the two sessions never share a refresh token', async () => {
   assert.ok(!/refresh_token|refreshToken/.test(contract),
     'the message contract mentions a refresh token');
   assert.match(contract, /tokenHash/, 'the contract no longer uses a one-time hash');
+});
+
+// ── the reply always arrives, and the worker never uses the SDK ───────────
+
+test('the worker verifies with raw fetch and never touches the Supabase SDK or navigator.locks', async () => {
+  const w = loadWorker({ verify: okVerify() });
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.equal(reply.ok, true);
+  assert.deepEqual(w.sdkCalls, [], 'the worker touched the SDK: ' + w.sdkCalls.join(', '));
+  // The verify call is the raw shape: apikey header, JSON body with token_hash and type.
+  assert.equal(w.calls.verify[0].headers.apikey, w.ctx.VD_CONFIG.SUPABASE_ANON_KEY);
+  assert.deepEqual(Object.keys(w.calls.verify[0].body).sort(), ['token_hash', 'type']);
+  // Every request carries a deadline of its own.
+  assert.ok(w.calls.user[0].signal, 'GET /auth/v1/user has no abort signal');
+  // And the worker file never imports the SDK.
+  const bg = fs.readFileSync(path.join(ROOT, 'background.js'), 'utf8');
+  const imports = /importScripts\(([^)]*)\)/.exec(bg)[1];
+  assert.ok(!/supabase/i.test(imports), 'background.js imports the SDK: ' + imports);
+  // Steps are on record.
+  const steps = w.logs.filter(l => l[1].startsWith('[vd-handoff]')).map(l => l[1]);
+  ['VD_EXT_LOGIN received', 'exchanging the token hash', 'POST /auth/v1/verify', 'verify → HTTP 200',
+   'GET /auth/v1/user', 'user → HTTP 200', 'writing the session', 'VD_EXT_LOGIN ok']
+    .forEach(step => assert.ok(steps.some(l => l.includes(step)), `no [vd-handoff] log for "${step}":\n` + steps.join('\n')));
+});
+
+test('a verify request that never answers still gets a reply: { ok:false, error:"timeout", code:"timeout" }', async () => {
+  const w = loadWorker({ verify: () => new Promise(() => {}) });   // hangs forever
+  w.ctx.VD_HANDOFF_TIMEOUT_MS = 60;                                // 15 s in production
+  const t0 = Date.now();
+  const reply = await w.send({ type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) });
+  assert.deepEqual(plain(reply), { ok: false, error: 'timeout', code: 'timeout' });
+  assert.ok(Date.now() - t0 < 2000, 'the reply did not arrive at the deadline');
+  assert.equal(w.store.auth_session, undefined, 'a timed-out handoff must store nothing');
+  assert.equal(w.calls.badge.length, 0);
+  assert.ok(w.logs.some(l => /\[vd-handoff\] VD_EXT_LOGIN timed out after 60 ms/.test(l[1])));
+});
+
+test('a user lookup that never answers also times out, and the site gets exactly one reply', async () => {
+  const w = loadWorker({ verify: okVerify(), user: () => new Promise(() => {}) });
+  w.ctx.VD_HANDOFF_TIMEOUT_MS = 60;
+  let replies = 0;
+  const reply = await new Promise(resolve => {
+    // Send the way Chrome does, counting how often sendResponse is called.
+    const sender = { origin: 'https://vibedesign.tech', url: 'https://vibedesign.tech/auth/extension-callback' };
+    w.ctx.chrome.runtime.onMessageExternal._listener(
+      { type: 'VD_EXT_LOGIN', tokenHash: 'h'.repeat(40) }, sender, r => { replies++; resolve(r); });
+  });
+  assert.equal(reply.code, 'timeout');
+  await new Promise(r => setTimeout(r, 120));
+  assert.equal(replies, 1, 'the site was answered more than once');
 });
