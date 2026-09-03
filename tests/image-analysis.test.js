@@ -360,6 +360,26 @@ test('pattern kind renders: Type tab says no interface, Components has no Contai
   assert.ok(!/text-/.test(md.slice(md.indexOf('## Color usage'), md.indexOf('## Components'))), 'a text role in Color usage');
 });
 
+test('Do/Don\'t follow the image kind', () => {
+  const pat = D.buildDesignMd({}, { model: gridModel(), version: '3.0.2' });
+  const pDo = pat.slice(pat.indexOf('## Do'), pat.indexOf("## Don't"));
+  const pDont = pat.slice(pat.indexOf("## Don't"), pat.indexOf('## Agent instructions'));
+  assert.ok(pDo.includes('- Start from the palette and motif; use the pattern as texture or accent, not as interface structure.'));
+  assert.ok(pDo.includes('- Measure a real screen before turning any value into a token.'));
+  assert.ok(pDont.includes("- Don't present these values as measured."));
+  assert.ok(pDont.includes("- Don't invent typography, spacing, motion or states: none were observed."));
+  assert.ok(!pDo.includes('type direction'), 'interface wording in a pattern document');
+  assert.ok(!pDont.includes('suggested font'));
+
+  const ui = D.buildDesignMd({}, { model: glassModel(), version: '3.0.2' });
+  const uDo = ui.slice(ui.indexOf('## Do'), ui.indexOf("## Don't"));
+  const uDont = ui.slice(ui.indexOf("## Don't"), ui.indexOf('## Agent instructions'));
+  assert.ok(uDo.includes('- Start from the palette and type direction above; refine against real screens.'));
+  assert.ok(uDo.includes('- Keep the shape language and icon style consistent with the estimate.'));
+  assert.ok(uDont.includes("- Don't treat a suggested font as the source's font."));
+  assert.ok(!uDo.includes('as texture or accent'));
+});
+
 // ── 4. the panel: failure path, history, settings help ────────────────────
 
 const LIBS = [
