@@ -63,7 +63,7 @@ function loadWorker(storage) {
   const calls = { verify: [], broadcast: [] };
   let external = null;
   const sb = {
-    console: { log() {}, warn() {}, error() {}, debug() {} },
+    console: { log() {}, warn() {}, info() {}, error() {}, debug() {} },
     AbortController, Math, JSON, Date, URL, URLSearchParams, RegExp, Object, Array, String, Number, Boolean, Promise, Error, TextEncoder, Uint8Array,
     parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, setTimeout, clearTimeout, setInterval: () => 0, clearInterval() {},
   };
@@ -113,7 +113,7 @@ async function bootPanel(t, storage) {
     { pretendToBeVisual: true, url: 'chrome-extension://ext/sidepanel.html' });
   const win = dom.window; win.self = win;
   const logs = [];
-  win.console = { warn: (...a) => logs.push(a.join(' ')), log() {}, error: (...a) => logs.push(a.join(' ')), debug() {} };
+  win.console = { warn: (...a) => logs.push(a.join(' ')), log() {}, info() {}, error: (...a) => logs.push(a.join(' ')), debug() {} };
   win.fetch = () => Promise.reject(new Error('offline in tests'));
   win.chrome = {
     runtime: { getManifest: () => ({ version: '3.0.2' }), onMessage: { addListener() {} },

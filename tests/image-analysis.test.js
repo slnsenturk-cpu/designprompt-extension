@@ -427,6 +427,7 @@ async function boot(t, o) {
   win.chrome = makeChrome(opts.storage || {});
   win.self = win;
   win.console = { warn: (...a) => logged.push(['warn', a.join(' ')]), log: (...a) => logged.push(['log', a.join(' ')]),
+                  info: (...a) => logged.push(['info', a.join(' ')]),
                   error: (...a) => logged.push(['error', a.join(' ')]), debug: (...a) => logged.push(['debug', a.join(' ')]) };
   win.URL.createObjectURL = () => 'blob:stub'; win.URL.revokeObjectURL = () => {};
   win.__names = [];

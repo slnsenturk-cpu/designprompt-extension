@@ -49,7 +49,7 @@ function loadWorker({ session, verify, logout, user, storageSetThrows } = {}) {
 
   const sandbox = {
     console: { log: (...a) => logs.push(['log', a.join(' ')]), warn: (...a) => logs.push(['warn', a.join(' ')]),
-               error: (...a) => logs.push(['error', a.join(' ')]), debug() {} },
+               info: (...a) => logs.push(['info', a.join(' ')]), error: (...a) => logs.push(['error', a.join(' ')]), debug() {} },
     VD_SUPABASE: sdkTrap('VD_SUPABASE'), supabase: sdkTrap('supabase'), sdkCalls,
     AbortController, navigator: { locks: sdkTrap('navigator.locks') },
     Math, JSON, Date, URL, RegExp, Object, Array, String, Number, Boolean,

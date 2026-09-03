@@ -89,7 +89,7 @@ async function boot(t, o) {
     { pretendToBeVisual: true, url: 'https://example.org/' });
 
   const win = dom.window;
-  const captured = { downloads: [], warnings: [], clipboard: [] };
+  const captured = { downloads: [], warnings: [], infos: [], clipboard: [] };
 
   win.chrome = makeChrome(opts.storage || {});
   // The account is read through VD_AUTH.peekSession, so a test signs in by
@@ -98,7 +98,8 @@ async function boot(t, o) {
     win.__vdSession = opts.session;
   }
   win.self = win;
-  win.console = { warn: (...a) => captured.warnings.push(a.join(' ')), log() {}, error() {}, debug() {} };
+  win.console = { warn: (...a) => captured.warnings.push(a.join(' ')), info: (...a) => captured.infos.push(a.join(' ')),
+                  log() {}, error() {}, debug() {} };
   win.URL.createObjectURL = () => 'blob:stub';
   win.URL.revokeObjectURL = () => {};
   win.navigator.clipboard = { writeText: t => { captured.clipboard.push(t); return Promise.resolve(); } };
@@ -1033,7 +1034,10 @@ test('unpacked build, auth server says 400: Sign in opens the bridge addressed t
   assert.deepEqual(p.win.chrome._data.__tabsCreated,
     ['https://vibedesign.tech/auth/extension-callback?ext=abcdefghijklmnopabcdefghijklmnop&from=extension']);
   assert.equal(probed, 0, 'the site reachability probe ran in a dev build');
-  assert.match(p.captured.warnings.join('\n'), /dev build: direct sign-in unavailable \(http-400: .*missing OAuth secret/);
+  // Routing information, not an error: info, so chrome://extensions shows
+  // nothing under Errors for a dev build that simply used the bridge.
+  assert.match(p.captured.infos.join('\n'), /dev build: direct sign-in unavailable \(http-400: .*missing OAuth secret/);
+  assert.ok(!p.captured.warnings.some(w => /direct sign-in unavailable/.test(w)), 'the bridge routing was logged as a warning');
 
   // Sign out stays local: no global revoke.
   p.run('self.__vdSession = { access_token: "t", user: { email: "user@example.com" } }');
